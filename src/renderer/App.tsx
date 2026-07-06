@@ -46,6 +46,7 @@ export function App() {
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
   const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
+  const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -70,6 +71,7 @@ export function App() {
   }, [selectedFeedId]);
 
   useEffect(() => {
+    setReadMarkerNo(null);
     if (!selectedThreadId || !window.viperReader) {
       setSelectedThread(null);
       return;
@@ -380,6 +382,9 @@ export function App() {
       return;
     }
 
+    // 書き込み前の最後のレス番号を記録してセパレーターに使う
+    const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
+
     setIsPosting(true);
     setPostError("");
     setPostStatus("idle");
@@ -399,6 +404,7 @@ export function App() {
       );
 
       if (result) {
+        setReadMarkerNo(markerNo);
         setSelectedThread(result);
         setReplyBody("");
         // スレッド一覧のレス数や既読を更新
@@ -429,6 +435,9 @@ export function App() {
   async function handleGenerateReplies() {
     if (!selectedThread || !window.viperReader || isPosting) return;
 
+    // 再読み込み前の最後のレス番号を記録してセパレーターに使う
+    const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
+
     setIsPosting(true);
     setPostError("");
 
@@ -441,6 +450,7 @@ export function App() {
     try {
       const result = await window.viperReader.generateReplies(selectedThread.id);
       if (result) {
+        setReadMarkerNo(markerNo);
         setSelectedThread(result);
         
         setThreadList((currentThreads) =>
@@ -868,29 +878,36 @@ export function App() {
                     const replyRegex = new RegExp(`>>${post.no}(?!\\d)`);
                     const hasReplies = selectedThread.posts.some((p) => replyRegex.test(p.body));
                     return (
-                      <article className={`post ${post.isUser ? "is-user-post" : ""}`} id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
-                        <div className="post-meta">
-                          <span
-                            className={`post-no ${hasReplies ? "post-no-hoverable" : ""}`}
-                            onMouseEnter={hasReplies ? (e) => handlePostNoMouseEnter(post.no, e) : undefined}
-                            onMouseLeave={hasReplies ? handlePostNoMouseLeave : undefined}
-                          >
-                            {post.no} ：
-                          </span>
-                          <span className="post-name">{post.name}</span>
-                          {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
-                          <span className="post-date">{post.date}</span>
-                          <span className="post-id">ID:{post.id}</span>
-                        </div>
-                        <div className="post-body">
-                          <PostBody
-                            body={post.body}
-                            onAnchorClick={scrollToPost}
-                            onAnchorMouseEnter={handleAnchorMouseEnter}
-                            onAnchorMouseLeave={handleAnchorMouseLeave}
-                          />
-                        </div>
-                      </article>
+                      <>
+                        <article className={`post ${post.isUser ? "is-user-post" : ""}`} id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
+                          <div className="post-meta">
+                            <span
+                              className={`post-no ${hasReplies ? "post-no-hoverable" : ""}`}
+                              onMouseEnter={hasReplies ? (e) => handlePostNoMouseEnter(post.no, e) : undefined}
+                              onMouseLeave={hasReplies ? handlePostNoMouseLeave : undefined}
+                            >
+                              {post.no} ：
+                            </span>
+                            <span className="post-name">{post.name}</span>
+                            {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
+                            <span className="post-date">{post.date}</span>
+                            <span className="post-id">ID:{post.id}</span>
+                          </div>
+                          <div className="post-body">
+                            <PostBody
+                              body={post.body}
+                              onAnchorClick={scrollToPost}
+                              onAnchorMouseEnter={handleAnchorMouseEnter}
+                              onAnchorMouseLeave={handleAnchorMouseLeave}
+                            />
+                          </div>
+                        </article>
+                        {readMarkerNo === post.no ? (
+                          <div className="read-marker" key={`marker-${post.no}`}>
+                            <span>───────── ここまで読んだ ─────────</span>
+                          </div>
+                        ) : null}
+                      </>
                     );
                   })}
                   {selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (

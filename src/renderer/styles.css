@@ -1210,6 +1210,21 @@ body.is-column-resizing * {
   text-decoration-style: dotted;
 }
 
+/* ここまで読んだセパレーター */
+.read-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+  padding: 2px 0;
+  color: #cc0000;
+  font-size: 11px;
+  border-top: 1px solid #cc8888;
+  border-bottom: 1px solid #cc8888;
+  background: #fff0f0;
+  user-select: none;
+}
+
 /* お気に入り関連のスタイリング */
 .favorite-divider {
   height: 2px;
