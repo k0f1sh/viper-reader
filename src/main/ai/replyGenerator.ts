@@ -35,8 +35,8 @@ export async function generateReplyPosts(
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
 
-  // 3〜10のレス数をランダムに選択
-  const numReplies = Math.floor(Math.random() * (10 - 3 + 1)) + 3;
+  // 2〜5のレス数をランダムに選択
+  const numReplies = Math.floor(Math.random() * (5 - 2 + 1)) + 2;
 
   const prompt = buildVipReplyPrompt({
     vipTitle: thread.vipTitle,
