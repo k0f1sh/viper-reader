@@ -44,6 +44,8 @@ export function App() {
   } | null>(null);
   const [replyModel, setReplyModel] = useState("gemini-3.1-flash-lite");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
+  const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -53,6 +55,7 @@ export function App() {
   useEffect(() => {
     void reloadFeeds();
     void loadSettings();
+    void loadFavoriteThreads();
   }, []);
 
   useEffect(() => {
@@ -463,6 +466,41 @@ export function App() {
     }
   }
 
+  async function loadFavoriteThreads() {
+    if (!window.viperReader) return;
+    try {
+      const favs = await window.viperReader.listFavoriteThreads();
+      setFavoriteThreads(favs);
+    } catch (err) {
+      console.error("お気に入りスレッドの読み込みに失敗しました:", err);
+    }
+  }
+
+  async function toggleFavorite() {
+    if (!selectedThread || !window.viperReader) return;
+    const nextFavorite = !selectedThread.isFavorite;
+    try {
+      await window.viperReader.toggleFavorite(selectedThread.id, nextFavorite);
+      
+      setSelectedThread((current) => current ? { ...current, isFavorite: nextFavorite } : null);
+      
+      setThreadList((currentList) =>
+        currentList.map((item) =>
+          item.id === selectedThread.id ? { ...item, isFavorite: nextFavorite } : item
+        )
+      );
+
+      void loadFavoriteThreads();
+    } catch (err) {
+      console.error("お気に入りの更新に失敗しました:", err);
+    }
+  }
+
+  function handleSelectFavoriteThread(thread: ThreadListItem) {
+    setSelectedFeedId(thread.feedId);
+    setSelectedThreadId(thread.id);
+  }
+
   function scrollToPost(postNo: number) {
     const element = document.getElementById(`post-${postNo}`);
     if (element) {
@@ -683,6 +721,38 @@ export function App() {
               </button>
             ))}
           </div>
+
+          <div className="favorite-divider" />
+
+          <div className="favorite-pane">
+            <div className="pane-title favorite-title" onClick={() => setIsFavoriteCollapsed(!isFavoriteCollapsed)} style={{ cursor: "pointer", userSelect: "none" }}>
+              <span>{isFavoriteCollapsed ? "▶" : "▼"} お気に入り ({favoriteThreads.length})</span>
+            </div>
+            {!isFavoriteCollapsed ? (
+              <div className="favorite-tree">
+                {favoriteThreads.length === 0 ? (
+                  <div className="favorite-empty">お気に入りはありません</div>
+                ) : (
+                  favoriteThreads.map((thread) => {
+                    const isSelected = thread.id === selectedThreadId;
+                    return (
+                      <button
+                        className={`favorite-row ${isSelected ? "is-selected" : ""}`}
+                        key={thread.id}
+                        onClick={() => handleSelectFavoriteThread(thread)}
+                        title={thread.vipTitle}
+                        type="button"
+                      >
+                        <span className="favorite-item-star">★</span>
+                        <span className="favorite-item-title">{thread.vipTitle}</span>
+                        <span className="favorite-item-count">{thread.responseCount}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
+          </div>
         </aside>
 
         <section
@@ -772,16 +842,26 @@ export function App() {
                     <div className="thread-heading">{selectedThread.vipTitle}</div>
                     <div className="original-title">元記事: {selectedThread.originalTitle}</div>
                   </div>
-                  {selectedThread.posts.length > 1 && !selectedThread.posts.some(p => p.isUser) ? (
+                  <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                     <button
-                      className="deep-dive-button"
-                      onClick={() => generateResponses(true)}
-                      disabled={isSelectedThreadGenerating}
+                      className={`favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
+                      onClick={toggleFavorite}
                       type="button"
+                      title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
                     >
-                      再生成
+                      {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
                     </button>
-                  ) : null}
+                    {selectedThread.posts.length > 1 && !selectedThread.posts.some(p => p.isUser) ? (
+                      <button
+                        className="deep-dive-button"
+                        onClick={() => generateResponses(true)}
+                        disabled={isSelectedThreadGenerating}
+                        type="button"
+                      >
+                        再生成
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="posts">
                   {selectedThread.posts.map((post) => {

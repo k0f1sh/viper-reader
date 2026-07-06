@@ -111,7 +111,10 @@ button {
 }
 
 .feed-pane {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  height: 100%;
   overflow: hidden;
   border-right: 2px solid #808080;
   background: #d4d0c8;
@@ -250,6 +253,8 @@ body.is-column-resizing * {
 }
 
 .feed-tree {
+  flex: 1;
+  overflow-y: auto;
   padding: 5px 4px;
 }
 
@@ -1203,6 +1208,136 @@ body.is-column-resizing * {
   cursor: help;
   text-decoration: underline;
   text-decoration-style: dotted;
+}
+
+/* お気に入り関連のスタイリング */
+.favorite-divider {
+  height: 2px;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #ffffff;
+  margin: 4px 0;
+}
+
+.favorite-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.favorite-title {
+  user-select: none;
+}
+
+.favorite-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 5px 4px;
+}
+
+.favorite-empty {
+  padding: 8px 12px;
+  color: #666666;
+  font-size: 11px;
+}
+
+.favorite-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 24px;
+  margin: 0;
+  padding: 2px 5px 2px 13px;
+  border: 1px solid transparent;
+  color: #101010;
+  background: transparent;
+  text-align: left;
+  cursor: default;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.favorite-row:hover,
+.favorite-row:focus {
+  border-top-color: #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  border-left-color: #ffffff;
+  background: #ece9d8;
+}
+
+.favorite-row.is-selected {
+  border-top-color: #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  border-left-color: #808080;
+  color: #ffffff;
+  background: #000080;
+}
+
+.favorite-item-star {
+  color: #d4a373;
+  margin-right: 6px;
+  font-weight: bold;
+}
+
+.favorite-row.is-selected .favorite-item-star {
+  color: #ffff00;
+}
+
+.favorite-item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-item-count {
+  margin-left: 6px;
+  color: #555555;
+  font-size: 11px;
+}
+
+.favorite-row.is-selected .favorite-item-count {
+  color: #c0c0c0;
+}
+
+/* お気に入りボタン（スレッドヘッダー内） */
+.favorite-button {
+  font-family: inherit;
+  font-size: 11px;
+  height: 22px;
+  padding: 0 8px;
+  color: #000000;
+  background: #d4d0c8;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d4d0c8;
+  cursor: pointer;
+  outline: none;
+}
+
+.favorite-button:hover {
+  background: #ece9d8;
+}
+
+.favorite-button:active,
+.favorite-button.is-favorite-active {
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  background: #d4d0c8;
+  box-shadow: inset 1px 1px 0 #808080;
+}
+
+.favorite-button.is-favorite-active {
+  color: #000080;
+  font-weight: bold;
 }
 
 

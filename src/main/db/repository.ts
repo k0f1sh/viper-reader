@@ -47,6 +47,7 @@ type ThreadRow = {
   read_at: string | null;
   raw_summary: string | null;
   response_count: number;
+  is_favorite: number;
   posts_json?: string;
   response_posts_json?: string;
 };
@@ -771,6 +772,7 @@ export function listThreads(feedId: string): ThreadListItem[] {
         fs.title AS source,
         fi.published_at,
         fi.read_at,
+        fi.is_favorite,
         fi.raw_summary,
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
@@ -908,6 +910,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         fs.title AS source,
         fi.published_at,
         fi.read_at,
+        fi.is_favorite,
         fi.raw_summary
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
@@ -936,6 +939,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       source: string;
       published_at: string | null;
       read_at: string | null;
+      is_favorite: number;
       raw_summary: string | null;
     } | undefined;
 
@@ -952,6 +956,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     source: threadInfoRow.source,
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
+    isFavorite: threadInfoRow.is_favorite === 1,
     responseCount: 0
   };
 
@@ -1015,6 +1020,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       published_at: threadInfoRow.published_at,
       read_at: threadInfoRow.read_at,
       raw_summary: threadInfoRow.raw_summary,
+      is_favorite: threadInfoRow.is_favorite,
       response_count: 0,
       posts_json: legacyRow?.posts_json ?? undefined,
       response_posts_json: legacyRow?.response_posts_json ?? undefined
@@ -1243,6 +1249,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     source: row.source,
     publishedAt: row.published_at ?? "",
     isRead: row.read_at !== null,
+    isFavorite: row.is_favorite === 1,
     responseCount: Number(row.response_count)
   };
 }
@@ -1397,4 +1404,66 @@ export function addFeedSource(title: string, url: string): FeedSource {
 export function deleteFeedSource(feedId: string): void {
   const db = getDatabase();
   db.prepare("DELETE FROM feed_sources WHERE id = ?").run(feedId);
+}
+
+export function setThreadFavorite(threadId: string, isFavorite: boolean): void {
+  const db = getDatabase();
+  db.prepare("UPDATE feed_items SET is_favorite = ?, updated_at = ? WHERE id = ?")
+    .run(isFavorite ? 1 : 0, new Date().toISOString(), threadId);
+}
+
+export function listFavoriteThreads(): ThreadListItem[] {
+  const db = getDatabase();
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        fi.id,
+        fi.feed_id,
+        fi.title AS original_title,
+        fi.url,
+        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+        fs.title AS source,
+        fi.published_at,
+        fi.read_at,
+        fi.is_favorite,
+        fi.raw_summary,
+        COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
+      FROM feed_items fi
+      INNER JOIN feed_sources fs ON fs.id = fi.feed_id
+      LEFT JOIN vip_titles generated_vt
+        ON generated_vt.feed_item_id = fi.id
+        AND generated_vt.model = ?
+        AND generated_vt.prompt_hash = ?
+      LEFT JOIN vip_titles raw_vt
+        ON raw_vt.feed_item_id = fi.id
+        AND raw_vt.model = ?
+        AND raw_vt.prompt_hash = ?
+      LEFT JOIN thread_summaries rss_ts
+        ON rss_ts.feed_item_id = fi.id
+        AND rss_ts.model = ?
+        AND rss_ts.prompt_hash = ?
+      LEFT JOIN feed_resident_prompts frp
+        ON frp.feed_id = fi.feed_id
+      LEFT JOIN thread_summaries response_ts
+        ON response_ts.feed_item_id = fi.id
+        AND response_ts.model = ?
+        AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
+      WHERE fi.is_favorite = 1
+      ORDER BY fi.updated_at DESC, COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
+      `
+    )
+    .all(
+      appInfo.model,
+      vipTitlePromptHash,
+      appInfo.model,
+      rawTitlePromptHash,
+      appInfo.model,
+      rssSummaryPromptHash,
+      appInfo.model,
+      vipThreadResponsePromptHash,
+      defaultResidentPromptHash
+    ) as ThreadRow[];
+
+  return rows.map(rowToThreadListItem);
 }

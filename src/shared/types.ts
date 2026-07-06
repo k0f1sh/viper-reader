@@ -26,6 +26,7 @@ export type ThreadListItem = {
   publishedAt: string;
   responseCount: number;
   isRead: boolean;
+  isFavorite: boolean;
 };
 
 export type ThreadDetail = ThreadListItem & {

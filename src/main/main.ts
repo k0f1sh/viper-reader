@@ -13,7 +13,9 @@ import {
   listFeeds,
   listThreads,
   saveFeedResidentPrompt,
-  saveUserSetting
+  saveUserSetting,
+  setThreadFavorite,
+  listFavoriteThreads
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
@@ -77,6 +79,8 @@ ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
     event.sender.send("threads:post-status", { threadId, status });
   });
 });
+ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
+ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
 ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
   refreshFeed(feedId, (message) => {
     event.sender.send("feeds:refresh-progress", { feedId, message });

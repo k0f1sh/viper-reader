@@ -19,6 +19,8 @@ export type ViperReaderApi = {
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
   generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
+  toggleFavorite: (threadId: string, isFavorite: boolean) => Promise<void>;
+  listFavoriteThreads: () => Promise<ThreadListItem[]>;
   refreshFeed: (feedId: string) => Promise<RefreshFeedResult>;
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
@@ -42,6 +44,8 @@ const api: ViperReaderApi = {
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),
   generateReplies: (threadId) => ipcRenderer.invoke("threads:generate-replies", threadId),
+  toggleFavorite: (threadId, isFavorite) => ipcRenderer.invoke("threads:toggle-favorite", threadId, isFavorite),
+  listFavoriteThreads: () => ipcRenderer.invoke("threads:list-favorites"),
   refreshFeed: (feedId) => ipcRenderer.invoke("feeds:refresh", feedId),
   onRefreshProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: RefreshProgress) => callback(progress);
