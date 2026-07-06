@@ -409,6 +409,46 @@ export function App() {
     }
   }
 
+  async function handleGenerateReplies() {
+    if (!selectedThread || !window.viperReader || isPosting) return;
+
+    setIsPosting(true);
+    setPostError("");
+
+    const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
+      if (data.threadId === selectedThread.id) {
+        setPostStatus(data.status);
+      }
+    });
+
+    try {
+      const result = await window.viperReader.generateReplies(selectedThread.id);
+      if (result) {
+        setSelectedThread(result);
+        
+        setThreadList((currentThreads) =>
+          currentThreads.map((currentThread) =>
+            currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
+          )
+        );
+        void reloadFeeds();
+
+        setTimeout(() => {
+          const postsContainer = document.querySelector(".posts");
+          if (postsContainer) {
+            postsContainer.scrollTop = postsContainer.scrollHeight;
+          }
+        }, 100);
+      }
+    } catch (err) {
+      setPostError(err instanceof Error ? err.message : "レス生成に失敗しました。");
+    } finally {
+      unsubscribePostStatus();
+      setIsPosting(false);
+      setPostStatus("idle");
+    }
+  }
+
   function scrollToPost(postNo: number) {
     const element = document.getElementById(`post-${postNo}`);
     if (element) {
@@ -739,6 +779,18 @@ export function App() {
                         type="button"
                       >
                         読み込む（生成）
+                      </button>
+                    </div>
+                  ) : null}
+                  {selectedThread.posts.length > 1 && !isSelectedThreadGenerating && selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0) < 1000 ? (
+                    <div className="thread-load-trigger" style={{ marginTop: "12px", marginBottom: "12px", textAlign: "center" }}>
+                      <button
+                        className="load-button"
+                        onClick={handleGenerateReplies}
+                        disabled={isPosting}
+                        type="button"
+                      >
+                        {postStatus === "generating" ? "レス生成中..." : "再読み込み(続きのレス生成)"}
                       </button>
                     </div>
                   ) : null}

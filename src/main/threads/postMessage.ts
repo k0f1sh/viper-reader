@@ -133,3 +133,56 @@ function formatVipDate(date: Date): string {
   const ms = String(Math.floor(date.getMilliseconds() / 10)).padStart(2, "0");
   return `${y}/${m}/${d}(${day}) ${hh}:${mm}:${ss}.${ms}`;
 }
+
+export async function generateRepliesOnly(
+  threadId: string,
+  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+): Promise<ThreadDetail | null> {
+  const thread = getThread(threadId);
+  if (!thread) {
+    onStatus?.("error");
+    return null;
+  }
+
+  const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);
+
+  // 1000レス上限チェック
+  if (maxNo >= 1000) {
+    onStatus?.("error");
+    throw new Error("このスレッドは1000レスに達したため書き込めません。");
+  }
+
+  onStatus?.("generating");
+
+  try {
+    const aiResult = await generateReplyPosts(thread);
+    if (aiResult.posts.length > 0) {
+      let postsToSave = aiResult.posts;
+
+      // 1000レス上限に収まるようにトリミングし、埋め用レスを追加する
+      if (maxNo + postsToSave.length >= 1000) {
+        const allowedCount = 1000 - maxNo - 1; // 1000番目を埋めレスにするため -1
+        postsToSave = postsToSave.slice(0, allowedCount);
+
+        // 1000番目の埋めレスを追加
+        const fillPostNo = 1000;
+        postsToSave.push({
+          no: fillPostNo,
+          name: "１０００しかなかったよ",
+          mail: "over1000",
+          date: formatVipDate(new Date()),
+          id: "Over1000Id",
+          body: "このスレッドは１０００を超えました。\nもう書けないので、新しいスレッドを立ててください。"
+        });
+      }
+
+      saveGeneratedThreadPosts(threadId, postsToSave);
+    }
+    onStatus?.("done");
+  } catch (error) {
+    console.error("AI自動返信の生成中にエラーが発生しました:", error);
+    onStatus?.("error");
+  }
+
+  return getThread(threadId);
+}

@@ -18,6 +18,7 @@ export type ViperReaderApi = {
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
+  generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
   refreshFeed: (feedId: string) => Promise<RefreshFeedResult>;
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
@@ -40,6 +41,7 @@ const api: ViperReaderApi = {
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),
+  generateReplies: (threadId) => ipcRenderer.invoke("threads:generate-replies", threadId),
   refreshFeed: (feedId) => ipcRenderer.invoke("feeds:refresh", feedId),
   onRefreshProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: RefreshProgress) => callback(progress);
