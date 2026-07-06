@@ -1,8 +1,7 @@
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
-import { appInfo } from "../../shared/appInfo.js";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
-import type { LlmRequestLogWrite } from "../db/repository.js";
+import { getActiveModel, type LlmRequestLogWrite } from "../db/repository.js";
 import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
 
 export type ThreadResponseGenerationResult = {
@@ -58,11 +57,12 @@ export async function generateThreadResponses(
   const ai = new GoogleGenAI({ apiKey });
   let responseText = "";
 
-  console.log(`[LLM Request Start] Model: ${appInfo.model} | Purpose: thread_response`);
+  const modelToUse = getActiveModel();
+  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_response`);
 
   try {
     const response = await ai.models.generateContent({
-      model: appInfo.model,
+      model: modelToUse,
       contents: prompt,
       config: {
         responseMimeType: "application/json"
@@ -204,7 +204,7 @@ function createLlmLog(params: {
     id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "thread_response",
-    model: appInfo.model,
+    model: getActiveModel(),
     promptHash: params.promptHash,
     status: params.status,
     requestCount: params.status === "skipped" ? 0 : 1,

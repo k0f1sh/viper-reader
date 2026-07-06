@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { appInfo } from "../../shared/appInfo.js";
 import { seedFeeds } from "../../shared/seedData.js";
 import type {
   ApiRequestSummary,
@@ -374,7 +373,7 @@ export function upsertFeedItems(
       insertTitle.run(
         `vip-title:${feedItemId}:raw`,
         feedItemId,
-        appInfo.model,
+        getActiveModel(),
         rawTitlePromptHash,
         item.title,
         fetchedAt
@@ -382,7 +381,7 @@ export function upsertFeedItems(
       insertSummary.run(
         `thread-summary:${feedItemId}:rss`,
         feedItemId,
-        appInfo.model,
+        getActiveModel(),
         rssSummaryPromptHash,
         JSON.stringify(createInitialPosts(item, fetchedAt)),
         1,
@@ -800,13 +799,13 @@ export function listThreads(feedId: string): ThreadListItem[] {
       `
     )
     .all(
-      appInfo.model,
+      getActiveModel(),
       vipTitlePromptHash,
-      appInfo.model,
+      getActiveModel(),
       rawTitlePromptHash,
-      appInfo.model,
+      getActiveModel(),
       rssSummaryPromptHash,
-      appInfo.model,
+      getActiveModel(),
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       feedId
@@ -925,9 +924,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       WHERE fi.id = ?
     `)
     .get(
-      appInfo.model,
+      getActiveModel(),
       vipTitlePromptHash,
-      appInfo.model,
+      getActiveModel(),
       rawTitlePromptHash,
       threadId
     ) as {
@@ -998,9 +997,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       WHERE fi.id = ?
     `)
     .get(
-      appInfo.model,
+      getActiveModel(),
       rssSummaryPromptHash,
-      appInfo.model,
+      getActiveModel(),
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       threadId
@@ -1357,6 +1356,10 @@ export function getUserSetting(key: string): string | null {
   return row ? row.value : null;
 }
 
+export function getActiveModel(): string {
+  return getUserSetting("replyModel") || "gemini-3.1-flash-lite";
+}
+
 export function saveUserSetting(key: string, value: string): void {
   const db = getDatabase();
   const updatedAt = new Date().toISOString();
@@ -1454,13 +1457,13 @@ export function listFavoriteThreads(): ThreadListItem[] {
       `
     )
     .all(
-      appInfo.model,
+      getActiveModel(),
       vipTitlePromptHash,
-      appInfo.model,
+      getActiveModel(),
       rawTitlePromptHash,
-      appInfo.model,
+      getActiveModel(),
       rssSummaryPromptHash,
-      appInfo.model,
+      getActiveModel(),
       vipThreadResponsePromptHash,
       defaultResidentPromptHash
     ) as ThreadRow[];

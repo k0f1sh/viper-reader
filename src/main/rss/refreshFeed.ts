@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import Parser from "rss-parser";
-import { appInfo } from "../../shared/appInfo.js";
 import type { RefreshFeedResult } from "../../shared/types.js";
 import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
 import {
@@ -9,7 +8,8 @@ import {
   recordLlmRequestLog,
   recordRssRefreshRun,
   saveVipTitles,
-  upsertFeedItems
+  upsertFeedItems,
+  getActiveModel
 } from "../db/repository.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 
@@ -61,10 +61,11 @@ export async function refreshFeed(
       .filter((item): item is ParsedItem => item !== null);
 
     const result = upsertFeedItems(feed.id, items);
-    const unconvertedItems = listUnconvertedFeedItems(feed.id, appInfo.model, vipTitlePromptHash);
+    const modelToUse = getActiveModel();
+    const unconvertedItems = listUnconvertedFeedItems(feed.id, modelToUse, vipTitlePromptHash);
     onProgress("スレタイ生成中...");
     const transformed = await transformTitlesToVipStyle(feed.id, feed.title, unconvertedItems);
-    const convertedCount = saveVipTitles(transformed.titles, appInfo.model, vipTitlePromptHash);
+    const convertedCount = saveVipTitles(transformed.titles, modelToUse, vipTitlePromptHash);
 
     for (const log of transformed.logs) {
       recordLlmRequestLog(log);

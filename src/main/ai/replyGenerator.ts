@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog, getUserSetting } from "../db/repository.js";
+import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog, getUserSetting, getActiveModel } from "../db/repository.js";
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "../prompts/vipCommonRules.js";
 
 export type ReplyGenerationResult = {
@@ -20,8 +20,7 @@ export async function generateReplyPosts(
   thread: ThreadDetail
 ): Promise<ReplyGenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-  const savedModel = getUserSetting("replyModel");
-  const modelToUse = savedModel || "gemini-3.1-flash-lite";
+  const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
 
   // スレッドの最新のレス番号（最大のレス番号 + 1）

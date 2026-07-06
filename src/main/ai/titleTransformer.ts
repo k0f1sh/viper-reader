@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
-import { appInfo } from "../../shared/appInfo.js";
-import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
+import { getActiveModel, type LlmRequestLogWrite, type UnconvertedFeedItem, type VipTitleWrite } from "../db/repository.js";
 import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 
 export type TitleTransformResult = {
@@ -38,6 +37,7 @@ export async function transformTitlesToVipStyle(
     };
   }
 
+  const modelToUse = getActiveModel();
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     const now = new Date().toISOString();
@@ -50,7 +50,7 @@ export async function transformTitlesToVipStyle(
           id: createLogId("llm-skip", feedId, now),
           feedId,
           purpose: "title_transform",
-          model: appInfo.model,
+          model: modelToUse,
           promptHash: vipTitlePromptHash,
           status: "skipped",
           requestCount: 0,
@@ -77,11 +77,11 @@ export async function transformTitlesToVipStyle(
     const startedAt = new Date().toISOString();
     const prompt = buildVipTitlePrompt(feedTitle, chunk);
     let responseText = "";
-    console.log(`[LLM Request Start] Model: ${appInfo.model} | Purpose: title_transformation`);
+    console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: title_transformation`);
 
     try {
       const response = await ai.models.generateContent({
-        model: appInfo.model,
+        model: modelToUse,
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -195,7 +195,7 @@ function createLlmLog(params: {
     id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "title_transform",
-    model: appInfo.model,
+    model: getActiveModel(),
     promptHash: vipTitlePromptHash,
     status: params.status,
     requestCount: 1,

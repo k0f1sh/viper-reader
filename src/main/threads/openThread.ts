@@ -1,4 +1,3 @@
-import { appInfo } from "../../shared/appInfo.js";
 import type { ThreadDetail } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
@@ -8,7 +7,8 @@ import {
   recordLlmRequestLog,
   recordArticleFetchLog,
   saveArticleBody,
-  saveThreadResponsePosts
+  saveThreadResponsePosts,
+  getActiveModel
 } from "../db/repository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
@@ -99,7 +99,7 @@ async function generateAndSaveThreadResponses(
         feedItemId: thread.id,
         posts: generated.posts
       },
-      appInfo.model,
+      getActiveModel(),
       promptHash
     );
     return "done";

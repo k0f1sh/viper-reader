@@ -1,6 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { appInfo } from "../../shared/appInfo.js";
-import { recordLlmRequestLog } from "../db/repository.js";
+import { recordLlmRequestLog, getActiveModel } from "../db/repository.js";
 import crypto from "node:crypto";
 
 /**
@@ -20,12 +19,13 @@ export async function generateArticleSummary(
   const prompt = `以下の文章を、技術的な要点を残したまま、300文字程度でシンプルに要約してください。余計な挨拶や前置きは省き、要約内容のみを出力してください。\n\n${bodyText}`;
   const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
 
-  console.log(`[LLM Request Start] Model: ${appInfo.model} | Purpose: article_summary`);
+  const modelToUse = getActiveModel();
+  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: article_summary`);
 
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: appInfo.model, // gemini-3.1-flash-lite
+      model: modelToUse, // dynamically chosen model
       contents: prompt
     });
 
@@ -36,7 +36,7 @@ export async function generateArticleSummary(
       id: `llm:${crypto.randomUUID().slice(0, 8)}`,
       feedId,
       purpose: "article_summary",
-      model: appInfo.model,
+      model: modelToUse,
       promptHash,
       status: "success",
       requestCount: 1,
@@ -60,7 +60,7 @@ export async function generateArticleSummary(
       id: `llm:${crypto.randomUUID().slice(0, 8)}`,
       feedId,
       purpose: "article_summary",
-      model: appInfo.model,
+      model: modelToUse,
       promptHash,
       status: "error",
       requestCount: 1,
