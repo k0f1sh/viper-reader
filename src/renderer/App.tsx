@@ -44,6 +44,7 @@ export function App() {
   } | null>(null);
   const [replyModel, setReplyModel] = useState("gemini-3.1-flash-lite");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
   const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
@@ -76,6 +77,8 @@ export function App() {
       setSelectedThread(null);
       return;
     }
+    // スレッド切り替え時に書き込みフォームにフォーカスを当てる
+    setTimeout(() => replyBodyRef.current?.focus(), 50);
 
     void window.viperReader
       .getThread(selectedThreadId)
@@ -982,6 +985,7 @@ export function App() {
                     <div className="write-body-row">
                       <textarea
                         id="reply-body"
+                        ref={replyBodyRef}
                         value={replyBody}
                         onChange={(e) => setReplyBody(e.target.value)}
                         placeholder={selectedThread.posts.length >= 1000 ? "書き込み限界です" : "本文（Ctrl+Enterで書き込み）"}
