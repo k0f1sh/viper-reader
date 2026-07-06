@@ -144,6 +144,22 @@ export async function generateRepliesOnly(
     return null;
   }
 
+  // 手動レス生成時にも、要約がなければ生成して保存する
+  try {
+    const summary = getArticleSummary(threadId);
+    if (!summary) {
+      const fullBody = getArticleBody(threadId);
+      if (fullBody) {
+        const generatedSummary = await generateArticleSummary(threadId, thread.feedId, fullBody);
+        if (generatedSummary) {
+          saveArticleSummary(threadId, generatedSummary);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("要約生成中にエラーが発生しました（処理は継続します）:", err);
+  }
+
   const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
   // 1000レス上限チェック
