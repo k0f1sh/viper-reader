@@ -994,7 +994,6 @@ export function markThreadRead(threadId: string): void {
 
 function seedDatabase(db: DatabaseSync): void {
   const now = new Date().toISOString();
-  const seedFeedIds = new Set(seedFeeds.map((feed) => feed.id));
 
   const insertFeed = db.prepare(
     `
@@ -1007,18 +1006,10 @@ function seedDatabase(db: DatabaseSync): void {
     `
   );
 
-  const existingFeeds = db.prepare("SELECT id FROM feed_sources").all() as Array<{ id: string }>;
-  const deleteFeed = db.prepare("DELETE FROM feed_sources WHERE id = ?");
   const deleteLegacyThread = db.prepare("DELETE FROM feed_items WHERE id = ?");
 
   db.exec("BEGIN");
   try {
-    for (const existingFeed of existingFeeds) {
-      if (!seedFeedIds.has(existingFeed.id)) {
-        deleteFeed.run(existingFeed.id);
-      }
-    }
-
     for (const feed of seedFeeds) {
       insertFeed.run(feed.id, feed.title, feed.url, now, now, feed.lastFetchedAt);
     }
