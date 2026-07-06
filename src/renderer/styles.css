@@ -1175,7 +1175,6 @@ body.is-column-resizing * {
   box-shadow: 3px 3px 12px rgba(0, 0, 0, 0.4);
   padding: 8px;
   font-size: 14px;
-  pointer-events: none; /* ポップアップをホバーしてもマウスを透過させてちらつきを防ぐ */
 }
 
 .reply-popup-title {

@@ -43,6 +43,7 @@ export function App() {
     style: CSSProperties;
   } | null>(null);
   const [replyModel, setReplyModel] = useState("gemini-3.1-flash-lite");
+  const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -473,8 +474,23 @@ export function App() {
     }
   }
 
+  function clearPopupTimeout() {
+    if (popupTimeoutRef.current) {
+      clearTimeout(popupTimeoutRef.current);
+      popupTimeoutRef.current = null;
+    }
+  }
+
+  function handleMouseLeaveWithDelay() {
+    clearPopupTimeout();
+    popupTimeoutRef.current = setTimeout(() => {
+      setPopupData(null);
+    }, 200);
+  }
+
   function handlePostNoMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
     if (!selectedThread) return;
+    clearPopupTimeout();
 
     const regex = new RegExp(`>>${postNo}(?!\\d)`);
     const replies = selectedThread.posts.filter((post) => regex.test(post.body));
@@ -513,11 +529,12 @@ export function App() {
   }
 
   function handlePostNoMouseLeave() {
-    setPopupData(null);
+    handleMouseLeaveWithDelay();
   }
 
   function handleAnchorMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
     if (!selectedThread) return;
+    clearPopupTimeout();
 
     const targetPost = selectedThread.posts.find((post) => post.no === postNo);
     if (!targetPost) return;
@@ -554,7 +571,7 @@ export function App() {
   }
 
   function handleAnchorMouseLeave() {
-    setPopupData(null);
+    handleMouseLeaveWithDelay();
   }
 
   function startVerticalResize(event: ReactMouseEvent<HTMLDivElement>) {
@@ -1137,7 +1154,12 @@ export function App() {
       ) : null}
 
       {popupData ? (
-        <div className="reply-popup" style={popupData.style}>
+        <div
+          className="reply-popup"
+          style={popupData.style}
+          onMouseEnter={clearPopupTimeout}
+          onMouseLeave={handleMouseLeaveWithDelay}
+        >
           <div className="reply-popup-title">{popupData.title}</div>
           {popupData.posts.map((post) => (
             <article className={`post ${post.isUser ? "is-user-post" : ""}`} key={`popup-${post.no}`}>
