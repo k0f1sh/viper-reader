@@ -3,7 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
+  addFeedSource,
   clearFeedResidentPrompt,
+  deleteFeedSource,
   getFeedResidentPrompt,
   getStatistics,
   getUserSetting,
@@ -75,6 +77,8 @@ ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: st
 ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));
 ipcMain.handle("settings:get", (_event, key: string) => getUserSetting(key));
 ipcMain.handle("settings:save", (_event, key: string, value: string) => saveUserSetting(key, value));
+ipcMain.handle("feeds:add", (_event, title: string, url: string) => addFeedSource(title, url));
+ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   const parsedUrl = new URL(url);
   if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {

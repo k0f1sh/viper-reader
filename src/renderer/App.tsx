@@ -26,6 +26,11 @@ export function App() {
   const [threadListHeight, setThreadListHeight] = useState(42);
   const [threadColumnWidths, setThreadColumnWidths] = useState(defaultThreadColumnWidths);
   const contentPaneRef = useRef<HTMLElement>(null);
+  const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
+  const [addFeedTitle, setAddFeedTitle] = useState("");
+  const [addFeedUrl, setAddFeedUrl] = useState("");
+  const [addFeedError, setAddFeedError] = useState("");
+  const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -150,6 +155,61 @@ export function App() {
   function selectFeed(feedId: string) {
     setSelectedFeedId(feedId);
     setRefreshMessage("");
+  }
+
+  async function addFeed() {
+    if (!window.viperReader || !addFeedTitle.trim() || !addFeedUrl.trim()) {
+      return;
+    }
+
+    setIsAddFeedLoading(true);
+    setAddFeedError("");
+    try {
+      const newFeed = await window.viperReader.addFeedSource(addFeedTitle.trim(), addFeedUrl.trim());
+      setFeedList((current) => [...current, newFeed]);
+      setSelectedFeedId(newFeed.id);
+      setIsAddFeedOpen(false);
+      setAddFeedTitle("");
+      setAddFeedUrl("");
+    } catch (err) {
+      setAddFeedError(err instanceof Error ? err.message : "追加に失敗しました。");
+    } finally {
+      setIsAddFeedLoading(false);
+    }
+  }
+
+  async function deleteSelectedFeed() {
+    if (!selectedFeedId || !window.viperReader) {
+      return;
+    }
+
+    const feedToDelete = feedList.find((f) => f.id === selectedFeedId);
+    if (!feedToDelete) {
+      return;
+    }
+
+    if (
+      !confirm(
+        `板「${feedToDelete.title}」を削除しますか？\n（この板に含まれるすべての記事やキャッシュも消去されます）`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await window.viperReader.deleteFeedSource(selectedFeedId);
+      setFeedList((current) => {
+        const next = current.filter((feed) => feed.id !== selectedFeedId);
+        if (next.length > 0) {
+          setSelectedFeedId(next[0].id);
+        } else {
+          setSelectedFeedId("");
+        }
+        return next;
+      });
+    } catch (err) {
+      alert("削除に失敗しました。");
+    }
   }
 
   async function openStatistics() {
@@ -373,7 +433,13 @@ export function App() {
 
       <div className="app-shell">
         <aside className="feed-pane" aria-label="RSS ソース">
-          <div className="pane-title">板一覧</div>
+          <div className="pane-title">
+            <span>板一覧</span>
+            <div className="pane-title-actions">
+              <button onClick={() => setIsAddFeedOpen(true)} title="板を追加" type="button">+</button>
+              <button onClick={deleteSelectedFeed} disabled={!selectedFeedId} title="選択中の板を削除" type="button">-</button>
+            </div>
+          </div>
           <div className="feed-tree">
             <div className="tree-heading">RSS</div>
             {feedList.map((feed) => (
@@ -704,6 +770,70 @@ export function App() {
                   type="button"
                 >
                   閉じる
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isAddFeedOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="add-feed-modal" aria-label="板を追加する" role="dialog">
+            <div className="modal-title-bar">
+              <span>板の追加（RSSの登録）</span>
+              <button className="modal-close-button" onClick={() => setIsAddFeedOpen(false)} type="button">
+                x
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="form-group">
+                <label htmlFor="add-feed-title-input">板の名前（タイトル）:</label>
+                <input
+                  id="add-feed-title-input"
+                  type="text"
+                  value={addFeedTitle}
+                  onChange={(e) => setAddFeedTitle(e.target.value)}
+                  placeholder="例：はてなブックマークIT"
+                  className="form-input"
+                  disabled={isAddFeedLoading}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="add-feed-url-input">RSS フィード URL:</label>
+                <input
+                  id="add-feed-url-input"
+                  type="text"
+                  value={addFeedUrl}
+                  onChange={(e) => setAddFeedUrl(e.target.value)}
+                  placeholder="例：https://b.hatena.ne.jp/hotentry/it.rss"
+                  className="form-input"
+                  disabled={isAddFeedLoading}
+                />
+              </div>
+
+              {addFeedError ? (
+                <div className="prompt-status-message text-error" style={{ color: "#ff0000", marginTop: "8px" }}>
+                  {addFeedError}
+                </div>
+              ) : null}
+
+              <div className="modal-buttons">
+                <button
+                  onClick={addFeed}
+                  className="btn"
+                  disabled={isAddFeedLoading || !addFeedTitle.trim() || !addFeedUrl.trim()}
+                  type="button"
+                >
+                  追加
+                </button>
+                <button
+                  onClick={() => setIsAddFeedOpen(false)}
+                  className="btn"
+                  disabled={isAddFeedLoading}
+                  type="button"
+                >
+                  キャンセル
                 </button>
               </div>
             </div>

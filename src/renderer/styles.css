@@ -162,14 +162,62 @@ body.is-column-resizing * {
 }
 
 .pane-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   min-height: 22px;
-  padding: 4px 6px 2px;
+  padding: 2px 6px;
   border-top: 1px solid #ffffff;
   border-bottom: 1px solid #808080;
   color: #000000;
   background: #c0c0c0;
   font-weight: 700;
   line-height: 1.2;
+}
+
+.pane-title-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.pane-title-actions button {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  color: #000000;
+  font-weight: bold;
+  font-size: 12px;
+  line-height: 12px;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pane-title-actions button:active:not(:disabled) {
+  border-top-color: #404040;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  border-left-color: #404040;
+}
+
+.pane-title-actions button:disabled {
+  color: #808080;
+}
+
+.add-feed-modal {
+  width: 420px;
+  border-top: 1.5px solid #ffffff;
+  border-right: 1.5px solid #404040;
+  border-bottom: 1.5px solid #404040;
+  border-left: 1.5px solid #ffffff;
+  background: #d4d0c8;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 .pane-subtitle {

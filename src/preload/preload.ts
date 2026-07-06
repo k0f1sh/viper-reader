@@ -27,6 +27,8 @@ export type ViperReaderApi = {
   clearFeedResidentPrompt: (feedId: string) => Promise<void>;
   getUserSetting: (key: string) => Promise<string | null>;
   saveUserSetting: (key: string, value: string) => Promise<void>;
+  addFeedSource: (title: string, url: string) => Promise<FeedSource>;
+  deleteFeedSource: (feedId: string) => Promise<void>;
 };
 
 const api: ViperReaderApi = {
@@ -56,7 +58,9 @@ const api: ViperReaderApi = {
   saveFeedResidentPrompt: (feedId, prompt) => ipcRenderer.invoke("feeds:save-resident-prompt", feedId, prompt),
   clearFeedResidentPrompt: (feedId) => ipcRenderer.invoke("feeds:clear-resident-prompt", feedId),
   getUserSetting: (key) => ipcRenderer.invoke("settings:get", key),
-  saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value)
+  saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value),
+  addFeedSource: (title, url) => ipcRenderer.invoke("feeds:add", title, url),
+  deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId)
 };
 
 contextBridge.exposeInMainWorld("viperReader", api);

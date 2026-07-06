@@ -1161,3 +1161,41 @@ export function saveUserSetting(key: string, value: string): void {
     `
   ).run(key, value, updatedAt);
 }
+
+export function addFeedSource(title: string, url: string): FeedSource {
+  const db = getDatabase();
+  const createdAt = new Date().toISOString();
+
+  // URLの重複チェック
+  const existing = db.prepare("SELECT id FROM feed_sources WHERE url = ?").get(url);
+  if (existing) {
+    throw new Error("このRSSフィードは既に登録されています。");
+  }
+
+  const hash = crypto
+    .createHash("sha1")
+    .update(url)
+    .digest("hex")
+    .slice(0, 16);
+  const id = `feed:${hash}`;
+
+  db.prepare(
+    `
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    `
+  ).run(id, title, url, createdAt, createdAt);
+
+  return {
+    id,
+    title,
+    url,
+    unreadCount: 0,
+    lastFetchedAt: null
+  };
+}
+
+export function deleteFeedSource(feedId: string): void {
+  const db = getDatabase();
+  db.prepare("DELETE FROM feed_sources WHERE id = ?").run(feedId);
+}
