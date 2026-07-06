@@ -953,7 +953,7 @@ export function App() {
                         value={replyName}
                         onChange={(e) => setReplyName(e.target.value)}
                         placeholder="省略可"
-                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                        disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
                       />
                       <label htmlFor="reply-mail">E-mail:</label>
                       <input
@@ -962,7 +962,7 @@ export function App() {
                         value={replyMail}
                         onChange={(e) => setReplyMail(e.target.value)}
                         placeholder="sage"
-                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                        disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
                       />
                       {selectedThread.posts.length >= 1000 ? (
                         <span className="thread-closed-msg">このスレッドは1000レスに達したため書き込めません。</span>
@@ -970,7 +970,7 @@ export function App() {
                         <button
                           type="submit"
                           className="post-submit-btn"
-                          disabled={isPosting || !replyBody.trim()}
+                          disabled={isPosting || isSelectedThreadGenerating || !replyBody.trim()}
                         >
                           {postStatus === "writing"
                             ? "書き込み中..."
@@ -988,8 +988,14 @@ export function App() {
                         ref={replyBodyRef}
                         value={replyBody}
                         onChange={(e) => setReplyBody(e.target.value)}
-                        placeholder={selectedThread.posts.length >= 1000 ? "書き込み限界です" : "本文（Ctrl+Enterで書き込み）"}
-                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                        placeholder={
+                          selectedThread.posts.length >= 1000
+                            ? "書き込み限界です"
+                            : isSelectedThreadGenerating
+                            ? "レス生成中は書き込めません"
+                            : "本文（Ctrl+Enterで書き込み）"
+                        }
+                        disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                             void handlePostMessage(e);
