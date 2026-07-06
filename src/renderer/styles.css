@@ -587,6 +587,7 @@ body.is-column-resizing * {
   margin-bottom: 3px;
   color: #333333;
   line-height: 1.35;
+  font-size: 14px;
 }
 
 .post-no {
@@ -611,7 +612,7 @@ body.is-column-resizing * {
 .post-body {
   margin: 0 0 0 26px;
   color: #111111;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.62;
   white-space: pre-wrap;
 }
@@ -1150,7 +1151,7 @@ body.is-column-resizing * {
   border-bottom: 1.5px solid #404040;
   box-shadow: 3px 3px 12px rgba(0, 0, 0, 0.4);
   padding: 8px;
-  font-size: 13px;
+  font-size: 14px;
   pointer-events: none; /* ポップアップをホバーしてもマウスを透過させてちらつきを防ぐ */
 }
 
