@@ -37,12 +37,18 @@ export async function generateReplyPosts(
   // 2〜5のレス数をランダムに選択
   const numReplies = Math.floor(Math.random() * (5 - 2 + 1)) + 2;
 
+  // レス履歴のトリミング（no: 1 は固定、それ以外は直近の最大15件に制限してトークン肥大化を防ぐ）
+  const firstPost = thread.posts.find((p) => p.no === 1);
+  const otherPosts = thread.posts.filter((p) => p.no > 1);
+  const recentOtherPosts = otherPosts.slice(-15);
+  const trimmedHistory = firstPost ? [firstPost, ...recentOtherPosts] : recentOtherPosts;
+
   const prompt = buildVipReplyPrompt({
     vipTitle: thread.vipTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
     scrapedBody,
-    history: thread.posts,
+    history: trimmedHistory,
     startNo,
     residentPrompt: residentPrompt?.prompt ?? null,
     numReplies
@@ -73,7 +79,7 @@ export async function generateReplyPosts(
   const ai = new GoogleGenAI({ apiKey });
   let responseText = "";
 
-  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_reply`);
+  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_reply | Using Summary: ${!!summaryText}`);
 
   try {
     const response = await Promise.race([
