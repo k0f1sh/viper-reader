@@ -14,7 +14,7 @@
  * - no は 2 以降。1 はRSS本文そのものを表示するため生成しない。
  */
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v6";
+export const vipThreadResponsePromptHash = "vip-thread-response-v7";
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {
@@ -79,8 +79,21 @@ URL: ${input.url}
 
 # 必須要件（レスの役割分担と構成）
 1. **レス番2 (no: 2) の役割**:
-   - スレッドの2番目を取る「2get（つーげっと）」を書いてください。
-   - 2getの文言はバリエーション豊かに。例：「2ならーー」「2なら彼女できる」「2なら宝くじ当たる」「2なら出世する」「2のオーラが違う」「つーげっと」「お前ら>>2の優しさに感謝しろよ」「2の男前っぷりは異常」「2を貰っていくぜ」など。単純に「2get」だけでも可。
+   - スレッドの2番目を取る「2get」を書いてください。
+   - 2getの文言は以下のリストからランダムに選んで使用してください：
+     - 2ゲット
+     - 2げっと
+     - 2getズサーー
+     - 2ゲットズサー
+     - 2げっつ
+     - 2ゲットだぜ！
+     - 1乙、2ゲット
+     - 2はもらった
+     - 2なら彼女ができる
+     - 2なら明日地球が滅亡する
+     - あらかじめ2ゲットと言っておこう
+     - 2ゲットシャキーン
+     - 2ゲットォォォオオオオウ！
    - 2getの後、空行を入れてから記事の要約に入ってください。
    - 要約の書き方：
      - 1行目：誰の何に関するニュースか
