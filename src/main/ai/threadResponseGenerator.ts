@@ -58,6 +58,8 @@ export async function generateThreadResponses(
   const ai = new GoogleGenAI({ apiKey });
   let responseText = "";
 
+  console.log(`[LLM Request Start] Model: ${appInfo.model} | Purpose: thread_response`);
+
   try {
     const response = await ai.models.generateContent({
       model: appInfo.model,

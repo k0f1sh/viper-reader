@@ -1030,3 +1030,109 @@ body.is-column-resizing * {
     background-color: transparent;
   }
 }
+
+/* 書き込みパネル */
+.write-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  background: #d4d0c8; /* Windows 95/Classic的なグレー */
+  border-top: 2px solid #808080;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.write-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.write-meta-row label {
+  color: #000000;
+}
+
+.write-meta-row input {
+  padding: 2px 4px;
+  border-top: 1px solid #404040;
+  border-left: 1px solid #404040;
+  border-bottom: 1px solid #ffffff;
+  border-right: 1px solid #ffffff;
+  background: #ffffff;
+  color: #000000;
+  font-size: 12px;
+  outline: none;
+}
+
+.write-meta-row input[type="text"]#reply-name {
+  width: 140px;
+}
+
+.write-meta-row input[type="text"]#reply-mail {
+  width: 80px;
+}
+
+.write-body-row {
+  display: flex;
+}
+
+.write-body-row textarea {
+  flex: 1;
+  height: 60px;
+  padding: 4px;
+  border-top: 1px solid #404040;
+  border-left: 1px solid #404040;
+  border-bottom: 1px solid #ffffff;
+  border-right: 1px solid #ffffff;
+  background: #ffffff;
+  color: #000000;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+}
+
+.post-submit-btn {
+  padding: 2px 12px;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-bottom: 1px solid #404040;
+  border-right: 1px solid #404040;
+  background: #d4d0c8;
+  color: #000000;
+  font-weight: bold;
+  cursor: default;
+}
+
+.post-submit-btn:active:not(:disabled) {
+  border-top: 1px solid #404040;
+  border-left: 1px solid #404040;
+  border-bottom: 1px solid #ffffff;
+  border-right: 1px solid #ffffff;
+}
+
+.post-submit-btn:disabled {
+  color: #808080;
+}
+
+.write-error-msg {
+  color: #ff0000;
+  font-size: 11px;
+}
+
+.thread-closed-msg {
+  color: #ff0000;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* ユーザーのレスのハイライト */
+.post.is-user-post {
+  background-color: #fff2f2; /* レトロな掲示板の自分のレス風の薄いピンク */
+  border-left: 3px solid #ff9999;
+  padding-left: 6px;
+  margin-left: -6px;
+}
+

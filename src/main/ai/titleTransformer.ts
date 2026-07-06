@@ -77,6 +77,7 @@ export async function transformTitlesToVipStyle(
     const startedAt = new Date().toISOString();
     const prompt = buildVipTitlePrompt(feedTitle, chunk);
     let responseText = "";
+    console.log(`[LLM Request Start] Model: ${appInfo.model} | Purpose: title_transformation`);
 
     try {
       const response = await ai.models.generateContent({

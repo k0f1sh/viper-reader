@@ -140,6 +140,21 @@ CREATE TABLE IF NOT EXISTS article_fetch_logs (
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS thread_posts (
+  id TEXT PRIMARY KEY,
+  feed_item_id TEXT NOT NULL,
+  no INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  mail TEXT,
+  date TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  body TEXT NOT NULL,
+  is_user INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
+  UNIQUE (feed_item_id, no)
+);
+
 CREATE INDEX IF NOT EXISTS idx_feed_items_feed_id ON feed_items(feed_id);
 CREATE INDEX IF NOT EXISTS idx_vip_titles_feed_item_id ON vip_titles(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_thread_summaries_feed_item_id ON thread_summaries(feed_item_id);
@@ -147,4 +162,5 @@ CREATE INDEX IF NOT EXISTS idx_rss_refresh_runs_feed_id ON rss_refresh_runs(feed
 CREATE INDEX IF NOT EXISTS idx_llm_request_logs_feed_id ON llm_request_logs(feed_id);
 CREATE INDEX IF NOT EXISTS idx_feed_resident_prompts_prompt_hash ON feed_resident_prompts(prompt_hash);
 CREATE INDEX IF NOT EXISTS idx_article_fetch_logs_feed_item_id ON article_fetch_logs(feed_item_id);
+CREATE INDEX IF NOT EXISTS idx_thread_posts_feed_item_id ON thread_posts(feed_item_id);
 `;

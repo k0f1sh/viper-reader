@@ -18,6 +18,7 @@ export type ScrapingResult = {
  * robots.txtで禁止されている場合はスクレイピングをスキップします。
  */
 export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> {
+  console.log(`[Scraper Start] URL: ${targetUrl}`);
   const startTime = performance.now();
   let contentSize = 0;
 

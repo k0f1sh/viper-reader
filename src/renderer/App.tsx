@@ -31,6 +31,12 @@ export function App() {
   const [addFeedUrl, setAddFeedUrl] = useState("");
   const [addFeedError, setAddFeedError] = useState("");
   const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
+  const [replyName, setReplyName] = useState("");
+  const [replyMail, setReplyMail] = useState("sage");
+  const [replyBody, setReplyBody] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const [postError, setPostError] = useState("");
+  const [postStatus, setPostStatus] = useState<"idle" | "writing" | "generating" | "done" | "error">("idle");
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -346,6 +352,58 @@ export function App() {
     }
   }
 
+  async function handlePostMessage(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selectedThread || !window.viperReader || isPosting || !replyBody.trim()) {
+      return;
+    }
+
+    setIsPosting(true);
+    setPostError("");
+    setPostStatus("idle");
+
+    const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
+      if (data.threadId === selectedThread.id) {
+        setPostStatus(data.status);
+      }
+    });
+
+    try {
+      const result = await window.viperReader.postMessage(
+        selectedThread.id,
+        replyName,
+        replyMail,
+        replyBody
+      );
+
+      if (result) {
+        setSelectedThread(result);
+        setReplyBody("");
+        // スレッド一覧のレス数や既読を更新
+        setThreadList((currentThreads) =>
+          currentThreads.map((currentThread) =>
+            currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
+          )
+        );
+        void reloadFeeds();
+
+        // 投稿成功時に最下部にスクロールする
+        setTimeout(() => {
+          const postsContainer = document.querySelector(".posts");
+          if (postsContainer) {
+            postsContainer.scrollTop = postsContainer.scrollHeight;
+          }
+        }, 100);
+      }
+    } catch (err) {
+      setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
+    } finally {
+      unsubscribePostStatus();
+      setIsPosting(false);
+      setPostStatus("idle");
+    }
+  }
+
   function scrollToPost(postNo: number) {
     const element = document.getElementById(`post-${postNo}`);
     if (element) {
@@ -543,7 +601,7 @@ export function App() {
                     <div className="thread-heading">{selectedThread.vipTitle}</div>
                     <div className="original-title">元記事: {selectedThread.originalTitle}</div>
                   </div>
-                  {selectedThread.posts.length > 1 ? (
+                  {selectedThread.posts.length > 1 && !selectedThread.posts.some(p => p.isUser) ? (
                     <button
                       className="deep-dive-button"
                       onClick={() => generateResponses(true)}
@@ -556,7 +614,7 @@ export function App() {
                 </div>
                 <div className="posts">
                   {selectedThread.posts.map((post) => (
-                    <article className="post" id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
+                    <article className={`post ${post.isUser ? "is-user-post" : ""}`} id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
                       <div className="post-meta">
                         <span className="post-no">{post.no} ：</span>
                         <span className="post-name">{post.name}</span>
@@ -587,6 +645,62 @@ export function App() {
                     </div>
                   ) : null}
                 </div>
+                {selectedThread.posts.length > 1 ? (
+                  <form className="write-panel" onSubmit={handlePostMessage}>
+                    <div className="write-meta-row">
+                      <label htmlFor="reply-name">名前:</label>
+                      <input
+                        id="reply-name"
+                        type="text"
+                        value={replyName}
+                        onChange={(e) => setReplyName(e.target.value)}
+                        placeholder="省略可"
+                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                      />
+                      <label htmlFor="reply-mail">E-mail:</label>
+                      <input
+                        id="reply-mail"
+                        type="text"
+                        value={replyMail}
+                        onChange={(e) => setReplyMail(e.target.value)}
+                        placeholder="sage"
+                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                      />
+                      {selectedThread.posts.length >= 1000 ? (
+                        <span className="thread-closed-msg">このスレッドは1000レスに達したため書き込めません。</span>
+                      ) : (
+                        <button
+                          type="submit"
+                          className="post-submit-btn"
+                          disabled={isPosting || !replyBody.trim()}
+                        >
+                          {postStatus === "writing"
+                            ? "書き込み中..."
+                            : postStatus === "generating"
+                            ? "レス生成中..."
+                            : isPosting
+                            ? "送信中..."
+                            : "書き込む"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="write-body-row">
+                      <textarea
+                        id="reply-body"
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        placeholder={selectedThread.posts.length >= 1000 ? "書き込み限界です" : "本文（Ctrl+Enterで書き込み）"}
+                        disabled={isPosting || selectedThread.posts.length >= 1000}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                            void handlePostMessage(e);
+                          }
+                        }}
+                      />
+                    </div>
+                    {postError && <div className="write-error-msg">{postError}</div>}
+                  </form>
+                ) : null}
               </section>
             ) : (
               <div className="empty-state">記事がありません。RSSを選んで更新してください。</div>

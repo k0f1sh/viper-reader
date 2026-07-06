@@ -13,6 +13,7 @@ export type ThreadPost = {
   date: string;
   id: string;
   body: string;
+  isUser?: boolean;
 };
 
 export type ThreadListItem = {

@@ -524,6 +524,9 @@ export function recordRssRefreshRun(run: RssRefreshRunWrite): void {
 }
 
 export function recordLlmRequestLog(log: LlmRequestLogWrite): void {
+  console.log(
+    `[LLM Request] Model: ${log.model} | Purpose: ${log.purpose} | Status: ${log.status} | Prompt Chars: ${log.promptChars} | Response Chars: ${log.responseChars} | Tokens: ${log.totalTokenCount ?? "N/A"}${log.errorMessage ? ` | Error: ${log.errorMessage}` : ""}`
+  );
   const db = getDatabase();
   db.prepare(
     `
@@ -579,6 +582,9 @@ export type ArticleFetchLogWrite = {
 };
 
 export function recordArticleFetchLog(log: ArticleFetchLogWrite): void {
+  console.log(
+    `[Scraper] URL: ${log.url} | Status: ${log.status} | robots.txt: ${log.robotsResult} | Size: ${log.contentSize} bytes | Time: ${log.elapsedMs}ms${log.errorMessage ? ` | Error: ${log.errorMessage}` : ""}`
+  );
   const db = getDatabase();
   const fetchedAt = new Date().toISOString();
   const hash = crypto
@@ -766,7 +772,7 @@ export function listThreads(feedId: string): ThreadListItem[] {
         fi.published_at,
         fi.read_at,
         fi.raw_summary,
-        COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0) AS response_count
+        COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
       LEFT JOIN vip_titles generated_vt
@@ -871,13 +877,28 @@ function rowToArticleFetchSummary(row: ArticleFetchRow): ArticleFetchSummary {
   };
 }
 
+type ThreadPostRow = {
+  no: number;
+  name: string;
+  mail: string | null;
+  date: string;
+  uid: string;
+  body: string;
+  is_user: number;
+};
+
 export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
   markThreadRead(threadId);
 
-  const row = db
-    .prepare(
-      `
+  // 1. thread_posts から取得を試みる
+  const postsRows = db
+    .prepare("SELECT no, name, mail, date, uid, body, is_user FROM thread_posts WHERE feed_item_id = ? ORDER BY no ASC")
+    .all(threadId) as ThreadPostRow[];
+
+  // 基本的なスレッド情報（vipTitle など）を取得するクエリ
+  const threadInfoRow = db
+    .prepare(`
       SELECT
         fi.id,
         fi.feed_id,
@@ -887,10 +908,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         fs.title AS source,
         fi.published_at,
         fi.read_at,
-        fi.raw_summary,
-        COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0) AS response_count,
-        rss_ts.posts_json,
-        response_ts.posts_json AS response_posts_json
+        fi.raw_summary
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
       LEFT JOIN vip_titles generated_vt
@@ -901,6 +919,67 @@ export function getThread(threadId: string): ThreadDetail | null {
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
         AND raw_vt.prompt_hash = ?
+      WHERE fi.id = ?
+    `)
+    .get(
+      appInfo.model,
+      vipTitlePromptHash,
+      appInfo.model,
+      rawTitlePromptHash,
+      threadId
+    ) as {
+      id: string;
+      feed_id: string;
+      original_title: string;
+      url: string;
+      vip_title: string;
+      source: string;
+      published_at: string | null;
+      read_at: string | null;
+      raw_summary: string | null;
+    } | undefined;
+
+  if (!threadInfoRow) {
+    return null;
+  }
+
+  const listItem = {
+    id: threadInfoRow.id,
+    feedId: threadInfoRow.feed_id,
+    originalTitle: threadInfoRow.original_title,
+    url: threadInfoRow.url,
+    vipTitle: threadInfoRow.vip_title,
+    source: threadInfoRow.source,
+    publishedAt: threadInfoRow.published_at ?? "",
+    isRead: threadInfoRow.read_at !== null,
+    responseCount: 0
+  };
+
+  if (postsRows.length > 0) {
+    const posts: ThreadPost[] = postsRows.map((row) => ({
+      no: row.no,
+      name: row.name,
+      mail: row.mail ?? undefined,
+      date: row.date,
+      id: row.uid,
+      body: row.body,
+      isUser: row.is_user === 1
+    }));
+
+    return {
+      ...listItem,
+      responseCount: posts.length,
+      posts
+    };
+  }
+
+  // 2. thread_posts にデータがない場合は、古い thread_summaries または RSS から復元（移行）する
+  const legacyRow = db
+    .prepare(`
+      SELECT
+        rss_ts.posts_json,
+        response_ts.posts_json AS response_posts_json
+      FROM feed_items fi
       LEFT JOIN thread_summaries rss_ts
         ON rss_ts.feed_item_id = fi.id
         AND rss_ts.model = ?
@@ -912,28 +991,45 @@ export function getThread(threadId: string): ThreadDetail | null {
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE fi.id = ?
-      `
-    )
+    `)
     .get(
-      appInfo.model,
-      vipTitlePromptHash,
-      appInfo.model,
-      rawTitlePromptHash,
       appInfo.model,
       rssSummaryPromptHash,
       appInfo.model,
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       threadId
-    ) as ThreadRow | undefined;
+    ) as { posts_json?: string; response_posts_json?: string } | undefined;
 
-  if (!row) {
-    return null;
-  }
+  const rssPosts = parsePosts(legacyRow?.posts_json);
+  const responsePosts = parsePosts(legacyRow?.response_posts_json);
+
+  const initialPosts = normalizeThreadPosts(
+    {
+      id: threadInfoRow.id,
+      feed_id: threadInfoRow.feed_id,
+      original_title: threadInfoRow.original_title,
+      url: threadInfoRow.url,
+      vip_title: threadInfoRow.vip_title,
+      source: threadInfoRow.source,
+      published_at: threadInfoRow.published_at,
+      read_at: threadInfoRow.read_at,
+      raw_summary: threadInfoRow.raw_summary,
+      response_count: 0,
+      posts_json: legacyRow?.posts_json ?? undefined,
+      response_posts_json: legacyRow?.response_posts_json ?? undefined
+    },
+    rssPosts,
+    responsePosts
+  );
+
+  // 移行したデータを thread_posts に保存
+  saveGeneratedThreadPosts(threadId, initialPosts);
 
   return {
-    ...rowToThreadListItem(row),
-    posts: normalizeThreadPosts(row, parsePosts(row.posts_json), parsePosts(row.response_posts_json))
+    ...listItem,
+    responseCount: initialPosts.length,
+    posts: initialPosts
   };
 }
 
@@ -958,7 +1054,105 @@ export function saveThreadResponsePosts(write: ThreadResponseWrite, model: strin
       generatedAt
     );
 
+  // thread_postsテーブルへの保存
+  const userPostCountRow = db
+    .prepare("SELECT COUNT(*) AS count FROM thread_posts WHERE feed_item_id = ? AND is_user = 1")
+    .get(write.feedItemId) as { count: number } | undefined;
+  
+  const hasUserPost = (userPostCountRow?.count ?? 0) > 0;
+
+  if (!hasUserPost) {
+    db.prepare("DELETE FROM thread_posts WHERE feed_item_id = ? AND no > 1").run(write.feedItemId);
+    
+    const firstPostExistsRow = db
+      .prepare("SELECT COUNT(*) AS count FROM thread_posts WHERE feed_item_id = ? AND no = 1")
+      .get(write.feedItemId) as { count: number } | undefined;
+      
+    if ((firstPostExistsRow?.count ?? 0) === 0) {
+      const threadInfo = db
+        .prepare(`
+          SELECT fi.title, fi.url, fi.raw_summary, fi.published_at
+          FROM feed_items fi WHERE fi.id = ?
+        `)
+        .get(write.feedItemId) as { title: string; url: string; raw_summary: string | null; published_at: string | null } | undefined;
+        
+      if (threadInfo) {
+        const initialPosts = createInitialPosts(
+          {
+            title: threadInfo.title,
+            url: threadInfo.url,
+            rawSummary: threadInfo.raw_summary
+          },
+          threadInfo.published_at ?? new Date().toISOString()
+        );
+        saveGeneratedThreadPosts(write.feedItemId, initialPosts);
+      }
+    }
+
+    saveGeneratedThreadPosts(write.feedItemId, write.posts);
+  }
+
   return Number(result.changes);
+}
+
+export function saveGeneratedThreadPosts(feedItemId: string, posts: ThreadPost[]): void {
+  const db = getDatabase();
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO thread_posts (id, feed_item_id, no, name, mail, date, uid, body, is_user, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const now = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    for (const post of posts) {
+      const id = `post:${feedItemId}:${post.no}`;
+      insert.run(
+        id,
+        feedItemId,
+        post.no,
+        post.name,
+        post.mail ?? null,
+        post.date,
+        post.id,
+        post.body,
+        post.isUser ? 1 : 0,
+        now
+      );
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function postUserMessage(params: {
+  feedItemId: string;
+  no: number;
+  name: string;
+  mail: string | null;
+  date: string;
+  uid: string;
+  body: string;
+}): void {
+  const db = getDatabase();
+  const id = `post:${params.feedItemId}:${params.no}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT OR REPLACE INTO thread_posts (id, feed_item_id, no, name, mail, date, uid, body, is_user, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+  `).run(
+    id,
+    params.feedItemId,
+    params.no,
+    params.name,
+    params.mail,
+    params.date,
+    params.uid,
+    params.body,
+    now
+  );
 }
 
 export function getArticleBody(feedItemId: string): string | null {
