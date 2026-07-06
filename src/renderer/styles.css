@@ -73,6 +73,29 @@ button {
   border-left-color: #808080;
 }
 
+.menu-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  font-size: 11px;
+  color: #000000;
+}
+
+.menu-select {
+  font-size: 11px;
+  font-family: inherit;
+  padding: 1px 4px;
+  background-color: #ffffff;
+  border-top: 1.5px solid #404040;
+  border-left: 1.5px solid #404040;
+  border-right: 1.5px solid #ffffff;
+  border-bottom: 1.5px solid #ffffff;
+  color: #000000;
+  height: 20px;
+  outline: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);

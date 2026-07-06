@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog } from "../db/repository.js";
+import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog, getUserSetting } from "../db/repository.js";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -15,13 +15,12 @@ type UsageMetadata = {
   totalTokenCount?: number;
 };
 
-// 賢いモデルの指定
-const SMART_MODEL = "gemini-3.1-flash-lite";
-
 export async function generateReplyPosts(
   thread: ThreadDetail
 ): Promise<ReplyGenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+  const savedModel = getUserSetting("replyModel");
+  const modelToUse = savedModel || "gemini-3.1-flash-lite";
   const startedAt = new Date().toISOString();
 
   // スレッドの最新のレス番号（最大のレス番号 + 1）
@@ -65,7 +64,8 @@ export async function generateReplyPosts(
         usageMetadata: undefined,
         errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
         startedAt,
-        finishedAt
+        finishedAt,
+        model: modelToUse
       })
     };
   }
@@ -73,12 +73,12 @@ export async function generateReplyPosts(
   const ai = new GoogleGenAI({ apiKey });
   let responseText = "";
 
-  console.log(`[LLM Request Start] Model: ${SMART_MODEL} | Purpose: thread_reply`);
+  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_reply`);
 
   try {
     const response = await Promise.race([
       ai.models.generateContent({
-        model: SMART_MODEL,
+        model: modelToUse,
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -104,7 +104,8 @@ export async function generateReplyPosts(
       usageMetadata: response.usageMetadata,
       errorMessage: null,
       startedAt,
-      finishedAt
+      finishedAt,
+      model: modelToUse
     });
 
     recordLlmRequestLog(log);
@@ -125,7 +126,8 @@ export async function generateReplyPosts(
       usageMetadata: undefined,
       errorMessage: error instanceof Error ? error.message : String(error),
       startedAt,
-      finishedAt
+      finishedAt,
+      model: modelToUse
     });
 
     recordLlmRequestLog(log);
@@ -283,12 +285,13 @@ function createLlmLog(params: {
   errorMessage: string | null;
   startedAt: string;
   finishedAt: string;
+  model: string;
 }): LlmRequestLogWrite {
   return {
     id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "thread_reply",
-    model: SMART_MODEL,
+    model: params.model,
     promptHash: params.promptHash,
     status: params.status,
     requestCount: params.status === "skipped" ? 0 : 1,

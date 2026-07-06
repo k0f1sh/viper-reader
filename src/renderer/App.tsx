@@ -42,6 +42,7 @@ export function App() {
     posts: ThreadPost[];
     style: CSSProperties;
   } | null>(null);
+  const [replyModel, setReplyModel] = useState("gemini-3.1-flash-lite");
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -158,8 +159,20 @@ export function App() {
           setThreadColumnWidths(widths as number[]);
         }
       }
+
+      const model = await window.viperReader.getUserSetting("replyModel");
+      if (model) {
+        setReplyModel(model);
+      }
     } catch (err) {
       console.error("ユーザー設定の読込に失敗しました:", err);
+    }
+  }
+
+  async function handleReplyModelChange(newModel: string) {
+    setReplyModel(newModel);
+    if (window.viperReader) {
+      await window.viperReader.saveUserSetting("replyModel", newModel);
     }
   }
 
@@ -616,6 +629,18 @@ export function App() {
         <button className="menu-item" onClick={openResidentPrompts} type="button">
           住民設定
         </button>
+        <div className="menu-select-wrapper">
+          <label htmlFor="reply-model-select">レスモデル:</label>
+          <select
+            id="reply-model-select"
+            className="menu-select"
+            value={replyModel}
+            onChange={(e) => handleReplyModelChange(e.target.value)}
+          >
+            <option value="gemini-3.1-flash-lite">3.1 flash lite</option>
+            <option value="gemini-3.5-flash">3.5 flash</option>
+          </select>
+        </div>
       </nav>
 
       <div className="app-shell">
