@@ -28,6 +28,7 @@ export function getDatabase(): DatabaseSync {
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
+  addColumnIfMissing(db, "article_bodies", "summary_text", "TEXT");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());

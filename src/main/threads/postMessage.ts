@@ -1,7 +1,15 @@
 import crypto from "node:crypto";
 import type { ThreadDetail } from "../../shared/types.js";
 import { generateReplyPosts } from "../ai/replyGenerator.js";
-import { getThread, postUserMessage, saveGeneratedThreadPosts } from "../db/repository.js";
+import {
+  getThread,
+  postUserMessage,
+  saveGeneratedThreadPosts,
+  getArticleBody,
+  getArticleSummary,
+  saveArticleSummary
+} from "../db/repository.js";
+import { generateArticleSummary } from "../ai/summaryGenerator.js";
 
 export async function postThreadMessage(
   threadId: string,
@@ -14,6 +22,22 @@ export async function postThreadMessage(
   if (!thread) {
     onStatus?.("error");
     return null;
+  }
+
+  // 初回書き込み時に、要約がなければ生成して保存する
+  try {
+    const summary = getArticleSummary(threadId);
+    if (!summary) {
+      const fullBody = getArticleBody(threadId);
+      if (fullBody) {
+        const generatedSummary = await generateArticleSummary(threadId, thread.feedId, fullBody);
+        if (generatedSummary) {
+          saveArticleSummary(threadId, generatedSummary);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("要約生成中にエラーが発生しました（処理は継続します）:", err);
   }
 
   const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);

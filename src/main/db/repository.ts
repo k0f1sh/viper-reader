@@ -1177,6 +1177,20 @@ export function saveArticleBody(feedItemId: string, url: string, contentText: st
   ).run(id, feedItemId, url, contentText, contentHash, fetchedAt);
 }
 
+export function getArticleSummary(feedItemId: string): string | null {
+  const db = getDatabase();
+  const row = db
+    .prepare("SELECT summary_text FROM article_bodies WHERE feed_item_id = ?")
+    .get(feedItemId) as { summary_text: string | null } | undefined;
+  return row ? row.summary_text : null;
+}
+
+export function saveArticleSummary(feedItemId: string, summaryText: string): void {
+  const db = getDatabase();
+  db.prepare("UPDATE article_bodies SET summary_text = ? WHERE feed_item_id = ?")
+    .run(summaryText, feedItemId);
+}
+
 export function markThreadRead(threadId: string): void {
   const db = getDatabase();
   db.prepare("UPDATE feed_items SET read_at = COALESCE(read_at, ?), updated_at = ? WHERE id = ?").run(

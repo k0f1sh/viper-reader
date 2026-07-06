@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS article_bodies (
   content_text TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   fetched_at TEXT NOT NULL,
+  summary_text TEXT,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, content_hash)
 );

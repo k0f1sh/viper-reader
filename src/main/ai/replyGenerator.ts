@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { getArticleBody, getFeedResidentPrompt, recordLlmRequestLog } from "../db/repository.js";
+import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog } from "../db/repository.js";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -28,8 +28,9 @@ export async function generateReplyPosts(
   const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);
   const startNo = maxNo + 1;
 
-  // キャッシュされた本文を取得
-  const scrapedBody = getArticleBody(thread.id);
+  // 要約があれば優先して使用し、なければ本文を使用する
+  const summaryText = getArticleSummary(thread.id);
+  const scrapedBody = summaryText || getArticleBody(thread.id);
 
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
