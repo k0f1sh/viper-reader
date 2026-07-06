@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { FeedSource, StatisticsSummary, ThreadDetail, ThreadListItem } from "../shared/types";
+import type { FeedSource, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 
 const threadColumnLabels = ["スレタイ", "元タイトル", "レス", "取得元", "日時 ▼", "URL"] as const;
 const defaultThreadColumnWidths = [360, 300, 54, 170, 126, 260];
@@ -37,6 +37,11 @@ export function App() {
   const [isPosting, setIsPosting] = useState(false);
   const [postError, setPostError] = useState("");
   const [postStatus, setPostStatus] = useState<"idle" | "writing" | "generating" | "done" | "error">("idle");
+  const [popupData, setPopupData] = useState<{
+    title: string;
+    posts: ThreadPost[];
+    style: CSSProperties;
+  } | null>(null);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
@@ -415,6 +420,90 @@ export function App() {
     }
   }
 
+  function handlePostNoMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
+    if (!selectedThread) return;
+
+    const regex = new RegExp(`>>${postNo}(?!\\d)`);
+    const replies = selectedThread.posts.filter((post) => regex.test(post.body));
+
+    if (replies.length === 0) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 4;
+
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    const popupMaxWidth = 480;
+    const popupMaxHeight = 300;
+
+    if (left + popupMaxWidth > screenWidth) {
+      left = screenWidth - popupMaxWidth - 16;
+    }
+    if (left < 0) left = 8;
+
+    if (top + popupMaxHeight > screenHeight) {
+      top = rect.top - popupMaxHeight - 4;
+      if (top < 0) {
+        top = screenHeight - popupMaxHeight - 16;
+      }
+    }
+
+    setPopupData({
+      title: `>>${postNo} への返信レス (${replies.length}件)`,
+      posts: replies,
+      style: {
+        left: `${left}px`,
+        top: `${top}px`
+      }
+    });
+  }
+
+  function handlePostNoMouseLeave() {
+    setPopupData(null);
+  }
+
+  function handleAnchorMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
+    if (!selectedThread) return;
+
+    const targetPost = selectedThread.posts.find((post) => post.no === postNo);
+    if (!targetPost) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 4;
+
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    const popupMaxWidth = 480;
+    const popupMaxHeight = 150; // 単体のプレビューなので少し低めに
+
+    if (left + popupMaxWidth > screenWidth) {
+      left = screenWidth - popupMaxWidth - 16;
+    }
+    if (left < 0) left = 8;
+
+    if (top + popupMaxHeight > screenHeight) {
+      top = rect.top - popupMaxHeight - 4;
+      if (top < 0) {
+        top = screenHeight - popupMaxHeight - 16;
+      }
+    }
+
+    setPopupData({
+      title: `>>${postNo} の内容`,
+      posts: [targetPost],
+      style: {
+        left: `${left}px`,
+        top: `${top}px`
+      }
+    });
+  }
+
+  function handleAnchorMouseLeave() {
+    setPopupData(null);
+  }
+
   function startVerticalResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
 
@@ -613,20 +702,35 @@ export function App() {
                   ) : null}
                 </div>
                 <div className="posts">
-                  {selectedThread.posts.map((post) => (
-                    <article className={`post ${post.isUser ? "is-user-post" : ""}`} id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
-                      <div className="post-meta">
-                        <span className="post-no">{post.no} ：</span>
-                        <span className="post-name">{post.name}</span>
-                        {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
-                        <span className="post-date">{post.date}</span>
-                        <span className="post-id">ID:{post.id}</span>
-                      </div>
-                      <div className="post-body">
-                        <PostBody body={post.body} onAnchorClick={scrollToPost} />
-                      </div>
-                    </article>
-                  ))}
+                  {selectedThread.posts.map((post) => {
+                    const replyRegex = new RegExp(`>>${post.no}(?!\\d)`);
+                    const hasReplies = selectedThread.posts.some((p) => replyRegex.test(p.body));
+                    return (
+                      <article className={`post ${post.isUser ? "is-user-post" : ""}`} id={`post-${post.no}`} key={`${selectedThread.id}-${post.no}`}>
+                        <div className="post-meta">
+                          <span
+                            className={`post-no ${hasReplies ? "post-no-hoverable" : ""}`}
+                            onMouseEnter={hasReplies ? (e) => handlePostNoMouseEnter(post.no, e) : undefined}
+                            onMouseLeave={hasReplies ? handlePostNoMouseLeave : undefined}
+                          >
+                            {post.no} ：
+                          </span>
+                          <span className="post-name">{post.name}</span>
+                          {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
+                          <span className="post-date">{post.date}</span>
+                          <span className="post-id">ID:{post.id}</span>
+                        </div>
+                        <div className="post-body">
+                          <PostBody
+                            body={post.body}
+                            onAnchorClick={scrollToPost}
+                            onAnchorMouseEnter={handleAnchorMouseEnter}
+                            onAnchorMouseLeave={handleAnchorMouseLeave}
+                          />
+                        </div>
+                      </article>
+                    );
+                  })}
                   {selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
                     <div className="thread-load-trigger">
                       <button
@@ -954,6 +1058,26 @@ export function App() {
           </section>
         </div>
       ) : null}
+
+      {popupData ? (
+        <div className="reply-popup" style={popupData.style}>
+          <div className="reply-popup-title">{popupData.title}</div>
+          {popupData.posts.map((post) => (
+            <article className={`post ${post.isUser ? "is-user-post" : ""}`} key={`popup-${post.no}`}>
+              <div className="post-meta">
+                <span className="post-no">{post.no} ：</span>
+                <span className="post-name">{post.name}</span>
+                {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
+                <span className="post-date">{post.date}</span>
+                <span className="post-id">ID:{post.id}</span>
+              </div>
+              <div className="post-body">
+                <PostBody body={post.body} onAnchorClick={scrollToPost} />
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -967,7 +1091,17 @@ function StatCell({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function PostBody({ body, onAnchorClick }: { body: string; onAnchorClick: (no: number) => void }) {
+function PostBody({
+  body,
+  onAnchorClick,
+  onAnchorMouseEnter,
+  onAnchorMouseLeave
+}: {
+  body: string;
+  onAnchorClick: (no: number) => void;
+  onAnchorMouseEnter?: (no: number, event: ReactMouseEvent<HTMLElement>) => void;
+  onAnchorMouseLeave?: () => void;
+}) {
   return (
     <>
       {splitBody(body).map((part, index) => {
@@ -981,7 +1115,14 @@ function PostBody({ body, onAnchorClick }: { body: string; onAnchorClick: (no: n
         if (part.type === "anchor") {
           const postNo = parseInt(part.value.replace(">>", ""), 10);
           return (
-            <button className="post-link" key={`${part.value}-${index}`} onClick={() => onAnchorClick(postNo)} type="button">
+            <button
+              className="post-link"
+              key={`${part.value}-${index}`}
+              onClick={() => onAnchorClick(postNo)}
+              onMouseEnter={(e) => onAnchorMouseEnter?.(postNo, e)}
+              onMouseLeave={onAnchorMouseLeave}
+              type="button"
+            >
               {part.value}
             </button>
           );

@@ -34,6 +34,9 @@ export async function generateReplyPosts(
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
 
+  // 3〜10のレス数をランダムに選択
+  const numReplies = Math.floor(Math.random() * (10 - 3 + 1)) + 3;
+
   const prompt = buildVipReplyPrompt({
     vipTitle: thread.vipTitle,
     originalTitle: thread.originalTitle,
@@ -41,7 +44,8 @@ export async function generateReplyPosts(
     scrapedBody,
     history: thread.posts,
     startNo,
-    residentPrompt: residentPrompt?.prompt ?? null
+    residentPrompt: residentPrompt?.prompt ?? null,
+    numReplies
   });
 
   const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
@@ -140,6 +144,7 @@ function buildVipReplyPrompt(params: {
   history: ThreadPost[];
   startNo: number;
   residentPrompt: string | null;
+  numReplies: number;
 }): string {
   const articleContext = params.scrapedBody
     ? `【元記事の本文】\n${params.scrapedBody}\n`
@@ -171,7 +176,7 @@ ${historyStr}
 ${nowFormatted} 付近
 
 【指示】
-最新のレス（履歴の最後のレス、特にユーザーの書き込み）に対して、アンカー（例: >>${params.startNo - 1}）を付けた返信や、住民同士の掛け合いを含む、新規のレスを 3〜5 件生成してください。
+最新のレス（履歴の最後のレス、特にユーザーの書き込み）に対して、アンカー（例: >>${params.startNo - 1}）を付けた返信や、住民同士の掛け合いを含む、新規のレスを ${params.numReplies} 件生成してください。
 
  以下の制約を厳守してください：
 1. 出力は必ず JSON 配列形式にしてください。スキーマは後述します。
