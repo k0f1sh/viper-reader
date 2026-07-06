@@ -138,7 +138,7 @@ function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
       mail: normalizeOptionalString(item.mail)?.slice(0, 20),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
-      id: normalizeString(item.id, createFallbackId()).replace(/^ID:/, "").slice(0, 16),
+      id: normalizeId(item.id),
       body: normalizeString(item.body, "").slice(0, 500)
     });
 
@@ -175,6 +175,17 @@ function normalizeOptionalString(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function normalizeId(value: unknown): string {
+  if (typeof value !== "string") {
+    return createFallbackId();
+  }
+  const cleanId = value.trim().replace(/^ID:/i, "");
+  if (/^[A-Za-z0-9]{8}$/.test(cleanId)) {
+    return cleanId;
+  }
+  return createFallbackId();
 }
 
 function createLlmLog(params: {

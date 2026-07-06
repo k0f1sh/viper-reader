@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog, getUserSetting } from "../db/repository.js";
+import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "../prompts/vipCommonRules.js";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -191,9 +192,11 @@ ${nowFormatted} 付近
 1. 出力は必ず JSON 配列形式にしてください。スキーマは後述します。
 2. レス番号（no）は ${params.startNo} から開始し、重複のないように連番で振ってください。
 3. 最新のユーザーの書き込み（★マークが付いている直近 of 最後のレス）に対して、安価（>>${params.startNo - 1} などのアンカー）を用いて、VIP風にツッコミや意見を返してください。
-4. 技術的な正確性を保ってください。元記事に書かれていない嘘を捏造しないでください。もし元記事から判断できないことが議論になったら、「そこはソース読んでもわからんわ」「誰か kwsk」などのように VIP 風の曖昧さ・要請として表現してください。
-5. 文体は 2010 年代前半の VIP 語（「ｗｗｗｗ」「ワイ」「な件について」「つかこれ〜じゃね？」「情弱乙」など）で表現してください。
-6. 差別、嫌がらせ、性的表現、その他安全でない表現は避けてください。
+4. 技術的な正確性を保ってください。
+
+${VIP_STYLE_RULES}
+
+${VIP_NG_RULES}
 
 【出力 JSON スキーマ】
 [
@@ -202,7 +205,7 @@ ${nowFormatted} 付近
     "name": "以下、名無しにかわりましてVIPがお送りします",
     "mail": "sage",
     "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS", // 2ch風の日時。現在の日付時刻をベースにフォーマットした日付（曜日は日本語）を生成してください。秒以下は .XX のミリ秒形式です。数秒〜数十秒の書き込み間隔の差をつけてください。
-    "id": "aB3dEfGh", // 8桁のランダムな英数字。同じ住民が複数回発言する場合は同じIDを使い回してください。
+    "id": "${VIP_ID_FORMAT_DESC}",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
   },
   ...
@@ -241,7 +244,7 @@ function validateGeneratedReplyPosts(parsed: unknown[], startNo: number): Thread
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
       mail: normalizeOptionalString(item.mail)?.slice(0, 20),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
-      id: normalizeString(item.id, createFallbackId()).replace(/^ID:/, "").slice(0, 16),
+      id: normalizeId(item.id),
       body: normalizeString(item.body, "").slice(0, 500)
     });
 
@@ -278,6 +281,17 @@ function normalizeOptionalString(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function normalizeId(value: unknown): string {
+  if (typeof value !== "string") {
+    return createFallbackId();
+  }
+  const cleanId = value.trim().replace(/^ID:/i, "");
+  if (/^[A-Za-z0-9]{8}$/.test(cleanId)) {
+    return cleanId;
+  }
+  return createFallbackId();
 }
 
 function createLlmLog(params: {
