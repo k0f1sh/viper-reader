@@ -37,6 +37,7 @@ export function App() {
   const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
   const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
   const [refreshMessage, setRefreshMessage] = useState("");
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
@@ -75,6 +76,7 @@ export function App() {
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
+  const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
 
@@ -178,14 +180,18 @@ export function App() {
     }
   }
 
-  async function reloadThreads(feedId: string) {
+  async function reloadThreads(feedId: string, preferredThreadId?: string) {
     if (!window.viperReader) {
       return;
     }
 
     const nextThreads = await window.viperReader.listThreads(feedId);
     setThreadList(nextThreads);
-    setSelectedThreadId(nextThreads[0]?.id);
+    setSelectedThreadId(
+      preferredThreadId && nextThreads.some((thread) => thread.id === preferredThreadId)
+        ? preferredThreadId
+        : nextThreads[0]?.id
+    );
   }
 
   async function loadSettings() {
@@ -414,6 +420,34 @@ export function App() {
         nextIds.delete(selectedThread.id);
         return nextIds;
       });
+    }
+  }
+
+  async function regenerateSelectedVipTitle() {
+    if (!selectedThread || !window.viperReader || regeneratingTitleThreadId) {
+      return;
+    }
+
+    setRegeneratingTitleThreadId(selectedThread.id);
+    setPostError("");
+
+    try {
+      const result = await window.viperReader.regenerateVipTitle(selectedThread.id);
+      if (result) {
+        setSelectedThread(result);
+        setThreadList((currentThreads) =>
+          currentThreads.map((currentThread) =>
+            currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
+          )
+        );
+        if (selectedFeedId) {
+          await reloadThreads(selectedFeedId, result.id);
+        }
+      }
+    } catch (err) {
+      setPostError(err instanceof Error ? err.message : "スレタイ再生成に失敗しました。");
+    } finally {
+      setRegeneratingTitleThreadId(null);
     }
   }
 
@@ -762,6 +796,7 @@ export function App() {
           <ThreadReaderPane
             selectedThread={selectedThread}
             isSelectedThreadGenerating={isSelectedThreadGenerating}
+            isRegeneratingTitle={isRegeneratingSelectedTitle}
             isPosting={isPosting}
             postStatus={postStatus}
             postError={postError}
@@ -771,6 +806,7 @@ export function App() {
             readMarkerNo={readMarkerNo}
             replyBodyRef={replyBodyRef}
             onToggleFavorite={() => void toggleFavorite()}
+            onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
             onGenerateResponses={(force) => void generateResponses(force)}
             onGenerateReplies={() => void handleGenerateReplies()}
             onPostMessage={handlePostMessage}

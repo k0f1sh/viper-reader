@@ -5,6 +5,7 @@ import { PostBody } from "./PostBody";
 type ThreadReaderPaneProps = {
   selectedThread: ThreadDetail | null;
   isSelectedThreadGenerating: boolean;
+  isRegeneratingTitle: boolean;
   isPosting: boolean;
   postStatus: "idle" | "writing" | "generating" | "done" | "error";
   postError: string;
@@ -14,6 +15,7 @@ type ThreadReaderPaneProps = {
   readMarkerNo: number | null;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   onToggleFavorite: () => void;
+  onRegenerateVipTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
   onGenerateReplies: () => void;
   onPostMessage: (event: FormEvent) => void;
@@ -30,6 +32,7 @@ type ThreadReaderPaneProps = {
 export function ThreadReaderPane({
   selectedThread,
   isSelectedThreadGenerating,
+  isRegeneratingTitle,
   isPosting,
   postStatus,
   postError,
@@ -39,6 +42,7 @@ export function ThreadReaderPane({
   readMarkerNo,
   replyBodyRef,
   onToggleFavorite,
+  onRegenerateVipTitle,
   onGenerateResponses,
   onGenerateReplies,
   onPostMessage,
@@ -68,6 +72,15 @@ export function ThreadReaderPane({
                 title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
               >
                 {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
+              </button>
+              <button
+                className="deep-dive-button"
+                onClick={onRegenerateVipTitle}
+                disabled={isRegeneratingTitle}
+                type="button"
+                title="このスレだけスレタイを再生成"
+              >
+                {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
               </button>
               {selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
                 <button

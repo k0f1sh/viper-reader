@@ -129,6 +129,11 @@ export type UnconvertedFeedItem = {
   publishedAt: string | null;
 };
 
+export type FeedItemTitleGenerationSource = UnconvertedFeedItem & {
+  feedId: string;
+  feedTitle: string;
+};
+
 export type VipTitleWrite = {
   feedItemId: string;
   title: string;
@@ -543,6 +548,48 @@ export function listUnconvertedFeedItems(
   }));
 }
 
+export function getFeedItemForTitleGeneration(feedItemId: string): FeedItemTitleGenerationSource | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(
+      `
+      SELECT
+        fi.id,
+        fi.feed_id,
+        fi.title,
+        fi.url,
+        fi.published_at,
+        fs.title AS feed_title
+      FROM feed_items fi
+      INNER JOIN feed_sources fs ON fs.id = fi.feed_id
+      WHERE fi.id = ?
+      `
+    )
+    .get(feedItemId) as
+    | {
+        id: string;
+        feed_id: string;
+        title: string;
+        url: string;
+        published_at: string | null;
+        feed_title: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    feedId: row.feed_id,
+    feedTitle: row.feed_title,
+    title: row.title,
+    url: row.url,
+    publishedAt: row.published_at
+  };
+}
+
 export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash: string): number {
   if (titles.length === 0) {
     return 0;
@@ -579,6 +626,27 @@ export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash
   }
 
   return savedCount;
+}
+
+export function replaceVipTitle(title: VipTitleWrite, model: string, promptHash: string): void {
+  const db = getDatabase();
+  const generatedAt = new Date().toISOString();
+  db.prepare(
+    `
+    INSERT INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(feed_item_id, model, prompt_hash) DO UPDATE SET
+      title = excluded.title,
+      generated_at = excluded.generated_at
+    `
+  ).run(
+    `vip-title:${title.feedItemId}:${promptHash}`,
+    title.feedItemId,
+    model,
+    promptHash,
+    title.title,
+    generatedAt
+  );
 }
 
 export function recordRssRefreshRun(run: RssRefreshRunWrite): void {

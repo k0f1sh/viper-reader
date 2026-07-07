@@ -27,6 +27,7 @@ type ParsedItem = {
 };
 
 const parser = new Parser();
+const maxTitleConversionsPerRefresh = 30;
 
 export async function refreshFeed(
   feedId: string,
@@ -70,8 +71,14 @@ export async function refreshFeed(
     saveRssThreadSummaries(initialCacheItems, modelToUse);
 
     const unconvertedItems = listUnconvertedFeedItems(feed.id, modelToUse, vipTitlePromptHash);
-    onProgress("スレタイ生成中...");
-    const transformed = await transformTitlesToVipStyle(feed.id, feed.title, unconvertedItems);
+    const titleConversionItems = unconvertedItems.slice(0, maxTitleConversionsPerRefresh);
+    const titleConversionSkippedByLimit = unconvertedItems.length - titleConversionItems.length;
+    onProgress(
+      titleConversionSkippedByLimit > 0
+        ? `スレタイ生成中...（最大${maxTitleConversionsPerRefresh}件 / 残り${titleConversionSkippedByLimit}件は次回以降）`
+        : "スレタイ生成中..."
+    );
+    const transformed = await transformTitlesToVipStyle(feed.id, feed.title, titleConversionItems);
     const convertedCount = saveVipTitles(transformed.titles, modelToUse, vipTitlePromptHash);
 
     for (const log of transformed.logs) {
@@ -82,7 +89,7 @@ export async function refreshFeed(
       ...result,
       convertedCount,
       conversionFailedCount: transformed.failedCount + (transformed.titles.length - convertedCount),
-      conversionSkippedCount: transformed.skippedCount
+      conversionSkippedCount: transformed.skippedCount + titleConversionSkippedByLimit
     };
     const finishedAt = new Date().toISOString();
     recordRssRefreshRun({

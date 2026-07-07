@@ -39,7 +39,7 @@ export async function generateReplyPosts(
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
 
-  const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (5 - 2 + 1)) + 2;
+  const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (8 - 4 + 1)) + 4;
 
   // レス履歴のトリミング（no: 1 は固定、それ以外は直近の最大15件に制限してトークン肥大化を防ぐ）
   const firstPost = thread.posts.find((p) => p.no === 1);
@@ -151,11 +151,11 @@ function buildVipReplyContents(params: {
   const generationInstruction =
     params.mode === "continue_thread"
       ? `ユーザーの新規書き込みはありません。最新レスへの直接返信だけに偏らず、記事の内容とこれまでの流れを受けて、住民同士の雑談・質問・補足・ツッコミが自然に続く新規レスを ${params.numReplies} 件生成してください。`
-      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）に対して、アンカー（例: >>${params.startNo - 1}）を付けた返信や、住民同士の掛け合いを含む、新規のレスを ${params.numReplies} 件生成してください。`;
+      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）への反応を含めつつ、住民同士の掛け合い・記事に戻るレス・全然関係ないつぶやきも混ざった新規レスを ${params.numReplies} 件生成してください。`;
   const latestReplyRule =
     params.mode === "continue_thread"
       ? `3. 直近のレスに必要以上に安価を集中させず、記事本文・要約・過去レスから話題を広げてください。`
-      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）に対して、安価（>>${params.startNo - 1} などのアンカー）を用いて、VIP風にツッコミや意見を返してください。`;
+      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）へのアンカー付き反応は半分程度にしてください。残りは、記事内容への雑談、住民同士の短いやり取り、流れと少しズレた独り言、どうでもいいつぶやきなどを混ぜてください。`;
 
   return `以下の技術記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
 

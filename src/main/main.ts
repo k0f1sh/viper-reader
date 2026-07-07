@@ -21,6 +21,7 @@ import { refreshFeed } from "./rss/refreshFeed.js";
 import { getUserSetting, saveUserSetting } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
+import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +71,7 @@ ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => 
     event.sender.send("threads:generation-complete", { threadId, status });
   });
 });
+ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
   return postThreadMessage(threadId, name, mail, body, (status) => {
     event.sender.send("threads:post-status", { threadId, status });
