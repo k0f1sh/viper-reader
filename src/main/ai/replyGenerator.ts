@@ -11,6 +11,12 @@ export type ReplyGenerationResult = {
   log: LlmRequestLogWrite | null;
 };
 
+export type ReplyGenerationMode = "reply_to_user" | "continue_thread";
+
+type ReplyGenerationOptions = {
+  mode?: ReplyGenerationMode;
+};
+
 type UsageMetadata = {
   promptTokenCount?: number;
   candidatesTokenCount?: number;
@@ -18,11 +24,14 @@ type UsageMetadata = {
 };
 
 export async function generateReplyPosts(
-  thread: ThreadDetail
+  thread: ThreadDetail,
+  options: ReplyGenerationOptions = {}
 ): Promise<ReplyGenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
+  const mode = options.mode ?? "reply_to_user";
+  const timeoutMs = mode === "continue_thread" ? 60000 : 30000;
 
   // スレッドの最新のレス番号（最大のレス番号 + 1）
   const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);
@@ -35,8 +44,7 @@ export async function generateReplyPosts(
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
 
-  // 2〜5のレス数をランダムに選択
-  const numReplies = Math.floor(Math.random() * (5 - 2 + 1)) + 2;
+  const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (5 - 2 + 1)) + 2;
 
   // レス履歴のトリミング（no: 1 は固定、それ以外は直近の最大15件に制限してトークン肥大化を防ぐ）
   const firstPost = thread.posts.find((p) => p.no === 1);
@@ -52,7 +60,8 @@ export async function generateReplyPosts(
     history: trimmedHistory,
     startNo,
     residentPrompt: residentPrompt?.prompt ?? null,
-    numReplies
+    numReplies,
+    mode
   });
 
   const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
@@ -92,13 +101,16 @@ export async function generateReplyPosts(
         }
       }),
       new Promise<any>((_, reject) =>
-        setTimeout(() => reject(new Error("Gemini API 呼び出しがタイムアウトしました (30秒)")), 30000)
+        setTimeout(
+          () => reject(new Error(`Gemini API 呼び出しがタイムアウトしました (${timeoutMs / 1000}秒)`)),
+          timeoutMs
+        )
       )
     ]);
 
     responseText = response.text ?? "";
     const parsed = parseJsonArray(responseText);
-    const posts = validateGeneratedReplyPosts(parsed, startNo);
+    const posts = validateGeneratedReplyPosts(parsed, startNo, numReplies);
     const finishedAt = new Date().toISOString();
 
     const log = createLlmLog({
@@ -151,6 +163,7 @@ function buildVipReplyPrompt(params: {
   startNo: number;
   residentPrompt: string | null;
   numReplies: number;
+  mode: ReplyGenerationMode;
 }): string {
   const articleContext = params.scrapedBody
     ? `【元記事の本文】\n${params.scrapedBody}\n`
@@ -168,6 +181,14 @@ function buildVipReplyPrompt(params: {
     : "";
 
   const nowFormatted = new Date().toLocaleString("ja-JP");
+  const generationInstruction =
+    params.mode === "continue_thread"
+      ? `ユーザーの新規書き込みはありません。最新レスへの直接返信だけに偏らず、記事の内容とこれまでの流れを受けて、住民同士の雑談・質問・補足・ツッコミが自然に続く新規レスを ${params.numReplies} 件生成してください。`
+      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）に対して、アンカー（例: >>${params.startNo - 1}）を付けた返信や、住民同士の掛け合いを含む、新規のレスを ${params.numReplies} 件生成してください。`;
+  const latestReplyRule =
+    params.mode === "continue_thread"
+      ? `3. 直近のレスに必要以上に安価を集中させず、記事本文・要約・過去レスから話題を広げてください。`
+      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）に対して、安価（>>${params.startNo - 1} などのアンカー）を用いて、VIP風にツッコミや意見を返してください。`;
 
   return `あなたは 2010 年代前半の 2ch ニュー速 VIP 板のまとめブログに登場する住民（実況者）たちです。
 以下の技術記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
@@ -182,12 +203,12 @@ ${historyStr}
 ${nowFormatted} 付近
 
 【指示】
-最新のレス（履歴の最後のレス、特にユーザーの書き込み）に対して、アンカー（例: >>${params.startNo - 1}）を付けた返信や、住民同士の掛け合いを含む、新規のレスを ${params.numReplies} 件生成してください。
+${generationInstruction}
 
  以下の制約を厳守してください：
 1. 出力は必ず JSON 配列形式にしてください。スキーマは後述します。
 2. レス番号（no）は ${params.startNo} から開始し、重複のないように連番で振ってください。
-3. 最新のユーザーの書き込み（★マークが付いている直近 of 最後のレス）に対して、安価（>>${params.startNo - 1} などのアンカー）を用いて、VIP風にツッコミや意見を返してください。
+${latestReplyRule}
 4. 技術的な正確性を保ってください。
 
 ${VIP_STYLE_RULES}
@@ -224,7 +245,7 @@ function parseJsonArray(responseText: string): unknown[] {
   return parsed;
 }
 
-function validateGeneratedReplyPosts(parsed: unknown[], startNo: number): ThreadPost[] {
+function validateGeneratedReplyPosts(parsed: unknown[], startNo: number, maxPosts: number): ThreadPost[] {
   const posts: ThreadPost[] = [];
 
   for (const item of parsed) {
@@ -246,7 +267,7 @@ function validateGeneratedReplyPosts(parsed: unknown[], startNo: number): Thread
       body
     });
 
-    if (posts.length >= 10) {
+    if (posts.length >= maxPosts) {
       break;
     }
   }

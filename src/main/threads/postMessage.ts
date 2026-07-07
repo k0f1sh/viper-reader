@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { ThreadDetail } from "../../shared/types.js";
-import { generateReplyPosts } from "../ai/replyGenerator.js";
+import { generateReplyPosts, type ReplyGenerationMode } from "../ai/replyGenerator.js";
 import {
   getThread,
   postUserMessage,
@@ -74,7 +74,7 @@ export async function postThreadMessage(
 
     onStatus?.("generating");
 
-    await generateAndSaveReplies(threadId, updatedThread);
+    await generateAndSaveReplies(threadId, updatedThread, "reply_to_user");
     onStatus?.("done");
     return getThread(threadId);
   } catch (error) {
@@ -131,7 +131,7 @@ export async function generateRepliesOnly(
     }
 
     onStatus?.("generating");
-    await generateAndSaveReplies(threadId, thread);
+    await generateAndSaveReplies(threadId, thread, "continue_thread");
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -169,8 +169,12 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
   }
 }
 
-async function generateAndSaveReplies(threadId: string, thread: ThreadDetail): Promise<void> {
-  const aiResult = await generateReplyPosts(thread);
+async function generateAndSaveReplies(
+  threadId: string,
+  thread: ThreadDetail,
+  mode: ReplyGenerationMode
+): Promise<void> {
+  const aiResult = await generateReplyPosts(thread, { mode });
   if (aiResult.log) {
     recordLlmRequestLog(aiResult.log);
   }
