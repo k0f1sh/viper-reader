@@ -176,6 +176,7 @@ ${generationInstruction}
 2. レス番号（no）は ${params.startNo} から開始し、重複のないように連番で振ってください。
 ${latestReplyRule}
 4. 技術的な正確性を保ってください。
+5. 生成する住民レスの mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 
 【出力 JSON スキーマ例】
 [
@@ -208,7 +209,7 @@ function validateGeneratedReplyPosts(parsed: unknown[], startNo: number, maxPost
     posts.push({
       no: startNo + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
-      mail: normalizeOptionalString(item.mail)?.slice(0, 20),
+      mail: normalizeMail(item.mail),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id: normalizeId(item.id),
       body
@@ -232,6 +233,10 @@ function normalizeOptionalString(value: unknown): string | undefined {
   }
 
   return value.trim();
+}
+
+function normalizeMail(value: unknown): string {
+  return normalizeOptionalString(value)?.slice(0, 20) ?? "sage";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

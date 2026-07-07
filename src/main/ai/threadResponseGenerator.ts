@@ -151,7 +151,7 @@ function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
     posts.push({
       no: 2 + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
-      mail: normalizeOptionalString(item.mail)?.slice(0, 20),
+      mail: normalizeMail(item.mail),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id: normalizeId(item.id),
       body
@@ -175,6 +175,10 @@ function normalizeOptionalString(value: unknown): string | undefined {
   }
 
   return value.trim();
+}
+
+function normalizeMail(value: unknown): string {
+  return normalizeOptionalString(value)?.slice(0, 20) ?? "sage";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -16,7 +16,7 @@
 
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRules.js";
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v8";
+export const vipThreadResponsePromptHash = "vip-thread-response-v9";
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {
@@ -59,7 +59,7 @@ ${TWO_GET_LIST}
    - それに続けて「記事の本文が取得できませんでした。終了…。」や「ソースが読めない（またはrobots.txtで弾かれた）からこのスレは終了しました」といった旨を、2ch住民の口調で書き込んでください。
 2. **レス番3 (no: 3) 以降の役割**:
    - レス2 (no: 2) の「本文が取得できない」「スレ終了」の報告を受け、住民たちが落胆したり、ネタにしたりして盛り上がる流れにしてください。
-   - 例：「オワタｗｗｗｗ」「解散解散」「もう帰るわ」「スクレイピング規制されててクソワロタ」「>>2 乙。お前ら帰るぞー」「このスレは>>2によって占領されました」など。
+   - 例：「オワタｗｗｗｗ」「解散解散」「もう帰るわ」「スクレイピング規制されててクソワロタ」「>>2 乙。今日は解散だな」「このスレは>>2によって終了しました」など。
 
 ${VIP_STYLE_RULES}
 
@@ -69,7 +69,8 @@ ${VIP_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください。
 - no: 2 は必ず2get＆本文取得不可の報告レスとし、no: 3以降はその反応レスとしてください。
 
@@ -102,7 +103,7 @@ ${TWO_GET_LIST}
    - **>>3を煽る文言は入れないでください。**
 2. **レス番3 (no: 3) 以降の役割**:
    - レス2 (no: 2) の書き込み（要約）をベースにして、住民たちが議論や雑談を交わす流れにしてください。
-   - レス2に対して「情強乙」「なるほど」「それってつまり～ってこと？」「うはwwwwおkwwwwww」「夢が広がりングwwwwwwww」といった様々なリアクションを取り、議論を展開してください。
+   - レス2に対して「情強きた」「なるほど」「それってつまり～ってこと？」「うはwwwwおkwwwwww」「夢が広がりングwwwwwwww」といった様々なリアクションを取り、議論を展開してください。
 
 ${VIP_STYLE_RULES}
 
@@ -111,7 +112,8 @@ ${VIP_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください（例: 2, 3, 4, 5...）。
 - no: 2 は必ず要約レスとし、no: 3以降はその議論レスとしてください。
 - date は それっぽい日時にしてください。
