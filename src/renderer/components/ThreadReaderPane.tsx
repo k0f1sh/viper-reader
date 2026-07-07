@@ -248,7 +248,11 @@ function FragmentPost({
         </div>
       </article>
       {readMarkerNo === post.no ? (
-        <div className="read-marker" key={`marker-${selectedThreadId}-${post.no}`}>
+        <div
+          className="read-marker"
+          data-read-marker="true"
+          key={`marker-${selectedThreadId}-${post.no}`}
+        >
           <span>───────── ここまで読んだ ─────────</span>
         </div>
       ) : null}

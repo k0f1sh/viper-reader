@@ -15,6 +15,20 @@ const defaultThreadColumnWidths = [360, 300, 54, 170, 126, 260];
 const minThreadColumnWidths = [220, 180, 44, 100, 96, 140];
 const maxRendererLogs = 300;
 
+function scrollReadMarkerToTop() {
+  setTimeout(() => {
+    const postsContainer = document.querySelector<HTMLElement>(".posts");
+    const readMarker = document.querySelector<HTMLElement>('[data-read-marker="true"]');
+    if (!postsContainer || !readMarker) {
+      return;
+    }
+
+    const containerRect = postsContainer.getBoundingClientRect();
+    const markerRect = readMarker.getBoundingClientRect();
+    postsContainer.scrollTop += markerRect.top - containerRect.top;
+  }, 100);
+}
+
 export function App() {
   const [feedList, setFeedList] = useState<FeedSource[]>([]);
   const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
@@ -442,13 +456,7 @@ export function App() {
         );
         void reloadFeeds();
 
-        // 投稿成功時に最下部にスクロールする
-        setTimeout(() => {
-          const postsContainer = document.querySelector(".posts");
-          if (postsContainer) {
-            postsContainer.scrollTop = postsContainer.scrollHeight;
-          }
-        }, 100);
+        scrollReadMarkerToTop();
       }
     } catch (err) {
       setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
@@ -487,12 +495,7 @@ export function App() {
         );
         void reloadFeeds();
 
-        setTimeout(() => {
-          const postsContainer = document.querySelector(".posts");
-          if (postsContainer) {
-            postsContainer.scrollTop = postsContainer.scrollHeight;
-          }
-        }, 100);
+        scrollReadMarkerToTop();
       }
     } catch (err) {
       setPostError(err instanceof Error ? err.message : "レス生成に失敗しました。");
