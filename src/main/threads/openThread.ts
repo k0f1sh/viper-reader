@@ -2,6 +2,7 @@ import type { ThreadDetail } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
+  getArticleSummary,
   getFeedResidentPrompt,
   getThread,
   recordLlmRequestLog,
@@ -66,7 +67,8 @@ export function startThreadResponseGeneration(
       }
 
       // 3. レスの生成・保存
-      const status = await generateAndSaveThreadResponses(thread, scrapedBody);
+      const articleSummary = getArticleSummary(threadId);
+      const status = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary);
       onComplete(status);
     } catch (error) {
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
@@ -79,14 +81,16 @@ export function startThreadResponseGeneration(
 
 async function generateAndSaveThreadResponses(
   thread: ThreadDetail,
-  scrapedBody: string | null
+  scrapedBody: string | null,
+  articleSummary: string | null = null
 ): Promise<"done" | "skipped" | "error"> {
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
   const promptHash = buildVipThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
   const generated = await generateThreadResponses(thread, {
     residentPrompt: residentPrompt?.prompt ?? null,
     promptHash,
-    scrapedBody
+    scrapedBody,
+    articleSummary
   });
   if (generated.log) {
     recordLlmRequestLog(generated.log);

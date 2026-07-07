@@ -30,6 +30,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "article_bodies", "summary_text", "TEXT");
+  addColumnIfMissing(db, "llm_request_logs", "cached_content_token_count", "INTEGER");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());

@@ -117,6 +117,7 @@ type ApiRequestRow = {
   prompt_token_count: number | null;
   candidates_token_count: number | null;
   total_token_count: number | null;
+  cached_content_token_count: number | null;
   error_message: string | null;
   finished_at: string;
 };
@@ -156,6 +157,7 @@ export type LlmRequestLogWrite = {
   promptTokenCount: number | null;
   candidatesTokenCount: number | null;
   totalTokenCount: number | null;
+  cachedContentTokenCount: number | null;
   errorMessage: string | null;
   startedAt: string;
   finishedAt: string;
@@ -621,8 +623,9 @@ export function recordRssRefreshRun(run: RssRefreshRunWrite): void {
 }
 
 export function recordLlmRequestLog(log: LlmRequestLogWrite): void {
+  const cachedHit = log.cachedContentTokenCount ? ` | CachedTokens: ${log.cachedContentTokenCount}` : "";
   console.log(
-    `[LLM Request] Model: ${log.model} | Purpose: ${log.purpose} | Status: ${log.status} | Prompt Chars: ${log.promptChars} | Response Chars: ${log.responseChars} | Tokens: ${log.totalTokenCount ?? "N/A"}${log.errorMessage ? ` | Error: ${log.errorMessage}` : ""}`
+    `[LLM Request] Model: ${log.model} | Purpose: ${log.purpose} | Status: ${log.status} | Prompt Chars: ${log.promptChars} | Response Chars: ${log.responseChars} | Tokens: ${log.totalTokenCount ?? "N/A"} (prompt: ${log.promptTokenCount ?? "N/A"}, candidates: ${log.candidatesTokenCount ?? "N/A"})${cachedHit}${log.errorMessage ? ` | Error: ${log.errorMessage}` : ""}`
   );
   const db = getDatabase();
   db.prepare(
@@ -642,11 +645,12 @@ export function recordLlmRequestLog(log: LlmRequestLogWrite): void {
         prompt_token_count,
         candidates_token_count,
         total_token_count,
+        cached_content_token_count,
         error_message,
         started_at,
         finished_at
       )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
     log.id,
@@ -662,6 +666,7 @@ export function recordLlmRequestLog(log: LlmRequestLogWrite): void {
     log.promptTokenCount,
     log.candidatesTokenCount,
     log.totalTokenCount,
+    log.cachedContentTokenCount ?? null,
     log.errorMessage,
     log.startedAt,
     log.finishedAt
@@ -791,6 +796,7 @@ export function getStatistics(): StatisticsSummary {
         prompt_token_count,
         candidates_token_count,
         total_token_count,
+        cached_content_token_count,
         error_message,
         finished_at
       FROM llm_request_logs
@@ -945,6 +951,7 @@ function rowToApiRequestSummary(row: ApiRequestRow): ApiRequestSummary {
     promptTokenCount: row.prompt_token_count,
     candidatesTokenCount: row.candidates_token_count,
     totalTokenCount: row.total_token_count,
+    cachedContentTokenCount: row.cached_content_token_count,
     errorMessage: row.error_message,
     finishedAt: row.finished_at
   };

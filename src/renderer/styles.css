@@ -844,7 +844,7 @@ body.is-column-resizing * {
 }
 
 .api-log-table {
-  grid-template-columns: 128px 68px 54px 70px minmax(180px, 1fr);
+  grid-template-columns: 128px 60px 90px 50px minmax(130px, 1fr) minmax(140px, 1fr);
 }
 
 .rss-log-table {
@@ -866,7 +866,7 @@ body.is-column-resizing * {
   white-space: nowrap;
 }
 
-.api-log-table span:nth-child(-n + 5),
+.api-log-table span:nth-child(-n + 6),
 .rss-log-table span:nth-child(-n + 5),
 .article-fetch-log-table span:nth-child(-n + 6) {
   border-top: 1px solid #ffffff;

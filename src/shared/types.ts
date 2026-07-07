@@ -125,6 +125,7 @@ export type ApiRequestSummary = {
   promptTokenCount: number | null;
   candidatesTokenCount: number | null;
   totalTokenCount: number | null;
+  cachedContentTokenCount: number | null;
   errorMessage: string | null;
   finishedAt: string;
 };

@@ -1,8 +1,9 @@
-import crypto from "node:crypto";
-import { GoogleGenAI } from "@google/genai";
 import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
 import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
+import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { createLogId, generateJson, resolveApiKey } from "./genaiClient.js";
+import { vipTitleArraySchema } from "./schemas.js";
 
 export type TitleTransformResult = {
   titles: VipTitleWrite[];
@@ -15,12 +16,6 @@ type GeminiTitleResponse = Array<{
   feedItemId: string;
   vipTitle: string;
 }>;
-
-type UsageMetadata = {
-  promptTokenCount?: number;
-  candidatesTokenCount?: number;
-  totalTokenCount?: number;
-};
 
 const titleBatchSize = 12;
 
@@ -39,8 +34,8 @@ export async function transformTitlesToVipStyle(
   }
 
   const modelToUse = getActiveModel();
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
+
+  if (!resolveApiKey()) {
     const now = new Date().toISOString();
     return {
       titles: [],
@@ -61,6 +56,7 @@ export async function transformTitlesToVipStyle(
           promptTokenCount: null,
           candidatesTokenCount: null,
           totalTokenCount: null,
+          cachedContentTokenCount: null,
           errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
           startedAt: now,
           finishedAt: now
@@ -69,7 +65,6 @@ export async function transformTitlesToVipStyle(
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
   const titles: VipTitleWrite[] = [];
   const logs: LlmRequestLogWrite[] = [];
   let failedCount = 0;
@@ -77,54 +72,50 @@ export async function transformTitlesToVipStyle(
   for (const chunk of chunkItems(items, titleBatchSize)) {
     const startedAt = new Date().toISOString();
     const prompt = buildVipTitlePrompt(feedTitle, chunk);
-    let responseText = "";
-    console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: title_transformation`);
 
-    try {
-      const response = await ai.models.generateContent({
-        model: modelToUse,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-      responseText = response.text ?? "";
+    const result = await generateJson<GeminiTitleResponse>({
+      model: modelToUse,
+      purpose: "title_transform",
+      systemInstruction: VIP_TITLE_SYSTEM_INSTRUCTION,
+      contents: prompt,
+      responseSchema: vipTitleArraySchema,
+      timeoutMs: 30000,
+      parse: (text) => {
+        const parsed = JSON.parse(text) as unknown;
+        if (!Array.isArray(parsed)) throw new Error("Gemini title response is not an array");
+        return parsed as GeminiTitleResponse;
+      }
+    });
 
-      const converted = validateConvertedTitles(parseJsonArray(responseText), chunk);
+    const finishedAt = new Date().toISOString();
+
+    if (result.value) {
+      const converted = validateConvertedTitles(result.value, chunk);
       titles.push(...converted);
       failedCount += chunk.length - converted.length;
-
-      logs.push(
-        createLlmLog({
-          feedId,
-          status: "success",
-          itemCount: chunk.length,
-          promptChars: prompt.length,
-          responseChars: responseText.length,
-          usageMetadata: response.usageMetadata,
-          errorMessage: null,
-          startedAt,
-          model: modelToUse,
-          finishedAt: new Date().toISOString()
-        })
-      );
-    } catch (error) {
+    } else {
       failedCount += chunk.length;
-      logs.push(
-        createLlmLog({
-          feedId,
-          status: "error",
-          itemCount: chunk.length,
-          promptChars: prompt.length,
-          responseChars: responseText.length,
-          usageMetadata: undefined,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          startedAt,
-          model: modelToUse,
-          finishedAt: new Date().toISOString()
-        })
-      );
     }
+
+    logs.push({
+      id: createLogId("llm", feedId, finishedAt),
+      feedId,
+      purpose: "title_transform",
+      model: modelToUse,
+      promptHash: vipTitlePromptHash,
+      status: result.errorMessage ? "error" : "success",
+      requestCount: 1,
+      itemCount: chunk.length,
+      promptChars: result.promptChars,
+      responseChars: result.responseText.length,
+      promptTokenCount: result.usageMetadata?.promptTokenCount ?? null,
+      candidatesTokenCount: result.usageMetadata?.candidatesTokenCount ?? null,
+      totalTokenCount: result.usageMetadata?.totalTokenCount ?? null,
+      cachedContentTokenCount: result.usageMetadata?.cachedContentTokenCount ?? null,
+      errorMessage: result.errorMessage,
+      startedAt,
+      finishedAt
+    });
   }
 
   return {
@@ -133,21 +124,6 @@ export async function transformTitlesToVipStyle(
     skippedCount: 0,
     logs
   };
-}
-
-function parseJsonArray(responseText: string): GeminiTitleResponse {
-  const trimmed = responseText.trim();
-  const withoutFence = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const parsed = JSON.parse(withoutFence) as unknown;
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("Gemini title response is not an array");
-  }
-
-  return parsed as GeminiTitleResponse;
 }
 
 function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: UnconvertedFeedItem[]): VipTitleWrite[] {
@@ -181,47 +157,6 @@ function normalizeVipTitle(value: unknown): string {
   }
 
   return value.replace(/\s+/g, " ").trim().slice(0, 120);
-}
-
-function createLlmLog(params: {
-  feedId: string;
-  model: string;
-  status: "success" | "error";
-  itemCount: number;
-  promptChars: number;
-  responseChars: number;
-  usageMetadata: UsageMetadata | undefined;
-  errorMessage: string | null;
-  startedAt: string;
-  finishedAt: string;
-}): LlmRequestLogWrite {
-  return {
-    id: createLogId("llm", params.feedId, params.finishedAt),
-    feedId: params.feedId,
-    purpose: "title_transform",
-    model: params.model,
-    promptHash: vipTitlePromptHash,
-    status: params.status,
-    requestCount: 1,
-    itemCount: params.itemCount,
-    promptChars: params.promptChars,
-    responseChars: params.responseChars,
-    promptTokenCount: params.usageMetadata?.promptTokenCount ?? null,
-    candidatesTokenCount: params.usageMetadata?.candidatesTokenCount ?? null,
-    totalTokenCount: params.usageMetadata?.totalTokenCount ?? null,
-    errorMessage: params.errorMessage,
-    startedAt: params.startedAt,
-    finishedAt: params.finishedAt
-  };
-}
-
-function createLogId(prefix: string, feedId: string, value: string): string {
-  const hash = crypto
-    .createHash("sha1")
-    .update(`${prefix}:${feedId}:${value}:${crypto.randomUUID()}`)
-    .digest("hex")
-    .slice(0, 20);
-  return `${prefix}:${hash}`;
 }
 
 function chunkItems<T>(items: T[], size: number): T[][] {

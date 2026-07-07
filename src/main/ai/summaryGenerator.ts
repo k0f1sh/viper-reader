@@ -1,13 +1,14 @@
-import { GoogleGenAI } from "@google/genai";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { getActiveModel } from "../settings/settingsService.js";
+import { SUMMARY_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { createLogId, generateText, resolveApiKey } from "./genaiClient.js";
 import crypto from "node:crypto";
 
-type UsageMetadata = {
-  promptTokenCount?: number;
-  candidatesTokenCount?: number;
-  totalTokenCount?: number;
-};
+/**
+ * 記事本文のテキスト長上限。
+ * これを超える場合は先頭から切り詰め、その旨をプロンプト内で明示する。
+ */
+const MAX_BODY_CHARS = 8000;
 
 export type ArticleSummaryGenerationResult = {
   summary: string | null;
@@ -16,19 +17,28 @@ export type ArticleSummaryGenerationResult = {
 
 /**
  * 指定された記事本文を、技術的な要点を維持したまま300文字程度でシンプルに要約します。
+ * 本文が MAX_BODY_CHARS を超える場合は先頭から切り詰めて渡します。
  */
 export async function generateArticleSummary(
   feedItemId: string,
   feedId: string,
   bodyText: string
 ): Promise<ArticleSummaryGenerationResult> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const startedAt = new Date().toISOString();
-  const prompt = `以下の文章を、技術的な要点を残したまま、300文字程度でシンプルに要約してください。余計な挨拶や前置きは省き、要約内容のみを出力してください。\n\n${bodyText}`;
-  const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
-
   const modelToUse = getActiveModel();
-  if (!apiKey) {
+
+  // 本文が長すぎる場合は切り詰める
+  let truncationNote = "";
+  let bodyToUse = bodyText;
+  if (bodyText.length > MAX_BODY_CHARS) {
+    bodyToUse = bodyText.slice(0, MAX_BODY_CHARS);
+    truncationNote = `\n\n[※ 本文が長いため先頭 ${MAX_BODY_CHARS} 文字のみ渡しています。後半の内容は要約に含めないでください。]`;
+  }
+
+  const contents = `以下の文章を、技術的な要点を残したまま、300文字程度でシンプルに要約してください。余計な挨拶や前置きは省き、要約内容のみを出力してください。\n\n${bodyToUse}${truncationNote}`;
+  const promptHash = crypto.createHash("sha1").update(contents).digest("hex").slice(0, 16);
+
+  if (!resolveApiKey()) {
     const finishedAt = new Date().toISOString();
     return {
       summary: null,
@@ -37,7 +47,7 @@ export async function generateArticleSummary(
         model: modelToUse,
         promptHash,
         status: "skipped",
-        promptChars: prompt.length,
+        promptChars: contents.length,
         responseChars: 0,
         usageMetadata: undefined,
         errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
@@ -47,53 +57,31 @@ export async function generateArticleSummary(
     };
   }
 
-  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: article_summary`);
+  const result = await generateText({
+    model: modelToUse,
+    purpose: "article_summary",
+    systemInstruction: SUMMARY_SYSTEM_INSTRUCTION,
+    contents,
+    timeoutMs: 30000
+  });
 
-  const ai = new GoogleGenAI({ apiKey });
-  try {
-    const response = await ai.models.generateContent({
-      model: modelToUse, // dynamically chosen model
-      contents: prompt
-    });
+  const finishedAt = new Date().toISOString();
 
-    const summary = response.text?.trim() ?? "";
-    const finishedAt = new Date().toISOString();
-
-    return {
-      summary,
-      log: createLlmLog({
-        feedId,
-        model: modelToUse,
-        promptHash,
-        status: "success",
-        promptChars: prompt.length,
-        responseChars: summary.length,
-        usageMetadata: response.usageMetadata,
-        errorMessage: null,
-        startedAt,
-        finishedAt
-      })
-    };
-  } catch (error) {
-    const finishedAt = new Date().toISOString();
-    const errMsg = error instanceof Error ? error.message : String(error);
-
-    return {
-      summary: null,
-      log: createLlmLog({
-        feedId,
-        model: modelToUse,
-        promptHash,
-        status: "error",
-        promptChars: prompt.length,
-        responseChars: 0,
-        usageMetadata: undefined,
-        errorMessage: errMsg,
-        startedAt,
-        finishedAt
-      })
-    };
-  }
+  return {
+    summary: result.text,
+    log: createLlmLog({
+      feedId,
+      model: modelToUse,
+      promptHash,
+      status: result.errorMessage ? "error" : "success",
+      promptChars: result.promptChars,
+      responseChars: result.responseText.length,
+      usageMetadata: result.usageMetadata,
+      errorMessage: result.errorMessage,
+      startedAt,
+      finishedAt
+    })
+  };
 }
 
 function createLlmLog(params: {
@@ -103,13 +91,13 @@ function createLlmLog(params: {
   status: "success" | "error" | "skipped";
   promptChars: number;
   responseChars: number;
-  usageMetadata: UsageMetadata | undefined;
+  usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number } | undefined;
   errorMessage: string | null;
   startedAt: string;
   finishedAt: string;
 }): LlmRequestLogWrite {
   return {
-    id: `llm:${crypto.randomUUID().slice(0, 8)}`,
+    id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "article_summary",
     model: params.model,
@@ -122,6 +110,7 @@ function createLlmLog(params: {
     promptTokenCount: params.usageMetadata?.promptTokenCount ?? null,
     candidatesTokenCount: params.usageMetadata?.candidatesTokenCount ?? null,
     totalTokenCount: params.usageMetadata?.totalTokenCount ?? null,
+    cachedContentTokenCount: params.usageMetadata?.cachedContentTokenCount ?? null,
     errorMessage: params.errorMessage,
     startedAt: params.startedAt,
     finishedAt: params.finishedAt

@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS llm_request_logs (
   prompt_token_count INTEGER,
   candidates_token_count INTEGER,
   total_token_count INTEGER,
+  cached_content_token_count INTEGER,
   error_message TEXT,
   started_at TEXT NOT NULL,
   finished_at TEXT NOT NULL,

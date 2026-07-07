@@ -1,20 +1,22 @@
 import crypto from "node:crypto";
-import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
+import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { createLogId, generateJson, resolveApiKey } from "./genaiClient.js";
+import { threadPostArraySchema } from "./schemas.js";
 
 export type ThreadResponseGenerationResult = {
   posts: ThreadPost[];
   log: LlmRequestLogWrite | null;
 };
 
-type UsageMetadata = {
-  promptTokenCount?: number;
-  candidatesTokenCount?: number;
-  totalTokenCount?: number;
-};
+/**
+ * 記事本文が長すぎる場合の最大文字数。
+ * これを超える場合は先頭から切り詰め、その旨をプロンプト内で明示する。
+ */
+const MAX_BODY_CHARS = 6000;
 
 export async function generateThreadResponses(
   thread: ThreadDetail,
@@ -22,22 +24,33 @@ export async function generateThreadResponses(
     residentPrompt: string | null;
     promptHash: string;
     scrapedBody: string | null;
+    articleSummary: string | null;
   }
 ): Promise<ThreadResponseGenerationResult> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
+
+  // 本文コンテキストの優先順位:
+  //   1. 記事要約（article_bodies.summary_text から取得済みのもの）
+  //   2. スクレイピング本文（最大 MAX_BODY_CHARS 文字に切り詰め）
+  //   3. null（スクレイピング失敗）
+  const articleContext = buildArticleContext({
+    summary: options.articleSummary,
+    scrapedBody: options.scrapedBody,
+    maxBodyChars: MAX_BODY_CHARS
+  });
+
   const prompt = buildVipThreadResponsePrompt({
     vipTitle: thread.vipTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
     rssBody: thread.posts[0]?.body ?? "",
-    scrapedBody: options.scrapedBody,
+    scrapedBody: articleContext,
     publishedAt: thread.publishedAt,
     residentPrompt: options.residentPrompt
   });
 
-  if (!apiKey) {
+  if (!resolveApiKey()) {
     const finishedAt = new Date().toISOString();
     return {
       posts: [],
@@ -57,73 +70,69 @@ export async function generateThreadResponses(
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  let responseText = "";
+  const result = await generateJson<ThreadPost[]>({
+    model: modelToUse,
+    purpose: "thread_response",
+    systemInstruction: VIP_SYSTEM_INSTRUCTION,
+    contents: prompt,
+    responseSchema: threadPostArraySchema,
+    timeoutMs: 45000,
+    parse: (text) => {
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) throw new Error("Gemini thread response is not an array");
+      return validateGeneratedPosts(parsed);
+    }
+  });
 
-  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_response`);
+  const finishedAt = new Date().toISOString();
+  const posts = result.value ?? [];
 
-  try {
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
-    responseText = response.text ?? "";
-    const posts = validateGeneratedPosts(parseJsonArray(responseText));
-    const finishedAt = new Date().toISOString();
-
-    return {
-      posts,
-      log: createLlmLog({
-        feedId: thread.feedId,
-        promptHash: options.promptHash,
-        status: "success",
-        itemCount: posts.length,
-        promptChars: prompt.length,
-        responseChars: responseText.length,
-        usageMetadata: response.usageMetadata,
-        errorMessage: null,
-        startedAt,
-        finishedAt,
-        model: modelToUse
-      })
-    };
-  } catch (error) {
-    const finishedAt = new Date().toISOString();
-    return {
-      posts: [],
-      log: createLlmLog({
-        feedId: thread.feedId,
-        promptHash: options.promptHash,
-        status: "error",
-        itemCount: 1,
-        promptChars: prompt.length,
-        responseChars: responseText.length,
-        usageMetadata: undefined,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        startedAt,
-        finishedAt,
-        model: modelToUse
-      })
-    };
-  }
+  return {
+    posts,
+    log: createLlmLog({
+      feedId: thread.feedId,
+      promptHash: options.promptHash,
+      status: result.errorMessage ? "error" : "success",
+      itemCount: posts.length,
+      promptChars: result.promptChars,
+      responseChars: result.responseText.length,
+      usageMetadata: result.usageMetadata,
+      errorMessage: result.errorMessage,
+      startedAt,
+      finishedAt,
+      model: modelToUse
+    })
+  };
 }
 
-function parseJsonArray(responseText: string): unknown[] {
-  const trimmed = responseText.trim();
-  const withoutFence = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const parsed = JSON.parse(withoutFence) as unknown;
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("Gemini thread response is not an array");
+/**
+ * 記事コンテキスト文字列を組み立てる。
+ * - summary があればそれを返す。
+ * - なければ scrapedBody を最大 maxBodyChars 文字に切り詰めて返す。
+ * - 切り詰めた場合は「切り詰めた」ことをプロンプト内に明示する。
+ * - scrapedBody も null なら null を返す（スクレイピング失敗扱い）。
+ */
+function buildArticleContext(params: {
+  summary: string | null;
+  scrapedBody: string | null;
+  maxBodyChars: number;
+}): string | null {
+  if (params.summary) {
+    return params.summary;
   }
 
-  return parsed;
+  if (!params.scrapedBody) {
+    return null;
+  }
+
+  if (params.scrapedBody.length <= params.maxBodyChars) {
+    return params.scrapedBody;
+  }
+
+  return (
+    params.scrapedBody.slice(0, params.maxBodyChars) +
+    `\n\n[※ 本文が長いため先頭 ${params.maxBodyChars} 文字に切り詰めています。続きの内容については「そこはソースから判断できない」として扱ってください。]`
+  );
 }
 
 function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
@@ -191,7 +200,7 @@ function createLlmLog(params: {
   itemCount: number;
   promptChars: number;
   responseChars: number;
-  usageMetadata: UsageMetadata | undefined;
+  usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number } | undefined;
   errorMessage: string | null;
   startedAt: string;
   finishedAt: string;
@@ -210,19 +219,11 @@ function createLlmLog(params: {
     promptTokenCount: params.usageMetadata?.promptTokenCount ?? null,
     candidatesTokenCount: params.usageMetadata?.candidatesTokenCount ?? null,
     totalTokenCount: params.usageMetadata?.totalTokenCount ?? null,
+    cachedContentTokenCount: params.usageMetadata?.cachedContentTokenCount ?? null,
     errorMessage: params.errorMessage,
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createLogId(prefix: string, feedId: string, value: string): string {
-  const hash = crypto
-    .createHash("sha1")
-    .update(`${prefix}:${feedId}:${value}:${crypto.randomUUID()}`)
-    .digest("hex")
-    .slice(0, 20);
-  return `${prefix}:${hash}`;
 }
 
 function createFallbackDate(): string {

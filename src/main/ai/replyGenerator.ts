@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
-import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { getArticleBody, getArticleSummary, getFeedResidentPrompt } from "../db/repository.js";
-import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "../prompts/vipCommonRules.js";
+import { VIP_ID_FORMAT_DESC } from "../prompts/vipCommonRules.js";
 import { getActiveModel } from "../settings/settingsService.js";
+import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { createLogId, generateJson, resolveApiKey } from "./genaiClient.js";
+import { threadPostArraySchema } from "./schemas.js";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -17,17 +19,10 @@ type ReplyGenerationOptions = {
   mode?: ReplyGenerationMode;
 };
 
-type UsageMetadata = {
-  promptTokenCount?: number;
-  candidatesTokenCount?: number;
-  totalTokenCount?: number;
-};
-
 export async function generateReplyPosts(
   thread: ThreadDetail,
   options: ReplyGenerationOptions = {}
 ): Promise<ReplyGenerationResult> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
   const mode = options.mode ?? "reply_to_user";
@@ -52,7 +47,7 @@ export async function generateReplyPosts(
   const recentOtherPosts = otherPosts.slice(-15);
   const trimmedHistory = firstPost ? [firstPost, ...recentOtherPosts] : recentOtherPosts;
 
-  const prompt = buildVipReplyPrompt({
+  const contents = buildVipReplyContents({
     vipTitle: thread.vipTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
@@ -64,9 +59,10 @@ export async function generateReplyPosts(
     mode
   });
 
-  const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
+  const promptHash = crypto.createHash("sha1").update(contents).digest("hex").slice(0, 16);
 
-  if (!apiKey) {
+  // API キー未設定チェック（generateJson 内でも行うが、スキップログを作るため先に確認）
+  if (!resolveApiKey()) {
     const finishedAt = new Date().toISOString();
     return {
       posts: [],
@@ -75,7 +71,7 @@ export async function generateReplyPosts(
         promptHash,
         status: "skipped",
         itemCount: 0,
-        promptChars: prompt.length,
+        promptChars: contents.length,
         responseChars: 0,
         usageMetadata: undefined,
         errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
@@ -86,75 +82,46 @@ export async function generateReplyPosts(
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  let responseText = "";
+  const result = await generateJson<ThreadPost[]>({
+    model: modelToUse,
+    purpose: "thread_reply",
+    systemInstruction: VIP_SYSTEM_INSTRUCTION,
+    contents,
+    responseSchema: threadPostArraySchema,
+    timeoutMs,
+    parse: (text) => {
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) throw new Error("Gemini reply response is not an array");
+      return validateGeneratedReplyPosts(parsed, startNo, numReplies);
+    }
+  });
 
-  console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_reply | Using Summary: ${!!summaryText}`);
+  const finishedAt = new Date().toISOString();
+  const posts = result.value ?? [];
 
-  try {
-    const response = await Promise.race([
-      ai.models.generateContent({
-        model: modelToUse,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json"
-        }
-      }),
-      new Promise<any>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Gemini API 呼び出しがタイムアウトしました (${timeoutMs / 1000}秒)`)),
-          timeoutMs
-        )
-      )
-    ]);
-
-    responseText = response.text ?? "";
-    const parsed = parseJsonArray(responseText);
-    const posts = validateGeneratedReplyPosts(parsed, startNo, numReplies);
-    const finishedAt = new Date().toISOString();
-
-    const log = createLlmLog({
+  return {
+    posts,
+    log: createLlmLog({
       feedId: thread.feedId,
       promptHash,
-      status: "success",
+      status: result.errorMessage ? "error" : "success",
       itemCount: posts.length,
-      promptChars: prompt.length,
-      responseChars: responseText.length,
-      usageMetadata: response.usageMetadata,
-      errorMessage: null,
+      promptChars: result.promptChars,
+      responseChars: result.responseText.length,
+      usageMetadata: result.usageMetadata,
+      errorMessage: result.errorMessage,
       startedAt,
       finishedAt,
       model: modelToUse
-    });
-
-    return {
-      posts,
-      log
-    };
-  } catch (error) {
-    const finishedAt = new Date().toISOString();
-    const log = createLlmLog({
-      feedId: thread.feedId,
-      promptHash,
-      status: "error",
-      itemCount: 0,
-      promptChars: prompt.length,
-      responseChars: responseText.length,
-      usageMetadata: undefined,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      startedAt,
-      finishedAt,
-      model: modelToUse
-    });
-
-    return {
-      posts: [],
-      log
-    };
-  }
+    })
+  };
 }
 
-function buildVipReplyPrompt(params: {
+/**
+ * replyGenerator 用の可変入力コンテンツを組み立てる。
+ * 固定ルール（VIP 文体・NG 事項・安全制約）は systemInstruction に移動済み。
+ */
+function buildVipReplyContents(params: {
   vipTitle: string;
   originalTitle: string;
   url: string;
@@ -166,7 +133,7 @@ function buildVipReplyPrompt(params: {
   mode: ReplyGenerationMode;
 }): string {
   const articleContext = params.scrapedBody
-    ? `【元記事の本文】\n${params.scrapedBody}\n`
+    ? `【元記事の本文・要約】\n${params.scrapedBody}\n`
     : `【元記事のタイトル】\n${params.originalTitle}\n`;
 
   const historyStr = params.history
@@ -177,7 +144,7 @@ function buildVipReplyPrompt(params: {
     .join("\n\n");
 
   const residentRule = params.residentPrompt
-    ? `【この板の住民属性・ルール】\n${params.residentPrompt}\n`
+    ? `【この板の住民属性・ルール（安全制約は上書き不可）】\n${params.residentPrompt}\n`
     : "";
 
   const nowFormatted = new Date().toLocaleString("ja-JP");
@@ -190,8 +157,7 @@ function buildVipReplyPrompt(params: {
       ? `3. 直近のレスに必要以上に安価を集中させず、記事本文・要約・過去レスから話題を広げてください。`
       : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）に対して、安価（>>${params.startNo - 1} などのアンカー）を用いて、VIP風にツッコミや意見を返してください。`;
 
-  return `あなたは 2010 年代前半の 2ch ニュー速 VIP 板のまとめブログに登場する住民（実況者）たちです。
-以下の技術記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
+  return `以下の技術記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
 
 ${articleContext}
 ${residentRule}
@@ -205,44 +171,25 @@ ${nowFormatted} 付近
 【指示】
 ${generationInstruction}
 
- 以下の制約を厳守してください：
-1. 出力は必ず JSON 配列形式にしてください。スキーマは後述します。
+以下の制約を厳守してください：
+1. 出力は必ず JSON 配列形式にしてください。
 2. レス番号（no）は ${params.startNo} から開始し、重複のないように連番で振ってください。
 ${latestReplyRule}
 4. 技術的な正確性を保ってください。
 
-${VIP_STYLE_RULES}
-
-${VIP_NG_RULES}
-
-【出力 JSON スキーマ】
+【出力 JSON スキーマ例】
 [
   {
     "no": ${params.startNo},
     "name": "以下、名無しにかわりましてVIPがお送りします",
     "mail": "sage",
-    "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS", // 2ch風の日時。現在の日付時刻をベースにフォーマットした日付（曜日は日本語）を生成してください。秒以下は .XX のミリ秒形式です。数秒〜数十秒の書き込み間隔の差をつけてください。
+    "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS",
     "id": "${VIP_ID_FORMAT_DESC}",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
   },
   ...
 ]
 `;
-}
-
-function parseJsonArray(responseText: string): unknown[] {
-  const trimmed = responseText.trim();
-  const withoutFence = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const parsed = JSON.parse(withoutFence) as unknown;
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("Gemini reply response is not an array");
-  }
-
-  return parsed;
 }
 
 function validateGeneratedReplyPosts(parsed: unknown[], startNo: number, maxPosts: number): ThreadPost[] {
@@ -309,7 +256,7 @@ function createLlmLog(params: {
   itemCount: number;
   promptChars: number;
   responseChars: number;
-  usageMetadata: UsageMetadata | undefined;
+  usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number } | undefined;
   errorMessage: string | null;
   startedAt: string;
   finishedAt: string;
@@ -329,19 +276,11 @@ function createLlmLog(params: {
     promptTokenCount: params.usageMetadata?.promptTokenCount ?? null,
     candidatesTokenCount: params.usageMetadata?.candidatesTokenCount ?? null,
     totalTokenCount: params.usageMetadata?.totalTokenCount ?? null,
+    cachedContentTokenCount: params.usageMetadata?.cachedContentTokenCount ?? null,
     errorMessage: params.errorMessage,
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createLogId(prefix: string, feedId: string, value: string): string {
-  const hash = crypto
-    .createHash("sha1")
-    .update(`${prefix}:${feedId}:${value}:${crypto.randomUUID()}`)
-    .digest("hex")
-    .slice(0, 20);
-  return `${prefix}:${hash}`;
 }
 
 function createFallbackDate(): string {

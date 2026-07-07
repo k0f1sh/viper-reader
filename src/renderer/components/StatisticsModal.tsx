@@ -69,8 +69,9 @@ export function StatisticsModal({ statistics, isLoading, onClose }: StatisticsMo
                 <div className="stats-table api-log-table">
                   <span>日時</span>
                   <span>状態</span>
+                  <span>用途</span>
                   <span>件数</span>
-                  <span>Token</span>
+                  <span>Token(total/cached)</span>
                   <span>モデル</span>
                   {statistics.recentApiRequests.map((request) => (
                     <ApiLogRow key={request.id} request={request} />
@@ -126,12 +127,22 @@ function StatCell({ label, value }: { label: string; value: number | string }) {
 }
 
 function ApiLogRow({ request }: { request: StatisticsSummary["recentApiRequests"][number] }) {
+  const purposeLabel: Record<string, string> = {
+    title_transform: "スレタイ変換",
+    thread_response: "初期スレ",
+    thread_reply: "返信生成",
+    article_summary: "本文要約"
+  };
+  const tokenStr = request.totalTokenCount != null
+    ? `${request.totalTokenCount.toLocaleString()}${request.cachedContentTokenCount ? ` / ${request.cachedContentTokenCount.toLocaleString()}↩` : ""}`
+    : "-";
   return (
     <>
       <span>{formatStatsDate(request.finishedAt)}</span>
       <span>{formatStatus(request.status)}</span>
+      <span>{purposeLabel[request.purpose] ?? request.purpose}</span>
       <span>{request.itemCount}</span>
-      <span>{request.totalTokenCount ?? "-"}</span>
+      <span title={`prompt: ${request.promptTokenCount ?? "N/A"} / candidates: ${request.candidatesTokenCount ?? "N/A"}`}>{tokenStr}</span>
       <span>{request.model}</span>
     </>
   );
