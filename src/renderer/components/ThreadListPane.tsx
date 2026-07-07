@@ -1,0 +1,100 @@
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { FeedSource, ThreadDetail, ThreadListItem } from "../../shared/types";
+import { formatThreadDate } from "./formatters";
+
+type ThreadListPaneProps = {
+  selectedFeed: FeedSource | undefined;
+  selectedThread: ThreadDetail | null;
+  threads: ThreadListItem[];
+  isRefreshing: boolean;
+  refreshMessage: string;
+  threadColumnLabels: readonly string[];
+  threadGridColumns: string;
+  threadListMinWidth: number;
+  onRefresh: () => void;
+  onSelectThread: (threadId: string) => void;
+  onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
+};
+
+export function ThreadListPane({
+  selectedFeed,
+  selectedThread,
+  threads,
+  isRefreshing,
+  refreshMessage,
+  threadColumnLabels,
+  threadGridColumns,
+  threadListMinWidth,
+  onRefresh,
+  onSelectThread,
+  onStartColumnResize
+}: ThreadListPaneProps) {
+  return (
+    <section
+      className="thread-list-pane"
+      aria-label="スレタイ一覧"
+      style={
+        {
+          "--thread-grid-columns": threadGridColumns,
+          "--thread-list-min-width": `${threadListMinWidth}px`
+        } as CSSProperties
+      }
+    >
+      <div className="toolbar">
+        <div>
+          <div className="pane-title">スレタイ一覧</div>
+          <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
+        </div>
+        <button
+          className="refresh-button"
+          disabled={isRefreshing || !selectedFeed}
+          onClick={onRefresh}
+          type="button"
+        >
+          {isRefreshing ? "取得中" : "更新"}
+        </button>
+      </div>
+      {refreshMessage ? (
+        <div className={`refresh-status ${isRefreshing ? "is-loading" : ""}`}>
+          <span>{refreshMessage}</span>
+          {isRefreshing ? <span className="progress-blocks" aria-hidden="true" /> : null}
+        </div>
+      ) : null}
+
+      <div className="thread-list-header">
+        {threadColumnLabels.map((label, index) => (
+          <span className="thread-header-cell" key={label}>
+            <span className="thread-header-label">{label}</span>
+            {index < threadColumnLabels.length - 1 ? (
+              <span
+                aria-label={`${label}列の幅を変更`}
+                className="column-resize-handle"
+                onMouseDown={(event) => onStartColumnResize(index, event)}
+                role="separator"
+              />
+            ) : null}
+          </span>
+        ))}
+      </div>
+      <div className="thread-list">
+        {threads.map((thread) => (
+          <button
+            className={`thread-row ${thread.id === selectedThread?.id ? "is-selected" : ""} ${
+              thread.isRead ? "is-read" : ""
+            }`}
+            key={thread.id}
+            onClick={() => onSelectThread(thread.id)}
+            type="button"
+          >
+            <span className="thread-title">{thread.vipTitle}</span>
+            <span className="thread-original-title">{thread.originalTitle}</span>
+            <span className="thread-count">{thread.responseCount}</span>
+            <span className="thread-source">{thread.source}</span>
+            <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>
+            <span className="thread-url">{thread.url}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}

@@ -254,6 +254,7 @@ body.is-column-resizing * {
 
 .feed-tree {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 5px 4px;
 }
@@ -1233,6 +1234,13 @@ body.is-column-resizing * {
   margin: 4px 0;
 }
 
+.log-divider {
+  height: 2px;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #ffffff;
+  margin: 4px 0 0;
+}
+
 .favorite-pane {
   flex: 1;
   display: flex;
@@ -1319,6 +1327,95 @@ body.is-column-resizing * {
   color: #c0c0c0;
 }
 
+.log-pane {
+  display: flex;
+  flex: 0 0 160px;
+  flex-direction: column;
+  min-height: 92px;
+  overflow: hidden;
+  background: #efeffc;
+}
+
+.log-pane-title {
+  min-height: 20px;
+  font-size: 12px;
+}
+
+.log-count {
+  min-width: 26px;
+  padding: 0 4px;
+  border-top: 1px solid #808080;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  border-left: 1px solid #808080;
+  background: #f5f5f5;
+  color: #000080;
+  text-align: center;
+  font-weight: 400;
+}
+
+.log-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 3px;
+  border-top: 1px solid #ffffff;
+  background: #ffffff;
+  font-family:
+    "MS Gothic",
+    "Consolas",
+    monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.log-empty {
+  padding: 4px;
+  color: #808080;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 48px 40px minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+  padding: 1px 2px;
+  border-bottom: 1px solid #eef0f8;
+  color: #202020;
+}
+
+.log-row.is-info,
+.log-row.is-log {
+  color: #000000;
+}
+
+.log-row.is-warn {
+  color: #8a5a00;
+  background: #fff8d8;
+}
+
+.log-row.is-error {
+  color: #a00000;
+  background: #fff0f0;
+}
+
+.log-time {
+  color: #606060;
+  white-space: nowrap;
+}
+
+.log-level {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.log-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* お気に入りボタン（スレッドヘッダー内） */
 .favorite-button {
   font-family: inherit;
@@ -1354,5 +1451,3 @@ body.is-column-resizing * {
   color: #000080;
   font-weight: bold;
 }
-
-

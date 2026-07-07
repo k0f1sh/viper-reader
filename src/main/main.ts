@@ -16,6 +16,7 @@ import {
   listFavoriteThreads
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
+import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
 import { getUserSetting, saveUserSetting } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
@@ -25,6 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 loadEnv();
+installConsoleLogForwarder();
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 
@@ -86,6 +88,7 @@ ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
   })
 );
 ipcMain.handle("stats:get", () => getStatistics());
+ipcMain.handle("logs:list", () => listBufferedLogs());
 ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => getFeedResidentPrompt(feedId));
 ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => saveFeedResidentPrompt(feedId, prompt));
 ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));

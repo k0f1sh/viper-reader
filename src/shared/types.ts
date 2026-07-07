@@ -55,6 +55,13 @@ export type ThreadGenerationStatus = {
   status: "done" | "skipped" | "error";
 };
 
+export type AppLogEntry = {
+  id: string;
+  level: "log" | "info" | "warn" | "error";
+  message: string;
+  createdAt: string;
+};
+
 export type StatisticsSummary = {
   rss: {
     totalRuns: number;

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
+  AppLogEntry,
   FeedResidentPrompt,
   FeedSource,
   RefreshFeedResult,
@@ -25,6 +26,8 @@ export type ViperReaderApi = {
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
   onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error" }) => void) => () => void;
+  listLogs: () => Promise<AppLogEntry[]>;
+  onLogEntry: (callback: (entry: AppLogEntry) => void) => () => void;
   getStatistics: () => Promise<StatisticsSummary>;
   openExternalUrl: (url: string) => Promise<void>;
   getFeedResidentPrompt: (feedId: string) => Promise<FeedResidentPrompt | null>;
@@ -66,6 +69,14 @@ const api: ViperReaderApi = {
     ipcRenderer.on("threads:post-status", listener);
     return () => {
       ipcRenderer.removeListener("threads:post-status", listener);
+    };
+  },
+  listLogs: () => ipcRenderer.invoke("logs:list"),
+  onLogEntry: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, entry: AppLogEntry) => callback(entry);
+    ipcRenderer.on("logs:entry", listener);
+    return () => {
+      ipcRenderer.removeListener("logs:entry", listener);
     };
   },
   getStatistics: () => ipcRenderer.invoke("stats:get"),
