@@ -2,8 +2,9 @@ import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { getArticleBody, getArticleSummary, getFeedResidentPrompt, recordLlmRequestLog, getUserSetting, getActiveModel } from "../db/repository.js";
+import { getArticleBody, getArticleSummary, getFeedResidentPrompt } from "../db/repository.js";
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "../prompts/vipCommonRules.js";
+import { getActiveModel } from "../settings/settingsService.js";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -114,8 +115,6 @@ export async function generateReplyPosts(
       model: modelToUse
     });
 
-    recordLlmRequestLog(log);
-
     return {
       posts,
       log
@@ -135,8 +134,6 @@ export async function generateReplyPosts(
       finishedAt,
       model: modelToUse
     });
-
-    recordLlmRequestLog(log);
 
     return {
       posts: [],
@@ -229,22 +226,24 @@ function parseJsonArray(responseText: string): unknown[] {
 
 function validateGeneratedReplyPosts(parsed: unknown[], startNo: number): ThreadPost[] {
   const posts: ThreadPost[] = [];
-  const usedNumbers = new Set<number>();
 
   for (const item of parsed) {
     if (!isRecord(item)) {
       continue;
     }
 
-    const no = normalizeReplyPostNumber(item.no, startNo, usedNumbers);
-    usedNumbers.add(no);
+    const body = normalizeString(item.body, "").slice(0, 500);
+    if (!body.trim()) {
+      continue;
+    }
+
     posts.push({
-      no,
+      no: startNo + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
       mail: normalizeOptionalString(item.mail)?.slice(0, 20),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id: normalizeId(item.id),
-      body: normalizeString(item.body, "").slice(0, 500)
+      body
     });
 
     if (posts.length >= 10) {
@@ -252,18 +251,7 @@ function validateGeneratedReplyPosts(parsed: unknown[], startNo: number): Thread
     }
   }
 
-  return posts.filter((post) => post.body.trim().length > 0);
-}
-
-function normalizeReplyPostNumber(value: unknown, startNo: number, usedNumbers: Set<number>): number {
-  const parsedNumber = typeof value === "number" ? value : Number(value);
-  let no = Number.isFinite(parsedNumber) ? Math.max(startNo, Math.floor(parsedNumber)) : startNo;
-
-  while (usedNumbers.has(no)) {
-    no += 1;
-  }
-
-  return no;
+  return posts;
 }
 
 function normalizeString(value: unknown, fallback: string): string {

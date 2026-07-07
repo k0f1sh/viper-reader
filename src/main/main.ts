@@ -8,17 +8,16 @@ import {
   deleteFeedSource,
   getFeedResidentPrompt,
   getStatistics,
-  getUserSetting,
   initializeRepository,
   listFeeds,
   listThreads,
   saveFeedResidentPrompt,
-  saveUserSetting,
   setThreadFavorite,
   listFavoriteThreads
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
+import { getUserSetting, saveUserSetting } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 

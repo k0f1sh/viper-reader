@@ -4,14 +4,17 @@ import type { RefreshFeedResult } from "../../shared/types.js";
 import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
 import {
   getFeedSource,
+  listFeedItemsForInitialCaches,
   listUnconvertedFeedItems,
   recordLlmRequestLog,
   recordRssRefreshRun,
+  saveRawVipTitleFallbacks,
+  saveRssThreadSummaries,
   saveVipTitles,
-  upsertFeedItems,
-  getActiveModel
+  upsertFeedItems
 } from "../db/repository.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { getActiveModel } from "../settings/settingsService.js";
 
 type ParsedItem = {
   id: string;
@@ -62,6 +65,10 @@ export async function refreshFeed(
 
     const result = upsertFeedItems(feed.id, items);
     const modelToUse = getActiveModel();
+    const initialCacheItems = listFeedItemsForInitialCaches(feed.id);
+    saveRawVipTitleFallbacks(initialCacheItems, modelToUse);
+    saveRssThreadSummaries(initialCacheItems, modelToUse);
+
     const unconvertedItems = listUnconvertedFeedItems(feed.id, modelToUse, vipTitlePromptHash);
     onProgress("スレタイ生成中...");
     const transformed = await transformTitlesToVipStyle(feed.id, feed.title, unconvertedItems);

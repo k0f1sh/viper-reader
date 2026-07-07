@@ -18,6 +18,13 @@ import {
   vipThreadResponsePromptHash
 } from "../prompts/vipThreadResponsePrompt.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { getActiveModel } from "../settings/settingsService.js";
+import {
+  createFirstPostBody,
+  createInitialPosts,
+  rawTitlePromptHash,
+  rssSummaryPromptHash
+} from "../threads/initialThreadPosts.js";
 import { getDatabase } from "./database.js";
 
 type FeedRow = {
@@ -159,8 +166,14 @@ export type ThreadResponseWrite = {
   posts: ThreadPost[];
 };
 
-const rawTitlePromptHash = "raw-title-v1";
-const rssSummaryPromptHash = "rss-summary-v1";
+export type FeedItemInitialCacheSource = {
+  id: string;
+  title: string;
+  url: string;
+  publishedAt: string | null;
+  rawSummary: string | null;
+};
+
 const legacySeedThreadIds = ["qiita-1", "qiita-2", "qiita-4", "zenn-1", "personal-1"];
 
 export function initializeRepository(): void {
@@ -316,19 +329,6 @@ export function upsertFeedItems(
     WHERE id = ?
     `
   );
-  const insertTitle = db.prepare(
-    `
-    INSERT OR IGNORE INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    `
-  );
-  const insertSummary = db.prepare(
-    `
-    INSERT OR IGNORE INTO thread_summaries
-      (id, feed_item_id, model, prompt_hash, posts_json, response_count, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-  );
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
 
   db.exec("BEGIN");
@@ -370,23 +370,6 @@ export function upsertFeedItems(
         skippedCount += 1;
       }
 
-      insertTitle.run(
-        `vip-title:${feedItemId}:raw`,
-        feedItemId,
-        getActiveModel(),
-        rawTitlePromptHash,
-        item.title,
-        fetchedAt
-      );
-      insertSummary.run(
-        `thread-summary:${feedItemId}:rss`,
-        feedItemId,
-        getActiveModel(),
-        rssSummaryPromptHash,
-        JSON.stringify(createInitialPosts(item, fetchedAt)),
-        1,
-        fetchedAt
-      );
     }
 
     updateFeed.run(fetchedAt, fetchedAt, feedId);
@@ -407,6 +390,120 @@ export function upsertFeedItems(
     conversionSkippedCount: 0,
     fetchedAt
   };
+}
+
+export function listFeedItemsForInitialCaches(feedId: string): FeedItemInitialCacheSource[] {
+  const db = getDatabase();
+  const rows = db
+    .prepare(
+      `
+      SELECT id, title, url, published_at, raw_summary
+      FROM feed_items
+      WHERE feed_id = ?
+      ORDER BY COALESCE(published_at, created_at) DESC, created_at DESC, id DESC
+      `
+    )
+    .all(feedId) as Array<{
+      id: string;
+      title: string;
+      url: string;
+      published_at: string | null;
+      raw_summary: string | null;
+    }>;
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    url: row.url,
+    publishedAt: row.published_at,
+    rawSummary: row.raw_summary
+  }));
+}
+
+export function saveRawVipTitleFallbacks(items: FeedItemInitialCacheSource[], model: string): number {
+  if (items.length === 0) {
+    return 0;
+  }
+
+  const db = getDatabase();
+  const generatedAt = new Date().toISOString();
+  const insertTitle = db.prepare(
+    `
+    INSERT OR IGNORE INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    `
+  );
+  let savedCount = 0;
+
+  db.exec("BEGIN");
+  try {
+    for (const item of items) {
+      const result = insertTitle.run(
+        `vip-title:${item.id}:raw`,
+        item.id,
+        model,
+        rawTitlePromptHash,
+        item.title,
+        generatedAt
+      );
+      savedCount += Number(result.changes);
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return savedCount;
+}
+
+export function saveRssThreadSummaries(items: FeedItemInitialCacheSource[], model: string): number {
+  if (items.length === 0) {
+    return 0;
+  }
+
+  const db = getDatabase();
+  const generatedAt = new Date().toISOString();
+  const insertSummary = db.prepare(
+    `
+    INSERT OR IGNORE INTO thread_summaries
+      (id, feed_item_id, model, prompt_hash, posts_json, response_count, generated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    `
+  );
+  let savedCount = 0;
+
+  db.exec("BEGIN");
+  try {
+    for (const item of items) {
+      const posts = createInitialPosts(
+        {
+          title: item.title,
+          url: item.url,
+          rawSummary: item.rawSummary
+        },
+        item.publishedAt ?? generatedAt
+      );
+      const result = insertSummary.run(
+        `thread-summary:${item.id}:rss`,
+        item.id,
+        model,
+        rssSummaryPromptHash,
+        JSON.stringify(posts),
+        posts.length,
+        generatedAt
+      );
+      savedCount += Number(result.changes);
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return savedCount;
 }
 
 export function listUnconvertedFeedItems(
@@ -759,6 +856,7 @@ export function getStatistics(): StatisticsSummary {
 
 export function listThreads(feedId: string): ThreadListItem[] {
   const db = getDatabase();
+  const activeModel = getActiveModel();
   const rows = db
     .prepare(
       `
@@ -799,13 +897,13 @@ export function listThreads(feedId: string): ThreadListItem[] {
       `
     )
     .all(
-      getActiveModel(),
+      activeModel,
       vipTitlePromptHash,
-      getActiveModel(),
+      activeModel,
       rawTitlePromptHash,
-      getActiveModel(),
+      activeModel,
       rssSummaryPromptHash,
-      getActiveModel(),
+      activeModel,
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       feedId
@@ -890,6 +988,7 @@ type ThreadPostRow = {
 
 export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
+  const activeModel = getActiveModel();
   markThreadRead(threadId);
 
   // 1. thread_posts から取得を試みる
@@ -924,9 +1023,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       WHERE fi.id = ?
     `)
     .get(
-      getActiveModel(),
+      activeModel,
       vipTitlePromptHash,
-      getActiveModel(),
+      activeModel,
       rawTitlePromptHash,
       threadId
     ) as {
@@ -997,9 +1096,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       WHERE fi.id = ?
     `)
     .get(
-      getActiveModel(),
+      activeModel,
       rssSummaryPromptHash,
-      getActiveModel(),
+      activeModel,
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       threadId
@@ -1265,21 +1364,6 @@ function parsePosts(postsJson: string | undefined): ThreadPost[] {
   }
 }
 
-function createInitialPosts(
-  item: { title: string; url: string; rawSummary: string | null },
-  fetchedAt: string
-): ThreadPost[] {
-  return [
-    {
-      no: 1,
-      name: "以下、名無しにかわりましてVIPが技術記事をお送りします",
-      date: formatVipDate(fetchedAt),
-      id: "RssFetch00",
-      body: createFirstPostBody(item.title, item.url, item.rawSummary)
-    }
-  ];
-}
-
 function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts: ThreadPost[]): ThreadPost[] {
   if (posts.length === 0) {
     return [
@@ -1306,69 +1390,6 @@ function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts
     ),
     ...responsePosts
   ];
-}
-
-export function createFirstPostBody(title: string, url: string, rawSummary: string | null): string {
-  const body = normalizeRssBody(rawSummary);
-  return `元記事タイトル:
-${title}
-
-URL:
-${url}
-
-${body}`;
-}
-
-function normalizeRssBody(rawSummary: string | null): string {
-  if (!rawSummary?.trim()) {
-    return "RSS本文は空。タイトルとURLだけ置いとく。";
-  }
-
-  return rawSummary
-    .replace(/\r\n?/g, "\n")
-    .replace(/\t/g, "  ")
-    .replace(/[ \u00a0]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function formatVipDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const pad = (number: number, length = 2) => String(number).padStart(length, "0");
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${
-    weekdays[date.getDay()]
-  }) ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
-    date.getMilliseconds(),
-    3
-  )}`;
-}
-
-export function getUserSetting(key: string): string | null {
-  const db = getDatabase();
-  const row = db
-    .prepare("SELECT value FROM user_settings WHERE key = ?")
-    .get(key) as { value: string } | undefined;
-  return row ? row.value : null;
-}
-
-export function getActiveModel(): string {
-  return getUserSetting("replyModel") || "gemini-3.1-flash-lite";
-}
-
-export function saveUserSetting(key: string, value: string): void {
-  const db = getDatabase();
-  const updatedAt = new Date().toISOString();
-  db.prepare(
-    `
-    INSERT OR REPLACE INTO user_settings (key, value, updated_at)
-    VALUES (?, ?, ?)
-    `
-  ).run(key, value, updatedAt);
 }
 
 export function addFeedSource(title: string, url: string): FeedSource {
@@ -1417,6 +1438,7 @@ export function setThreadFavorite(threadId: string, isFavorite: boolean): void {
 
 export function listFavoriteThreads(): ThreadListItem[] {
   const db = getDatabase();
+  const activeModel = getActiveModel();
   const rows = db
     .prepare(
       `
@@ -1457,13 +1479,13 @@ export function listFavoriteThreads(): ThreadListItem[] {
       `
     )
     .all(
-      getActiveModel(),
+      activeModel,
       vipTitlePromptHash,
-      getActiveModel(),
+      activeModel,
       rawTitlePromptHash,
-      getActiveModel(),
+      activeModel,
       rssSummaryPromptHash,
-      getActiveModel(),
+      activeModel,
       vipThreadResponsePromptHash,
       defaultResidentPromptHash
     ) as ThreadRow[];

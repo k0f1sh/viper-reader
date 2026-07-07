@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
-import { getActiveModel, type LlmRequestLogWrite } from "../db/repository.js";
+import type { LlmRequestLogWrite } from "../db/repository.js";
 import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
+import { getActiveModel } from "../settings/settingsService.js";
 
 export type ThreadResponseGenerationResult = {
   posts: ThreadPost[];
@@ -24,6 +25,7 @@ export async function generateThreadResponses(
   }
 ): Promise<ThreadResponseGenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+  const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
   const prompt = buildVipThreadResponsePrompt({
     vipTitle: thread.vipTitle,
@@ -49,7 +51,8 @@ export async function generateThreadResponses(
         usageMetadata: undefined,
         errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
         startedAt,
-        finishedAt
+        finishedAt,
+        model: modelToUse
       })
     };
   }
@@ -57,7 +60,6 @@ export async function generateThreadResponses(
   const ai = new GoogleGenAI({ apiKey });
   let responseText = "";
 
-  const modelToUse = getActiveModel();
   console.log(`[LLM Request Start] Model: ${modelToUse} | Purpose: thread_response`);
 
   try {
@@ -84,7 +86,8 @@ export async function generateThreadResponses(
         usageMetadata: response.usageMetadata,
         errorMessage: null,
         startedAt,
-        finishedAt
+        finishedAt,
+        model: modelToUse
       })
     };
   } catch (error) {
@@ -101,7 +104,8 @@ export async function generateThreadResponses(
         usageMetadata: undefined,
         errorMessage: error instanceof Error ? error.message : String(error),
         startedAt,
-        finishedAt
+        finishedAt,
+        model: modelToUse
       })
     };
   }
@@ -124,22 +128,24 @@ function parseJsonArray(responseText: string): unknown[] {
 
 function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
   const posts: ThreadPost[] = [];
-  const usedNumbers = new Set<number>();
 
   for (const item of parsed) {
     if (!isRecord(item)) {
       continue;
     }
 
-    const no = normalizePostNumber(item.no, usedNumbers);
-    usedNumbers.add(no);
+    const body = normalizeString(item.body, "").slice(0, 500);
+    if (!body.trim()) {
+      continue;
+    }
+
     posts.push({
-      no,
+      no: 2 + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
       mail: normalizeOptionalString(item.mail)?.slice(0, 20),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id: normalizeId(item.id),
-      body: normalizeString(item.body, "").slice(0, 500)
+      body
     });
 
     if (posts.length >= 15) {
@@ -147,18 +153,7 @@ function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
     }
   }
 
-  return posts.filter((post) => post.body.trim().length > 0);
-}
-
-function normalizePostNumber(value: unknown, usedNumbers: Set<number>): number {
-  const parsedNumber = typeof value === "number" ? value : Number(value);
-  let no = Number.isFinite(parsedNumber) ? Math.max(2, Math.floor(parsedNumber)) : 2;
-
-  while (usedNumbers.has(no)) {
-    no += 1;
-  }
-
-  return no;
+  return posts;
 }
 
 function normalizeString(value: unknown, fallback: string): string {
@@ -191,6 +186,7 @@ function normalizeId(value: unknown): string {
 function createLlmLog(params: {
   feedId: string;
   promptHash: string;
+  model: string;
   status: "success" | "error" | "skipped";
   itemCount: number;
   promptChars: number;
@@ -204,7 +200,7 @@ function createLlmLog(params: {
     id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "thread_response",
-    model: getActiveModel(),
+    model: params.model,
     promptHash: params.promptHash,
     status: params.status,
     requestCount: params.status === "skipped" ? 0 : 1,

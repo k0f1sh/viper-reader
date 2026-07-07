@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
-import { getActiveModel, type LlmRequestLogWrite, type UnconvertedFeedItem, type VipTitleWrite } from "../db/repository.js";
+import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
 import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { getActiveModel } from "../settings/settingsService.js";
 
 export type TitleTransformResult = {
   titles: VipTitleWrite[];
@@ -103,6 +104,7 @@ export async function transformTitlesToVipStyle(
           usageMetadata: response.usageMetadata,
           errorMessage: null,
           startedAt,
+          model: modelToUse,
           finishedAt: new Date().toISOString()
         })
       );
@@ -118,6 +120,7 @@ export async function transformTitlesToVipStyle(
           usageMetadata: undefined,
           errorMessage: error instanceof Error ? error.message : String(error),
           startedAt,
+          model: modelToUse,
           finishedAt: new Date().toISOString()
         })
       );
@@ -182,6 +185,7 @@ function normalizeVipTitle(value: unknown): string {
 
 function createLlmLog(params: {
   feedId: string;
+  model: string;
   status: "success" | "error";
   itemCount: number;
   promptChars: number;
@@ -195,7 +199,7 @@ function createLlmLog(params: {
     id: createLogId("llm", params.feedId, params.finishedAt),
     feedId: params.feedId,
     purpose: "title_transform",
-    model: getActiveModel(),
+    model: params.model,
     promptHash: vipTitlePromptHash,
     status: params.status,
     requestCount: 1,

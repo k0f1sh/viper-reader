@@ -7,13 +7,12 @@ import {
   recordLlmRequestLog,
   recordArticleFetchLog,
   saveArticleBody,
-  saveThreadResponsePosts,
-  getActiveModel
+  saveThreadResponsePosts
 } from "../db/repository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
-
-const generatingThreadIds = new Set<string>();
+import { getActiveModel } from "../settings/settingsService.js";
+import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
 
 export function openThread(threadId: string): ThreadDetail | null {
   return getThread(threadId);
@@ -25,11 +24,18 @@ export function startThreadResponseGeneration(
   onComplete: (status: "done" | "skipped" | "error") => void
 ): void {
   const thread = getThread(threadId);
-  if (!thread || (!force && thread.posts.length > 1) || generatingThreadIds.has(threadId)) {
+  if (!thread) {
+    onComplete("error");
     return;
   }
-
-  generatingThreadIds.add(threadId);
+  if (!force && thread.posts.length > 1) {
+    onComplete("skipped");
+    return;
+  }
+  if (!acquireThreadLock(threadId)) {
+    onComplete("skipped");
+    return;
+  }
 
   void (async () => {
     try {
@@ -66,7 +72,7 @@ export function startThreadResponseGeneration(
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
       onComplete("error");
     } finally {
-      generatingThreadIds.delete(threadId);
+      releaseThreadLock(threadId);
     }
   })();
 }
