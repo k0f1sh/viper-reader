@@ -527,6 +527,34 @@ body.is-column-resizing * {
   font-weight: 700;
 }
 
+.status-badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 0 2px;
+}
+
+.status-badge.generating {
+  color: #0066cc;
+}
+
+.status-badge.completed {
+  color: #cc0000;
+  animation: badge-blink 1.2s infinite alternate;
+}
+
+@keyframes badge-blink {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.thread-row.is-selected .status-badge.generating {
+  color: #80c0ff;
+}
+
+.thread-row.is-selected .status-badge.completed {
+  color: #ff8080;
+}
+
 .thread-row.is-read .thread-title {
   font-weight: 400;
 }
@@ -1005,6 +1033,7 @@ body.is-column-resizing * {
 }
 
 .resident-prompts-modal .feed-select {
+  width: 100%;
   padding: 4px;
   border-top: 1px solid #404040;
   border-left: 1px solid #404040;
@@ -1018,6 +1047,7 @@ body.is-column-resizing * {
 
 .resident-prompts-modal .prompt-textarea {
   flex-grow: 1;
+  width: 100%;
   padding: 6px;
   border-top: 1px solid #404040;
   border-left: 1px solid #404040;
@@ -1027,7 +1057,7 @@ body.is-column-resizing * {
   font-family: monospace;
   font-size: 13px;
   resize: none;
-  min-height: 180px;
+  min-height: 80px;
 }
 
 .resident-prompts-modal .prompt-status-message {

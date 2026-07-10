@@ -6,6 +6,8 @@ type ThreadListPaneProps = {
   selectedFeed: FeedSource | undefined;
   selectedThread: ThreadDetail | null;
   threads: ThreadListItem[];
+  generatingThreadIds: Set<string>;
+  completedThreadIds: Set<string>;
   isRefreshing: boolean;
   refreshMessage: string;
   threadColumnLabels: readonly string[];
@@ -20,6 +22,8 @@ export function ThreadListPane({
   selectedFeed,
   selectedThread,
   threads,
+  generatingThreadIds,
+  completedThreadIds,
   isRefreshing,
   refreshMessage,
   threadColumnLabels,
@@ -77,23 +81,31 @@ export function ThreadListPane({
         ))}
       </div>
       <div className="thread-list">
-        {threads.map((thread) => (
-          <button
-            className={`thread-row ${thread.id === selectedThread?.id ? "is-selected" : ""} ${
-              thread.isRead ? "is-read" : ""
-            }`}
-            key={thread.id}
-            onClick={() => onSelectThread(thread.id)}
-            type="button"
-          >
-            <span className="thread-title">{thread.vipTitle}</span>
-            <span className="thread-original-title">{thread.originalTitle}</span>
-            <span className="thread-count">{thread.responseCount}</span>
-            <span className="thread-source">{thread.source}</span>
-            <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>
-            <span className="thread-url">{thread.url}</span>
-          </button>
-        ))}
+        {threads.map((thread) => {
+          const isGenerating = generatingThreadIds.has(thread.id);
+          const isCompleted = completedThreadIds.has(thread.id);
+          return (
+            <button
+              className={`thread-row ${thread.id === selectedThread?.id ? "is-selected" : ""} ${
+                thread.isRead ? "is-read" : ""
+              } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""}`}
+              key={thread.id}
+              onClick={() => onSelectThread(thread.id)}
+              type="button"
+            >
+              <span className="thread-title">
+                {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
+                {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
+                {thread.vipTitle}
+              </span>
+              <span className="thread-original-title">{thread.originalTitle}</span>
+              <span className="thread-count">{thread.responseCount}</span>
+              <span className="thread-source">{thread.source}</span>
+              <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>
+              <span className="thread-url">{thread.url}</span>
+            </button>
+          );
+        })}
       </div>
     </section>
   );

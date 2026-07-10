@@ -33,19 +33,19 @@ export function buildVipThreadResponsePromptHash(residentPromptHash: string | nu
   return `${vipThreadResponsePromptHash}:${residentPromptHash ?? defaultResidentPromptHash}`;
 }
 
-const TWO_GET_LIST = `- 2ゲット
-- 2げっと
-- 2getズサーー
-- 2ゲットズサー
-- 2げっつ
-- 2ゲットだぜ！
-- 1乙、2ゲット
+const TWO_GET_LIST = `- 2get
+- 2getズサー
+- 2ｹﾞｯﾄ
+- 2ｹﾞｯﾄｽﾞｻｰｰｰｰｰｰｰｰｰｰｰｰ
+- 2なら>>3は俺の嫁
+- 2なら>>3がジュース奢ってくれる
+- 2なら宝くじ一等当選
+- 1乙、2get
+- あらかじめ2ゲットと言っておこう
 - 2はもらった
 - 2なら彼女ができる
 - 2なら明日地球が滅亡する
-- あらかじめ2ゲットと言っておこう
-- 2ゲットシャキーン
-- 2ゲットォォォオオオオウ！`;
+- 2getだお（ ＾ω＾）`;
 
 export function buildVipThreadResponsePrompt(input: VipThreadResponsePromptInput): string {
   if (input.scrapedBody === null) {
@@ -99,7 +99,7 @@ ${TWO_GET_LIST}
      - 1行目：誰の何に関するニュースか
      - 3〜5行の箇条書きで要点
      - 最後に一言コメント（私見）
-   - 口調はVIP住民らしく。語尾は「だお」「というわけだお」などやる夫風でもよい。
+   - 口調はVIP住民らしく。
    - **>>3を煽る文言は入れないでください。**
 2. **レス番3 (no: 3) 以降の役割**:
    - レス2 (no: 2) の書き込み（要約）をベースにして、住民たちが議論や雑談を交わす流れにしてください。

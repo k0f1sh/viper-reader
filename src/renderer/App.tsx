@@ -36,6 +36,7 @@ export function App() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
   const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
   const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
+  const [completedGenerationThreadIds, setCompletedGenerationThreadIds] = useState<Set<string>>(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
   const [refreshMessage, setRefreshMessage] = useState("");
@@ -122,6 +123,15 @@ export function App() {
     // スレッド切り替え時に書き込みフォームにフォーカスを当てる
     setTimeout(() => replyBodyRef.current?.focus(), 50);
 
+    setCompletedGenerationThreadIds((currentIds) => {
+      if (currentIds.has(selectedThreadId)) {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(selectedThreadId);
+        return nextIds;
+      }
+      return currentIds;
+    });
+
     void window.viperReader
       .getThread(selectedThreadId)
       .then((thread) => {
@@ -180,15 +190,25 @@ export function App() {
         return nextIds;
       });
 
-      if (status.status === "done" && status.threadId === selectedThreadId) {
+      if (status.status === "done") {
+        if (status.threadId !== selectedThreadId) {
+          setCompletedGenerationThreadIds((currentIds) => {
+            const nextIds = new Set(currentIds);
+            nextIds.add(status.threadId);
+            return nextIds;
+          });
+        }
+
         void window.viperReader?.getThread(status.threadId).then((thread) => {
-          setSelectedThread(thread);
           if (thread) {
             setThreadList((currentThreads) =>
               currentThreads.map((currentThread) =>
-                currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
+                currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: status.threadId === selectedThreadId ? true : currentThread.isRead } : currentThread
               )
             );
+            if (status.threadId === selectedThreadId) {
+              setSelectedThread(thread);
+            }
           }
         });
       }
@@ -860,6 +880,8 @@ export function App() {
             selectedFeed={selectedFeed}
             selectedThread={selectedThread}
             threads={threadList}
+            generatingThreadIds={generatingThreadIds}
+            completedThreadIds={completedGenerationThreadIds}
             isRefreshing={isRefreshing}
             refreshMessage={refreshMessage}
             threadColumnLabels={threadColumnLabels}
