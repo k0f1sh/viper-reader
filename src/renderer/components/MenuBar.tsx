@@ -3,13 +3,15 @@ type MenuBarProps = {
   onReplyModelChange: (model: string) => void;
   onOpenStatistics: () => void;
   onOpenResidentPrompts: () => void;
+  hasPromptProposal: boolean;
 };
 
 export function MenuBar({
   replyModel,
   onReplyModelChange,
   onOpenStatistics,
-  onOpenResidentPrompts
+  onOpenResidentPrompts,
+  hasPromptProposal
 }: MenuBarProps) {
   return (
     <nav className="menu-bar" aria-label="メニュー">
@@ -23,7 +25,7 @@ export function MenuBar({
         統計情報
       </button>
       <button className="menu-item" onClick={onOpenResidentPrompts} type="button">
-        住民設定
+        住民設定{hasPromptProposal ? " (改善案あり)" : ""}
       </button>
       <div className="menu-select-wrapper">
         <label htmlFor="reply-model-select">レスモデル:</label>

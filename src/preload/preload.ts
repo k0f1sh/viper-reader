@@ -6,6 +6,8 @@ import type {
   FeedSource,
   RefreshFeedResult,
   RefreshProgress,
+  ReplyRating,
+  ResidentPromptVersion,
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationStatus,
@@ -34,6 +36,11 @@ export type ViperReaderApi = {
   getFeedResidentPrompt: (feedId: string) => Promise<FeedResidentPrompt | null>;
   saveFeedResidentPrompt: (feedId: string, prompt: string) => Promise<void>;
   clearFeedResidentPrompt: (feedId: string) => Promise<void>;
+  rateReplyRun: (runId: string, rating: ReplyRating, tags: string[]) => Promise<void>;
+  listResidentPromptVersions: (feedId: string) => Promise<ResidentPromptVersion[]>;
+  reviewResidentPromptVersion: (id: string, decision: "active" | "rejected") => Promise<void>;
+  rollbackResidentPromptVersion: (feedId: string) => Promise<void>;
+  onPromptProposalReady: (callback: (data: { feedId: string; versionId: string }) => void) => () => void;
   getUserSetting: (key: string) => Promise<string | null>;
   saveUserSetting: (key: string, value: string) => Promise<void>;
   addFeedSource: (title: string, url: string) => Promise<FeedSource>;
@@ -86,6 +93,15 @@ const api: ViperReaderApi = {
   getFeedResidentPrompt: (feedId) => ipcRenderer.invoke("feeds:get-resident-prompt", feedId),
   saveFeedResidentPrompt: (feedId, prompt) => ipcRenderer.invoke("feeds:save-resident-prompt", feedId, prompt),
   clearFeedResidentPrompt: (feedId) => ipcRenderer.invoke("feeds:clear-resident-prompt", feedId),
+  rateReplyRun: (runId, rating, tags) => ipcRenderer.invoke("threads:rate-reply-run", runId, rating, tags),
+  listResidentPromptVersions: (feedId) => ipcRenderer.invoke("feeds:list-prompt-versions", feedId),
+  reviewResidentPromptVersion: (id, decision) => ipcRenderer.invoke("feeds:review-prompt-version", id, decision),
+  rollbackResidentPromptVersion: (feedId) => ipcRenderer.invoke("feeds:rollback-prompt-version", feedId),
+  onPromptProposalReady: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { feedId: string; versionId: string }) => callback(data);
+    ipcRenderer.on("feeds:prompt-proposal-ready", listener);
+    return () => ipcRenderer.removeListener("feeds:prompt-proposal-ready", listener);
+  },
   getUserSetting: (key) => ipcRenderer.invoke("settings:get", key),
   saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value),
   addFeedSource: (title, url) => ipcRenderer.invoke("feeds:add", title, url),

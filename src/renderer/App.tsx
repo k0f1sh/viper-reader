@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedSource, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, FeedSource, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { FeedPane } from "./components/FeedPane";
 import { MenuBar } from "./components/MenuBar";
@@ -47,6 +47,8 @@ export function App() {
   const [promptText, setPromptText] = useState("");
   const [isPromptLoading, setIsPromptLoading] = useState(false);
   const [promptStatusMessage, setPromptStatusMessage] = useState("");
+  const [promptVersions, setPromptVersions] = useState<ResidentPromptVersion[]>([]);
+  const [hasPromptProposal, setHasPromptProposal] = useState(false);
   const [threadListHeight, setThreadListHeight] = useState(42);
   const [threadColumnWidths, setThreadColumnWidths] = useState(defaultThreadColumnWidths);
   const contentPaneRef = useRef<HTMLElement>(null);
@@ -139,6 +141,34 @@ export function App() {
   }, [selectedThreadId]);
 
   useEffect(() => {
+    if (!window.viperReader) return;
+    return window.viperReader.onPostStatus((data) => {
+      if (data.status === "done" || data.status === "error") setIsPosting(false);
+      if (data.threadId !== selectedThreadId) return;
+      setPostStatus(data.status);
+      if (data.status === "done" || data.status === "error") {
+        if (data.status === "error") setPostError("AI住民のレス生成に失敗しました。書き込みは保存されています。");
+        void window.viperReader?.getThread(data.threadId).then((thread) => {
+          if (!thread) return;
+          setSelectedThread(thread);
+          setThreadList((current) => current.map((item) => item.id === thread.id ? { ...item, ...thread, isRead: true } : item));
+        });
+      }
+    });
+  }, [selectedThreadId]);
+
+  useEffect(() => {
+    if (!window.viperReader) return;
+    return window.viperReader.onPromptProposalReady((data) => {
+      setHasPromptProposal(true);
+      setPromptStatusMessage("新しい住民プロンプト改善案ができました");
+      if (isResidentPromptsOpen && data.feedId === promptTargetFeedId) {
+        void window.viperReader?.listResidentPromptVersions(data.feedId).then(setPromptVersions);
+      }
+    });
+  }, [isResidentPromptsOpen, promptTargetFeedId]);
+
+  useEffect(() => {
     if (!window.viperReader) {
       return;
     }
@@ -172,6 +202,8 @@ export function App() {
 
     const nextFeeds = await window.viperReader.listFeeds();
     setFeedList(nextFeeds);
+    const versionGroups = await Promise.all(nextFeeds.map((feed) => window.viperReader!.listResidentPromptVersions(feed.id)));
+    setHasPromptProposal(versionGroups.some((versions) => versions.some((version) => version.status === "pending")));
 
     if (nextFeeds.length > 0) {
       setSelectedFeedId((currentFeedId) =>
@@ -312,10 +344,14 @@ export function App() {
 
     setIsPromptLoading(true);
     setPromptStatusMessage("");
-    void window.viperReader
-      .getFeedResidentPrompt(promptTargetFeedId)
-      .then((res) => {
+    void Promise.all([
+      window.viperReader.getFeedResidentPrompt(promptTargetFeedId),
+      window.viperReader.listResidentPromptVersions(promptTargetFeedId)
+    ])
+      .then(([res, versions]) => {
         setPromptText(res?.prompt ?? "");
+        setPromptVersions(versions);
+        setHasPromptProposal(versions.some((version) => version.status === "pending"));
       })
       .catch((err) => {
         setPromptStatusMessage(err instanceof Error ? `読込失敗: ${err.message}` : "読込失敗");
@@ -346,6 +382,8 @@ export function App() {
         await window.viperReader.saveFeedResidentPrompt(promptTargetFeedId, promptText);
         setPromptStatusMessage("保存しました");
       }
+      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
+      setHasPromptProposal(false);
       await reloadFeeds();
     } catch (err) {
       setPromptStatusMessage(err instanceof Error ? `保存失敗: ${err.message}` : "保存失敗");
@@ -365,6 +403,8 @@ export function App() {
       await window.viperReader.clearFeedResidentPrompt(promptTargetFeedId);
       setPromptText("");
       setPromptStatusMessage("クリアしました（デフォルトに戻りました）");
+      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
+      setHasPromptProposal(false);
       await reloadFeeds();
     } catch (err) {
       setPromptStatusMessage(err instanceof Error ? `クリア失敗: ${err.message}` : "クリア失敗");
@@ -373,23 +413,67 @@ export function App() {
     }
   }
 
-  async function refreshSelectedFeed() {
-    if (!window.viperReader || !selectedFeed || isRefreshing) {
+  async function reviewPromptVersion(id: string, decision: "active" | "rejected") {
+    if (!window.viperReader || !promptTargetFeedId) return;
+    setIsPromptLoading(true);
+    try {
+      await window.viperReader.reviewResidentPromptVersion(id, decision);
+      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
+      await reloadFeeds();
+      setPromptStatusMessage(decision === "active" ? "改善案を採用しました" : "改善案を却下しました");
+    } catch (err) {
+      setPromptStatusMessage(err instanceof Error ? err.message : "改善案の更新に失敗しました");
+    } finally { setIsPromptLoading(false); }
+  }
+
+  async function rollbackPromptVersion() {
+    if (!window.viperReader || !promptTargetFeedId) return;
+    setIsPromptLoading(true);
+    try {
+      await window.viperReader.rollbackResidentPromptVersion(promptTargetFeedId);
+      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
+      setPromptStatusMessage("一つ前の改善版に戻しました");
+    } catch (err) {
+      setPromptStatusMessage(err instanceof Error ? err.message : "ロールバックに失敗しました");
+    } finally { setIsPromptLoading(false); }
+  }
+
+  async function rateReplyRun(runId: string, rating: ReplyRating, tags: string[]) {
+    if (!window.viperReader || !selectedThread) return;
+    try {
+      await window.viperReader.rateReplyRun(runId, rating, tags);
+      setSelectedThread((current) => current ? {
+        ...current,
+        replyRuns: current.replyRuns.map((run) => run.id === runId ? { ...run, rating, feedbackTags: tags } : run)
+      } : current);
+    } catch (err) {
+      setPostError(err instanceof Error ? err.message : "レス評価の保存に失敗しました。");
+    }
+  }
+
+  function replyToPost(postNo: number) {
+    const anchor = `>>${postNo}\n`;
+    setReplyBody((current) => current.startsWith(anchor) ? current : `${anchor}${current}`);
+    setTimeout(() => replyBodyRef.current?.focus(), 0);
+  }
+
+  async function refreshFeed(feedId: string) {
+    if (!window.viperReader || !feedId || isRefreshing) {
       return;
     }
 
     setIsRefreshing(true);
     setRefreshMessage("RSS取得中...");
     const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
-      if (progress.feedId === selectedFeed.id) {
+      if (progress.feedId === feedId) {
         setRefreshMessage(progress.message);
       }
     });
 
     try {
-      const result = await window.viperReader.refreshFeed(selectedFeed.id);
+      const result = await window.viperReader.refreshFeed(feedId);
       await reloadFeeds();
-      await reloadThreads(selectedFeed.id);
+      await reloadThreads(feedId);
       setRefreshMessage(
         `取得:${result.fetchedCount} 新規:${result.insertedCount} 更新:${result.updatedCount} 既存:${result.skippedCount} 変換:${result.convertedCount} 失敗:${result.conversionFailedCount} 未変換:${result.conversionSkippedCount}`
       );
@@ -398,6 +482,12 @@ export function App() {
     } finally {
       unsubscribeProgress();
       setIsRefreshing(false);
+    }
+  }
+
+  async function refreshSelectedFeed() {
+    if (selectedFeed) {
+      await refreshFeed(selectedFeed.id);
     }
   }
 
@@ -464,12 +554,6 @@ export function App() {
     setPostError("");
     setPostStatus("idle");
 
-    const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
-      if (data.threadId === selectedThread.id) {
-        setPostStatus(data.status);
-      }
-    });
-
     try {
       const result = await window.viperReader.postMessage(
         selectedThread.id,
@@ -494,8 +578,6 @@ export function App() {
       }
     } catch (err) {
       setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
-    } finally {
-      unsubscribePostStatus();
       setIsPosting(false);
       setPostStatus("idle");
     }
@@ -750,6 +832,7 @@ export function App() {
         onReplyModelChange={(model) => void handleReplyModelChange(model)}
         onOpenStatistics={openStatistics}
         onOpenResidentPrompts={openResidentPrompts}
+        hasPromptProposal={hasPromptProposal}
       />
 
       <div className="app-shell">
@@ -761,6 +844,7 @@ export function App() {
           selectedThreadId={selectedThreadId}
           isFavoriteCollapsed={isFavoriteCollapsed}
           onSelectFeed={selectFeed}
+          onRefreshFeed={(feedId) => void refreshFeed(feedId)}
           onAddFeed={() => setIsAddFeedOpen(true)}
           onDeleteSelectedFeed={() => void deleteSelectedFeed()}
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
@@ -813,6 +897,8 @@ export function App() {
             onReplyNameChange={setReplyName}
             onReplyMailChange={setReplyMail}
             onReplyBodyChange={setReplyBody}
+            onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
+            onReplyToPost={replyToPost}
             onScrollToPost={scrollToPost}
             onPostNoMouseEnter={handlePostNoMouseEnter}
             onPostNoMouseLeave={handlePostNoMouseLeave}
@@ -837,10 +923,13 @@ export function App() {
           promptText={promptText}
           isPromptLoading={isPromptLoading}
           promptStatusMessage={promptStatusMessage}
+          promptVersions={promptVersions}
           onPromptTargetFeedIdChange={setPromptTargetFeedId}
           onPromptTextChange={setPromptText}
           onSavePrompt={() => void savePrompt()}
           onClearPrompt={() => void clearPrompt()}
+          onReviewPromptVersion={(id, decision) => void reviewPromptVersion(id, decision)}
+          onRollbackPromptVersion={() => void rollbackPromptVersion()}
           onClose={() => setIsResidentPromptsOpen(false)}
         />
       ) : null}

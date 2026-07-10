@@ -9,6 +9,7 @@ type FeedPaneProps = {
   selectedThreadId: string | undefined;
   isFavoriteCollapsed: boolean;
   onSelectFeed: (feedId: string) => void;
+  onRefreshFeed: (feedId: string) => void;
   onAddFeed: () => void;
   onDeleteSelectedFeed: () => void;
   onToggleFavoriteCollapsed: () => void;
@@ -23,6 +24,7 @@ export function FeedPane({
   selectedThreadId,
   isFavoriteCollapsed,
   onSelectFeed,
+  onRefreshFeed,
   onAddFeed,
   onDeleteSelectedFeed,
   onToggleFavoriteCollapsed,
@@ -44,6 +46,8 @@ export function FeedPane({
             className={`feed-row ${feed.id === selectedFeedId ? "is-selected" : ""}`}
             key={feed.id}
             onClick={() => onSelectFeed(feed.id)}
+            onDoubleClick={() => onRefreshFeed(feed.id)}
+            title="ダブルクリックでこの板を更新"
             type="button"
           >
             <span className="feed-name">{feed.title}</span>

@@ -31,9 +31,14 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "article_bodies", "summary_text", "TEXT");
   addColumnIfMissing(db, "llm_request_logs", "cached_content_token_count", "INTEGER");
+  addColumnIfMissing(db, "thread_posts", "generation_run_id", "TEXT");
+  addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());
+  db.prepare(
+    "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+  ).run(2, new Date().toISOString());
 }
 
 function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): void {

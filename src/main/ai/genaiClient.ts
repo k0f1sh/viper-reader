@@ -13,7 +13,8 @@ export type LlmPurpose =
   | "title_transform"
   | "thread_response"
   | "thread_reply"
-  | "article_summary";
+  | "article_summary"
+  | "prompt_optimization";
 
 export type UsageMetadata = {
   promptTokenCount?: number;

@@ -1,5 +1,6 @@
+import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import type { ThreadDetail } from "../../shared/types";
+import type { ReplyRating, ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
 
 type ThreadReaderPaneProps = {
@@ -22,6 +23,8 @@ type ThreadReaderPaneProps = {
   onReplyNameChange: (value: string) => void;
   onReplyMailChange: (value: string) => void;
   onReplyBodyChange: (value: string) => void;
+  onRateReplyRun: (runId: string, rating: ReplyRating, tags: string[]) => void;
+  onReplyToPost: (postNo: number) => void;
   onScrollToPost: (postNo: number) => void;
   onPostNoMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onPostNoMouseLeave: () => void;
@@ -49,12 +52,24 @@ export function ThreadReaderPane({
   onReplyNameChange,
   onReplyMailChange,
   onReplyBodyChange,
+  onRateReplyRun,
+  onReplyToPost,
   onScrollToPost,
   onPostNoMouseEnter,
   onPostNoMouseLeave,
   onAnchorMouseEnter,
   onAnchorMouseLeave
 }: ThreadReaderPaneProps) {
+  const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
+  const writePanelStatus =
+    postStatus === "generating"
+      ? "AI住民がレスを生成しています"
+      : postStatus === "writing"
+        ? "書き込みを保存しています"
+        : isSelectedThreadGenerating
+          ? "レスを生成しています"
+          : "書き込みを処理しています";
+
   return (
     <section className="thread-body-pane" aria-label="スレ本文">
       {selectedThread ? (
@@ -99,18 +114,26 @@ export function ThreadReaderPane({
               const replyRegex = new RegExp(`>>${post.no}(?!\\d)`);
               const hasReplies = selectedThread.posts.some((candidate) => replyRegex.test(candidate.body));
               return (
-                <FragmentPost
-                  key={`${selectedThread.id}-${post.no}`}
-                  selectedThreadId={selectedThread.id}
-                  post={post}
-                  hasReplies={hasReplies}
-                  readMarkerNo={readMarkerNo}
-                  onScrollToPost={onScrollToPost}
-                  onPostNoMouseEnter={onPostNoMouseEnter}
-                  onPostNoMouseLeave={onPostNoMouseLeave}
-                  onAnchorMouseEnter={onAnchorMouseEnter}
-                  onAnchorMouseLeave={onAnchorMouseLeave}
-                />
+                <Fragment key={`${selectedThread.id}-${post.no}`}>
+                  <FragmentPost
+                    selectedThreadId={selectedThread.id}
+                    post={post}
+                    hasReplies={hasReplies}
+                    readMarkerNo={readMarkerNo}
+                    onScrollToPost={onScrollToPost}
+                    onPostNoMouseEnter={onPostNoMouseEnter}
+                    onPostNoMouseLeave={onPostNoMouseLeave}
+                    onAnchorMouseEnter={onAnchorMouseEnter}
+                    onAnchorMouseLeave={onAnchorMouseLeave}
+                    onReplyToPost={onReplyToPost}
+                  />
+                  {selectedThread.replyRuns.find((run) => run.endNo === post.no) ? (
+                    <ReplyRunFeedback
+                      run={selectedThread.replyRuns.find((run) => run.endNo === post.no)!}
+                      onRate={onRateReplyRun}
+                    />
+                  ) : null}
+                </Fragment>
               );
             })}
             {selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
@@ -144,7 +167,17 @@ export function ThreadReaderPane({
             ) : null}
           </div>
           {selectedThread.posts.length > 1 ? (
-            <form className="write-panel" onSubmit={onPostMessage}>
+            <form
+              className={`write-panel ${isWritePanelBusy ? "is-busy" : ""}`}
+              onSubmit={onPostMessage}
+              aria-busy={isWritePanelBusy}
+            >
+              {isWritePanelBusy ? (
+                <div className="write-panel-busy" role="status" aria-live="polite">
+                  <span>{writePanelStatus}。完了するまでお待ちください。</span>
+                  <span className="progress-blocks" aria-hidden="true" />
+                </div>
+              ) : null}
               <div className="write-meta-row">
                 <label htmlFor="reply-name">名前:</label>
                 <input
@@ -191,7 +224,7 @@ export function ThreadReaderPane({
                   placeholder={
                     selectedThread.posts.length >= 1000
                       ? "書き込み限界です"
-                      : isSelectedThreadGenerating
+                      : isWritePanelBusy
                       ? "レス生成中は書き込めません"
                       : "本文（Ctrl+Enterで書き込み）"
                   }
@@ -223,7 +256,8 @@ function FragmentPost({
   onPostNoMouseEnter,
   onPostNoMouseLeave,
   onAnchorMouseEnter,
-  onAnchorMouseLeave
+  onAnchorMouseLeave,
+  onReplyToPost
 }: {
   selectedThreadId: string;
   post: ThreadDetail["posts"][number];
@@ -234,6 +268,7 @@ function FragmentPost({
   onPostNoMouseLeave: () => void;
   onAnchorMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onAnchorMouseLeave: () => void;
+  onReplyToPost: (postNo: number) => void;
 }) {
   return (
     <>
@@ -243,6 +278,8 @@ function FragmentPost({
             className={`post-no ${hasReplies ? "post-no-hoverable" : ""}`}
             onMouseEnter={hasReplies ? (event) => onPostNoMouseEnter(post.no, event) : undefined}
             onMouseLeave={hasReplies ? onPostNoMouseLeave : undefined}
+            onClick={() => onReplyToPost(post.no)}
+            title={`>>${post.no} を書き込み欄へ追加`}
           >
             {post.no} ：
           </span>
@@ -270,6 +307,35 @@ function FragmentPost({
         </div>
       ) : null}
     </>
+  );
+}
+
+const feedbackTagOptions = [
+  ["off_topic", "話が噛み合わない"],
+  ["repetitive", "同じノリ"],
+  ["shallow", "技術的に薄い"],
+  ["weak_vip", "VIP感が弱い"],
+  ["verbose", "くどい"]
+] as const;
+
+function ReplyRunFeedback({
+  run,
+  onRate
+}: {
+  run: ThreadDetail["replyRuns"][number];
+  onRate: (runId: string, rating: ReplyRating, tags: string[]) => void;
+}) {
+  return (
+    <div className="reply-run-feedback" aria-label="生成されたレスを評価">
+      <span>この流れ:</span>
+      <button className={run.rating === "good" ? "is-selected" : ""} onClick={() => onRate(run.id, "good", [])} type="button">良い</button>
+      <button className={run.rating === "poor" ? "is-selected" : ""} onClick={() => onRate(run.id, "poor", run.feedbackTags)} type="button">微妙</button>
+      {run.rating === "poor" ? feedbackTagOptions.map(([value, label]) => {
+        const selected = run.feedbackTags.includes(value);
+        const nextTags = selected ? run.feedbackTags.filter((tag) => tag !== value) : [...run.feedbackTags, value];
+        return <button className={`feedback-tag ${selected ? "is-selected" : ""}`} key={value} onClick={() => onRate(run.id, "poor", nextTags)} type="button">{label}</button>;
+      }) : null}
+    </div>
   );
 }
 

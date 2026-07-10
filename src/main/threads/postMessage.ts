@@ -8,7 +8,9 @@ import {
   saveGeneratedThreadPosts,
   getArticleBody,
   getArticleSummary,
-  saveArticleSummary
+  saveArticleSummary,
+  markLatestReplyRunContinued,
+  recordReplyGenerationRun
 } from "../db/repository.js";
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -29,10 +31,9 @@ export async function postThreadMessage(
     const thread = getThread(threadId);
     if (!thread) {
       onStatus?.("error");
+      releaseThreadLock(threadId);
       return null;
     }
-
-    await ensureArticleSummary(threadId, thread.feedId);
 
     const maxNo = getMaxPostNo(thread);
 
@@ -58,28 +59,45 @@ export async function postThreadMessage(
       uid,
       body: body
     });
+    markLatestReplyRunContinued(threadId, "user");
 
     // 最新状態を取得
     const updatedThread = getThread(threadId);
     if (!updatedThread) {
       onStatus?.("error");
+      releaseThreadLock(threadId);
       return null;
     }
 
     // レス数が1000に達した場合
     if (getMaxPostNo(updatedThread) >= 1000) {
       onStatus?.("done");
+      releaseThreadLock(threadId);
       return updatedThread;
     }
 
     onStatus?.("generating");
-
-    await generateAndSaveReplies(threadId, updatedThread, "reply_to_user");
-    onStatus?.("done");
-    return getThread(threadId);
+    void completePostGeneration(threadId, updatedThread, onStatus);
+    return updatedThread;
   } catch (error) {
     onStatus?.("error");
+    releaseThreadLock(threadId);
     throw error;
+  }
+}
+
+async function completePostGeneration(
+  threadId: string,
+  thread: ThreadDetail,
+  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+): Promise<void> {
+  try {
+    await ensureArticleSummary(threadId, thread.feedId);
+    await generateAndSaveReplies(threadId, thread, "reply_to_user");
+    onStatus?.("done");
+  } catch (error) {
+    console.error("AI自動返信の生成中にエラーが発生しました:", error);
+    onStatus?.("error");
   } finally {
     releaseThreadLock(threadId);
   }
@@ -131,6 +149,7 @@ export async function generateRepliesOnly(
     }
 
     onStatus?.("generating");
+    markLatestReplyRunContinued(threadId, "thread");
     await generateAndSaveReplies(threadId, thread, "continue_thread");
     onStatus?.("done");
   } catch (error) {
@@ -187,6 +206,17 @@ async function generateAndSaveReplies(
   const postsToSave = fitPostsUnderLimit(aiResult.posts, maxNo);
   if (postsToSave.length > 0) {
     saveGeneratedThreadPosts(threadId, postsToSave);
+    recordReplyGenerationRun({
+      id: `reply-run:${crypto.randomUUID()}`,
+      feedId: thread.feedId,
+      threadId,
+      mode,
+      model: aiResult.model,
+      promptVersionId: aiResult.promptVersionId,
+      promptHash: aiResult.promptHash,
+      startNo: postsToSave[0].no,
+      endNo: postsToSave[postsToSave.length - 1].no
+    });
   }
 }
 

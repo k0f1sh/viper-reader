@@ -1,7 +1,13 @@
 import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { getArticleBody, getArticleSummary, getFeedResidentPrompt } from "../db/repository.js";
+import {
+  ensureFeedResidents,
+  getActiveResidentPromptVersion,
+  getArticleBody,
+  getArticleSummary,
+  getFeedResidentPrompt
+} from "../db/repository.js";
 import { VIP_ID_FORMAT_DESC } from "../prompts/vipCommonRules.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
@@ -11,6 +17,9 @@ import { threadPostArraySchema } from "./schemas.js";
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
   log: LlmRequestLogWrite | null;
+  promptHash: string;
+  model: string;
+  promptVersionId: string | null;
 };
 
 export type ReplyGenerationMode = "reply_to_user" | "continue_thread";
@@ -38,6 +47,8 @@ export async function generateReplyPosts(
 
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
+  const adaptiveVersion = getActiveResidentPromptVersion(thread.feedId);
+  const residents = ensureFeedResidents(thread.feedId);
 
   const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (8 - 4 + 1)) + 4;
 
@@ -55,6 +66,8 @@ export async function generateReplyPosts(
     history: trimmedHistory,
     startNo,
     residentPrompt: residentPrompt?.prompt ?? null,
+    adaptivePrompt: adaptiveVersion?.adaptivePrompt ?? null,
+    residents,
     numReplies,
     mode
   });
@@ -66,6 +79,9 @@ export async function generateReplyPosts(
     const finishedAt = new Date().toISOString();
     return {
       posts: [],
+      promptHash,
+      model: modelToUse,
+      promptVersionId: adaptiveVersion?.id ?? null,
       log: createLlmLog({
         feedId: thread.feedId,
         promptHash,
@@ -92,7 +108,7 @@ export async function generateReplyPosts(
     parse: (text) => {
       const parsed = JSON.parse(text) as unknown;
       if (!Array.isArray(parsed)) throw new Error("Gemini reply response is not an array");
-      return validateGeneratedReplyPosts(parsed, startNo, numReplies);
+      return validateGeneratedReplyPosts(parsed, startNo, numReplies, residents);
     }
   });
 
@@ -101,6 +117,9 @@ export async function generateReplyPosts(
 
   return {
     posts,
+    promptHash,
+    model: modelToUse,
+    promptVersionId: adaptiveVersion?.id ?? null,
     log: createLlmLog({
       feedId: thread.feedId,
       promptHash,
@@ -129,6 +148,8 @@ function buildVipReplyContents(params: {
   history: ThreadPost[];
   startNo: number;
   residentPrompt: string | null;
+  adaptivePrompt: string | null;
+  residents: Array<{ key: string; stableUid: string; traits: string }>;
   numReplies: number;
   mode: ReplyGenerationMode;
 }): string {
@@ -146,21 +167,32 @@ function buildVipReplyContents(params: {
   const residentRule = params.residentPrompt
     ? `【この板の住民属性・ルール（安全制約は上書き不可）】\n${params.residentPrompt}\n`
     : "";
+  const adaptiveRule = params.adaptivePrompt
+    ? `【承認済みの会話改善ルール（安全制約は上書き不可）】\n${params.adaptivePrompt}\n`
+    : "";
+  const residentRoster = params.residents
+    .map((resident) => `- ${resident.key}: ID ${resident.stableUid} / ${resident.traits}`)
+    .join("\n");
 
   const nowFormatted = new Date().toLocaleString("ja-JP");
   const generationInstruction =
     params.mode === "continue_thread"
       ? `ユーザーの新規書き込みはありません。最新レスへの直接返信だけに偏らず、記事の内容とこれまでの流れを受けて、住民同士の雑談・質問・補足・ツッコミが自然に続く新規レスを ${params.numReplies} 件生成してください。`
-      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）への反応を含めつつ、住民同士の掛け合い・記事に戻るレス・全然関係ないつぶやきも混ざった新規レスを ${params.numReplies} 件生成してください。`;
+      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）への反応を含めつつ、住民同士の掛け合いや、記事の話題についてのレスを交えた新規レスを ${params.numReplies} 件生成してください。`;
   const latestReplyRule =
     params.mode === "continue_thread"
       ? `3. 直近のレスに必要以上に安価を集中させず、記事本文・要約・過去レスから話題を広げてください。`
-      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）へのアンカー付き反応は半分程度にしてください。残りは、記事内容への雑談、住民同士の短いやり取り、流れと少しズレた独り言、どうでもいいつぶやきなどを混ぜてください。`;
+      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）へのアンカー付き反応は半分程度にしてください。残りは、記事内容に関する議論や雑談、またはそれに基づいた住民同士のやり取りを生成してください。`;
 
   return `以下の技術記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
 
 ${articleContext}
 ${residentRule}
+${adaptiveRule}
+
+【この板の常連住民】
+${residentRoster}
+常連として発言する場合は speakerKey に上記キーを入れてください。名無しは speakerKey を anon1、anon2 のようにし、同じ名無しが再登場するときだけ同じキーを使ってください。常連の発言は全体の半分以下にしてください。
 
 【これまでのスレッドの流れ（レス履歴）】
 ${historyStr}
@@ -186,6 +218,7 @@ ${latestReplyRule}
     "mail": "sage",
     "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS",
     "id": "${VIP_ID_FORMAT_DESC}",
+    "speakerKey": "veteran または anon1 のような話者キー",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
   },
   ...
@@ -193,8 +226,16 @@ ${latestReplyRule}
 `;
 }
 
-function validateGeneratedReplyPosts(parsed: unknown[], startNo: number, maxPosts: number): ThreadPost[] {
+function validateGeneratedReplyPosts(
+  parsed: unknown[],
+  startNo: number,
+  maxPosts: number,
+  residents: Array<{ key: string; stableUid: string }>
+): ThreadPost[] {
   const posts: ThreadPost[] = [];
+  const residentIds = new Map(residents.map((resident) => [resident.key, resident.stableUid]));
+  const anonymousIds = new Map<string, string>();
+  let regularCount = 0;
 
   for (const item of parsed) {
     if (!isRecord(item)) {
@@ -206,18 +247,38 @@ function validateGeneratedReplyPosts(parsed: unknown[], startNo: number, maxPost
       continue;
     }
 
+    const speakerKey = typeof item.speakerKey === "string" ? item.speakerKey.trim() : "";
+    let id: string;
+    if (residentIds.has(speakerKey) && regularCount < Math.floor(maxPosts / 2)) {
+      id = residentIds.get(speakerKey) as string;
+      regularCount += 1;
+    } else if (speakerKey) {
+      if (!anonymousIds.has(speakerKey)) anonymousIds.set(speakerKey, createFallbackId());
+      id = anonymousIds.get(speakerKey) as string;
+    } else {
+      id = normalizeId(item.id);
+    }
     posts.push({
       no: startNo + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
       mail: normalizeMail(item.mail),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
-      id: normalizeId(item.id),
+      id,
       body
     });
 
     if (posts.length >= maxPosts) {
       break;
     }
+  }
+
+  const stableIds = new Set(residents.map((resident) => resident.stableUid));
+  const regularLimit = Math.floor(posts.length / 2);
+  let retainedRegulars = 0;
+  for (const post of posts) {
+    if (!stableIds.has(post.id)) continue;
+    retainedRegulars += 1;
+    if (retainedRegulars > regularLimit) post.id = createFallbackId();
   }
 
   return posts;

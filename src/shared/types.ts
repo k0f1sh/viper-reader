@@ -31,6 +31,33 @@ export type ThreadListItem = {
 
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
+  replyRuns: ReplyGenerationRun[];
+};
+
+export type ReplyRating = "good" | "poor";
+
+export type ReplyGenerationRun = {
+  id: string;
+  threadId: string;
+  startNo: number;
+  endNo: number;
+  mode: "reply_to_user" | "continue_thread";
+  promptVersionId: string | null;
+  rating: ReplyRating | null;
+  feedbackTags: string[];
+};
+
+export type ResidentPromptVersion = {
+  id: string;
+  feedId: string;
+  parentId: string | null;
+  adaptivePrompt: string;
+  rationale: string;
+  changes: string[];
+  status: "pending" | "active" | "rejected" | "archived";
+  model: string;
+  createdAt: string;
+  reviewedAt: string | null;
 };
 
 export type RefreshFeedResult = {

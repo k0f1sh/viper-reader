@@ -11,6 +11,10 @@ import {
   initializeRepository,
   listFeeds,
   listThreads,
+  listResidentPromptVersions,
+  reviewResidentPromptVersion,
+  rollbackResidentPromptVersion,
+  saveReplyFeedback,
   saveFeedResidentPrompt,
   setThreadFavorite,
   listFavoriteThreads
@@ -22,6 +26,8 @@ import { getUserSetting, saveUserSetting } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
+import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
+import type { ReplyRating } from "../shared/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +100,15 @@ ipcMain.handle("logs:list", () => listBufferedLogs());
 ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => getFeedResidentPrompt(feedId));
 ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => saveFeedResidentPrompt(feedId, prompt));
 ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));
+ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
+  const feedId = saveReplyFeedback(runId, rating, tags);
+  void maybeCreatePromptProposal(feedId).then((versionId) => {
+    if (versionId && !event.sender.isDestroyed()) event.sender.send("feeds:prompt-proposal-ready", { feedId, versionId });
+  }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
+});
+ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => listResidentPromptVersions(feedId));
+ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => reviewResidentPromptVersion(id, decision));
+ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => rollbackResidentPromptVersion(feedId));
 ipcMain.handle("settings:get", (_event, key: string) => getUserSetting(key));
 ipcMain.handle("settings:save", (_event, key: string, value: string) => saveUserSetting(key, value));
 ipcMain.handle("feeds:add", (_event, title: string, url: string) => addFeedSource(title, url));

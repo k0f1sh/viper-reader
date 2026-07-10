@@ -153,9 +153,71 @@ CREATE TABLE IF NOT EXISTS thread_posts (
   uid TEXT NOT NULL,
   body TEXT NOT NULL,
   is_user INTEGER NOT NULL DEFAULT 0,
+  generation_run_id TEXT,
+  resident_id TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, no)
+);
+
+CREATE TABLE IF NOT EXISTS resident_prompt_versions (
+  id TEXT PRIMARY KEY,
+  feed_id TEXT NOT NULL,
+  parent_id TEXT,
+  base_prompt_hash TEXT NOT NULL,
+  adaptive_prompt TEXT NOT NULL,
+  rationale TEXT NOT NULL,
+  changes_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  model TEXT NOT NULL,
+  feedback_through_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feed_residents (
+  id TEXT PRIMARY KEY,
+  feed_id TEXT NOT NULL,
+  resident_key TEXT NOT NULL,
+  stable_uid TEXT NOT NULL,
+  traits TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE,
+  UNIQUE (feed_id, resident_key)
+);
+
+CREATE TABLE IF NOT EXISTS reply_generation_runs (
+  id TEXT PRIMARY KEY,
+  feed_id TEXT NOT NULL,
+  feed_item_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  model TEXT NOT NULL,
+  prompt_version_id TEXT,
+  prompt_hash TEXT NOT NULL,
+  start_no INTEGER NOT NULL,
+  end_no INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  user_continued_at TEXT,
+  continued_thread_at TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reply_feedback (
+  run_id TEXT PRIMARY KEY,
+  rating TEXT NOT NULL,
+  tags_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (run_id) REFERENCES reply_generation_runs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS resident_prompt_cycles (
+  feed_id TEXT PRIMARY KEY,
+  started_at TEXT NOT NULL,
+  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_feed_items_feed_id ON feed_items(feed_id);
@@ -166,4 +228,6 @@ CREATE INDEX IF NOT EXISTS idx_llm_request_logs_feed_id ON llm_request_logs(feed
 CREATE INDEX IF NOT EXISTS idx_feed_resident_prompts_prompt_hash ON feed_resident_prompts(prompt_hash);
 CREATE INDEX IF NOT EXISTS idx_article_fetch_logs_feed_item_id ON article_fetch_logs(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_thread_posts_feed_item_id ON thread_posts(feed_item_id);
+CREATE INDEX IF NOT EXISTS idx_reply_runs_feed_item_id ON reply_generation_runs(feed_item_id);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_feed_id ON resident_prompt_versions(feed_id);
 `;
