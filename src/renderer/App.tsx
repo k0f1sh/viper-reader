@@ -482,6 +482,12 @@ export function App() {
       return;
     }
 
+    const preferredThreadId = threadList.some(
+      (thread) => thread.feedId === feedId && thread.id === selectedThreadId
+    )
+      ? selectedThreadId
+      : undefined;
+
     setIsRefreshing(true);
     setRefreshMessage("RSS取得中...");
     const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
@@ -493,7 +499,7 @@ export function App() {
     try {
       const result = await window.viperReader.refreshFeed(feedId);
       await reloadFeeds();
-      await reloadThreads(feedId);
+      await reloadThreads(feedId, preferredThreadId);
       setRefreshMessage(
         `取得:${result.fetchedCount} 新規:${result.insertedCount} 更新:${result.updatedCount} 既存:${result.skippedCount} 変換:${result.convertedCount} 失敗:${result.conversionFailedCount} 未変換:${result.conversionSkippedCount}`
       );
