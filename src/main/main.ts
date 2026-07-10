@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
@@ -54,6 +54,14 @@ function createMainWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
+    }
+  });
+
+  window.webContents.on("context-menu", (_event, params) => {
+    if (params.selectionText) {
+      Menu.buildFromTemplate([
+        { role: "copy", label: "コピー" }
+      ]).popup({ window });
     }
   });
 
