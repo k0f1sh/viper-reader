@@ -1482,7 +1482,8 @@ body.is-column-resizing * {
   flex-direction: column;
   min-height: 92px;
   overflow: hidden;
-  background: #efeffc;
+  border-top: 1px solid #ffffff;
+  background: #d4d0c8;
 }
 
 .log-pane-title {
@@ -1490,17 +1491,52 @@ body.is-column-resizing * {
   font-size: 12px;
 }
 
-.log-count {
-  min-width: 26px;
-  padding: 0 4px;
-  border-top: 1px solid #808080;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
-  border-left: 1px solid #808080;
-  background: #f5f5f5;
-  color: #000080;
-  text-align: center;
+.log-health {
+  padding: 0 5px;
+  color: #286428;
+  font-size: 10px;
   font-weight: 400;
+}
+
+.log-health.has-issues {
+  color: #9c0000;
+  font-weight: 700;
+}
+
+.log-toolbar {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-bottom: 1px solid #808080;
+  background: #d4d0c8;
+}
+
+.log-toolbar select,
+.log-toolbar button {
+  min-width: 0;
+  height: 21px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  color: #000000;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.log-toolbar select {
+  flex: 1;
+}
+
+.log-toolbar button {
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.log-toolbar button.is-active {
+  color: #000080;
+  font-weight: 700;
 }
 
 .log-list {
@@ -1525,12 +1561,18 @@ body.is-column-resizing * {
 
 .log-row {
   display: grid;
-  grid-template-columns: 48px 40px minmax(0, 1fr);
+  grid-template-columns: 45px 28px minmax(0, 1fr) auto;
   gap: 4px;
+  width: 100%;
   min-width: 0;
   padding: 1px 2px;
+  border: 0;
   border-bottom: 1px solid #eef0f8;
+  background: transparent;
   color: #202020;
+  font: inherit;
+  text-align: left;
+  cursor: default;
 }
 
 .log-row.is-info,
@@ -1548,6 +1590,13 @@ body.is-column-resizing * {
   background: #fff0f0;
 }
 
+.log-row:hover,
+.log-row:focus-visible {
+  outline: 1px dotted #000080;
+  outline-offset: -1px;
+  background: #e8efff;
+}
+
 .log-time {
   color: #606060;
   white-space: nowrap;
@@ -1558,10 +1607,36 @@ body.is-column-resizing * {
   white-space: nowrap;
 }
 
+.log-row.is-info .log-level,
+.log-row.is-log .log-level {
+  color: #315b87;
+}
+
 .log-message {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-row.is-expanded {
+  align-items: start;
+}
+
+.log-row.is-expanded .log-message {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: pre-wrap;
+}
+
+.log-repeat {
+  min-width: 24px;
+  padding: 0 3px;
+  border: 1px solid #b0b0b0;
+  background: #eeeeee;
+  color: #404040;
+  text-align: center;
   white-space: nowrap;
 }
 
