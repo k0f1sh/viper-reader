@@ -10,6 +10,8 @@ import { SettingsModal } from "./components/SettingsModal";
 import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
+import { ThreadTabs } from "./components/ThreadTabs";
+import type { OpenThreadTab } from "./components/ThreadTabs";
 
 const threadColumnLabels = ["スレタイ", "元タイトル", "レス", "取得元", "日時 ▼", "URL"] as const;
 const defaultThreadColumnWidths = [360, 300, 54, 170, 126, 260];
@@ -35,7 +37,11 @@ export function App() {
   const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
   const [selectedFeedId, setSelectedFeedId] = useState("");
   const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
+  const selectedThreadIdRef = useRef<string | undefined>(undefined);
+  selectedThreadIdRef.current = selectedThreadId;
   const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
+  const [openThreadTabs, setOpenThreadTabs] = useState<OpenThreadTab[]>([]);
+  const hasLoadedThreadTabsRef = useRef(false);
   const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
   const [completedGenerationThreadIds, setCompletedGenerationThreadIds] = useState<Set<string>>(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -67,6 +73,7 @@ export function App() {
   const [replyName, setReplyName] = useState("");
   const [replyMail, setReplyMail] = useState("sage");
   const [replyBody, setReplyBody] = useState("");
+  const replyDraftsRef = useRef<Map<string, string>>(new Map());
   const [isPosting, setIsPosting] = useState(false);
   const [postError, setPostError] = useState("");
   const [postStatus, setPostStatus] = useState<"idle" | "writing" | "generating" | "done" | "error">("idle");
@@ -96,6 +103,18 @@ export function App() {
     void loadSettings();
     void loadFavoriteThreads();
   }, []);
+
+  useEffect(() => {
+    if (!hasLoadedThreadTabsRef.current || !window.viperReader) {
+      return;
+    }
+
+    const session: ThreadTabsSession = {
+      tabs: openThreadTabs,
+      activeTabId: selectedThreadId ?? null
+    };
+    void window.viperReader.saveUserSetting("threadTabs", JSON.stringify(session));
+  }, [openThreadTabs, selectedThreadId]);
 
   useEffect(() => {
     if (!window.viperReader) {
@@ -143,18 +162,32 @@ export function App() {
     void window.viperReader
       .getThread(selectedThreadId)
       .then((thread) => {
-        setSelectedThread(thread);
-        if (thread) {
-          setThreadList((currentThreads) =>
-            currentThreads.map((currentThread) =>
-              currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
-            )
-          );
-          void reloadFeeds();
+        if (!thread) {
+          if (selectedThreadIdRef.current === selectedThreadId) {
+            closeThreadTab(selectedThreadId, true);
+          }
+          return;
         }
+        setOpenThreadTabs((currentTabs) =>
+          currentTabs.map((tab) =>
+            tab.id === thread.id ? { ...tab, feedId: thread.feedId, title: thread.vipTitle } : tab
+          )
+        );
+        setThreadList((currentThreads) =>
+          currentThreads.map((currentThread) =>
+            currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
+          )
+        );
+        void reloadFeeds();
+        if (selectedThreadIdRef.current !== selectedThreadId) {
+          return;
+        }
+        setSelectedThread(thread);
       })
       .catch(() => {
-        setSelectedThread(null);
+        if (selectedThreadIdRef.current === selectedThreadId) {
+          setSelectedThread(null);
+        }
       });
   }, [selectedThreadId]);
 
@@ -247,10 +280,106 @@ export function App() {
 
     const nextThreads = await window.viperReader.listThreads(feedId);
     setThreadList(nextThreads);
-    setSelectedThreadId((currentId) => {
-      const candidate = preferredThreadId ?? currentId;
-      return candidate && nextThreads.some((thread) => thread.id === candidate) ? candidate : undefined;
+    if (preferredThreadId && nextThreads.some((thread) => thread.id === preferredThreadId)) {
+      setSelectedThreadId(preferredThreadId);
+    }
+  }
+
+  function openThreadTab(thread: ThreadListItem | ThreadDetail) {
+    const tab: OpenThreadTab = {
+      id: thread.id,
+      feedId: thread.feedId,
+      title: thread.vipTitle,
+      isLocked: false
+    };
+
+    setOpenThreadTabs((currentTabs) =>
+      currentTabs.some((currentTab) => currentTab.id === tab.id)
+        ? currentTabs.map((currentTab) =>
+            currentTab.id === tab.id
+              ? { ...currentTab, feedId: tab.feedId, title: tab.title }
+              : currentTab
+          )
+        : [...currentTabs, tab]
+    );
+    activateThreadTab(tab);
+  }
+
+  function openThreadTabById(threadId: string) {
+    const thread = threadList.find((candidate) => candidate.id === threadId);
+    if (thread) {
+      openThreadTab(thread);
+    }
+  }
+
+  function activateThreadTab(tab: OpenThreadTab) {
+    if (selectedThreadId !== tab.id) {
+      if (selectedThreadId) {
+        replyDraftsRef.current.set(selectedThreadId, replyBody);
+      }
+      setReplyBody(replyDraftsRef.current.get(tab.id) ?? "");
+      setPostError("");
+      setPostStatus("idle");
+      setSelectedThread(null);
+      setPopupData(null);
+    }
+    setSelectedFeedId(tab.feedId);
+    setSelectedThreadId(tab.id);
+  }
+
+  function closeThreadTab(tabId: string, force = false) {
+    const tabIndex = openThreadTabs.findIndex((tab) => tab.id === tabId);
+    if (tabIndex < 0 || (!force && openThreadTabs[tabIndex].isLocked)) {
+      return;
+    }
+
+    const nextTabs = openThreadTabs.filter((tab) => tab.id !== tabId);
+    replyDraftsRef.current.delete(tabId);
+    setOpenThreadTabs(nextTabs);
+
+    if (selectedThreadId !== tabId) {
+      return;
+    }
+
+    const nextActiveTab = nextTabs[Math.min(tabIndex, nextTabs.length - 1)];
+    if (nextActiveTab) {
+      activateThreadTab(nextActiveTab);
+    } else {
+      setSelectedThreadId(undefined);
+      setSelectedThread(null);
+    }
+  }
+
+  function toggleThreadTabLock(tabId: string) {
+    setOpenThreadTabs((currentTabs) =>
+      currentTabs.map((tab) => tab.id === tabId ? { ...tab, isLocked: !tab.isLocked } : tab)
+    );
+  }
+
+  function moveThreadTab(sourceTabId: string, targetTabId: string) {
+    setOpenThreadTabs((currentTabs) => {
+      const sourceIndex = currentTabs.findIndex((tab) => tab.id === sourceTabId);
+      const targetIndex = currentTabs.findIndex((tab) => tab.id === targetTabId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+        return currentTabs;
+      }
+
+      const nextTabs = [...currentTabs];
+      const [sourceTab] = nextTabs.splice(sourceIndex, 1);
+      nextTabs.splice(targetIndex, 0, sourceTab);
+      return nextTabs;
     });
+  }
+
+  function activateRelativeThreadTab(delta: -1 | 1) {
+    if (openThreadTabs.length === 0) {
+      return;
+    }
+
+    const currentIndex = openThreadTabs.findIndex((tab) => tab.id === selectedThreadId);
+    const baseIndex = currentIndex < 0 ? 0 : currentIndex;
+    const nextIndex = (baseIndex + delta + openThreadTabs.length) % openThreadTabs.length;
+    activateThreadTab(openThreadTabs[nextIndex]);
   }
 
   async function markAllThreadsRead() {
@@ -274,13 +403,27 @@ export function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target?.matches("input, textarea, select, [contenteditable='true']") || event.ctrlKey || event.metaKey || event.altKey) return;
+      const primaryModifier = event.ctrlKey || event.metaKey;
+
+      if (primaryModifier && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        if (selectedThreadId) closeThreadTab(selectedThreadId);
+        return;
+      }
+
+      if (event.ctrlKey && event.key === "Tab") {
+        event.preventDefault();
+        activateRelativeThreadTab(event.shiftKey ? -1 : 1);
+        return;
+      }
+
+      if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
       if (event.key === "j" || event.key === "k") {
         const delta = event.key === "j" ? 1 : -1;
         const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
         const next = visibleThreads[nextIndex];
-        if (next) { event.preventDefault(); setSelectedThreadId(next.id); }
+        if (next) { event.preventDefault(); openThreadTab(next); }
       } else if (event.key === "r") {
         event.preventDefault(); void refreshSelectedFeed();
       } else if (event.key === "g") {
@@ -293,7 +436,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating]);
+  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, openThreadTabs]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -301,12 +444,17 @@ export function App() {
     }
 
     try {
-      const height = await window.viperReader.getUserSetting("threadListHeight");
+      const [height, widthsJson, model, threadTabsJson] = await Promise.all([
+        window.viperReader.getUserSetting("threadListHeight"),
+        window.viperReader.getUserSetting("threadColumnWidths"),
+        window.viperReader.getUserSetting("replyModel"),
+        window.viperReader.getUserSetting("threadTabs")
+      ]);
+
       if (height) {
         setThreadListHeight(parseFloat(height));
       }
 
-      const widthsJson = await window.viperReader.getUserSetting("threadColumnWidths");
       if (widthsJson) {
         const widths = JSON.parse(widthsJson) as unknown;
         if (Array.isArray(widths) && widths.length === defaultThreadColumnWidths.length) {
@@ -314,12 +462,22 @@ export function App() {
         }
       }
 
-      const model = await window.viperReader.getUserSetting("replyModel");
       if (model) {
         setReplyModel(model);
       }
+
+      const restoredSession = parseThreadTabsSession(threadTabsJson);
+      setOpenThreadTabs(restoredSession.tabs);
+      const activeTab = restoredSession.tabs.find((tab) => tab.id === restoredSession.activeTabId)
+        ?? restoredSession.tabs[0];
+      if (activeTab) {
+        setSelectedFeedId(activeTab.feedId);
+        setSelectedThreadId(activeTab.id);
+      }
     } catch (err) {
       console.error("ユーザー設定の読込に失敗しました:", err);
+    } finally {
+      hasLoadedThreadTabsRef.current = true;
     }
   }
 
@@ -432,6 +590,20 @@ export function App() {
 
     try {
       await window.viperReader.deleteFeedSource(selectedFeedId);
+      const remainingTabs = openThreadTabs.filter((tab) => tab.feedId !== selectedFeedId);
+      const activeTabWasDeleted = openThreadTabs.some(
+        (tab) => tab.id === selectedThreadId && tab.feedId === selectedFeedId
+      );
+      setOpenThreadTabs(remainingTabs);
+      if (activeTabWasDeleted) {
+        const nextActiveTab = remainingTabs[0];
+        if (nextActiveTab) {
+          activateThreadTab(nextActiveTab);
+        } else {
+          setSelectedThreadId(undefined);
+          setSelectedThread(null);
+        }
+      }
       setFeedList((current) => {
         const next = current.filter((feed) => feed.id !== selectedFeedId);
         if (next.length > 0) {
@@ -565,14 +737,17 @@ export function App() {
 
   async function rateReplyRun(runId: string, rating: ReplyRating, tags: string[]) {
     if (!window.viperReader || !selectedThread) return;
+    const threadId = selectedThread.id;
     try {
       await window.viperReader.rateReplyRun(runId, rating, tags);
-      setSelectedThread((current) => current ? {
+      setSelectedThread((current) => current?.id === threadId ? {
         ...current,
         replyRuns: current.replyRuns.map((run) => run.id === runId ? { ...run, rating, feedbackTags: tags } : run)
       } : current);
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : "レス評価の保存に失敗しました。");
+      if (selectedThreadIdRef.current === threadId) {
+        setPostError(err instanceof Error ? err.message : "レス評価の保存に失敗しました。");
+      }
     }
   }
 
@@ -649,24 +824,29 @@ export function App() {
       return;
     }
 
-    setRegeneratingTitleThreadId(selectedThread.id);
+    const threadId = selectedThread.id;
+    setRegeneratingTitleThreadId(threadId);
     setPostError("");
 
     try {
-      const result = await window.viperReader.regenerateVipTitle(selectedThread.id);
+      const result = await window.viperReader.regenerateVipTitle(threadId);
       if (result) {
-        setSelectedThread(result);
+        if (selectedThreadIdRef.current === threadId) {
+          setSelectedThread(result);
+        }
+        setOpenThreadTabs((currentTabs) =>
+          currentTabs.map((tab) => tab.id === result.id ? { ...tab, title: result.vipTitle } : tab)
+        );
         setThreadList((currentThreads) =>
           currentThreads.map((currentThread) =>
             currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
           )
         );
-        if (selectedFeedId) {
-          await reloadThreads(selectedFeedId, result.id);
-        }
       }
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : "スレタイ再生成に失敗しました。");
+      if (selectedThreadIdRef.current === threadId) {
+        setPostError(err instanceof Error ? err.message : "スレタイ再生成に失敗しました。");
+      }
     } finally {
       setRegeneratingTitleThreadId(null);
     }
@@ -678,6 +858,7 @@ export function App() {
       return;
     }
 
+    const threadId = selectedThread.id;
     // 書き込み前の最後のレス番号を記録してセパレーターに使う
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
@@ -687,16 +868,19 @@ export function App() {
 
     try {
       const result = await window.viperReader.postMessage(
-        selectedThread.id,
+        threadId,
         replyName,
         replyMail,
         replyBody
       );
 
       if (result) {
-        setReadMarkerNo(markerNo);
-        setSelectedThread(result);
-        setReplyBody("");
+        replyDraftsRef.current.delete(result.id);
+        if (selectedThreadIdRef.current === threadId) {
+          setReadMarkerNo(markerNo);
+          setSelectedThread(result);
+          setReplyBody("");
+        }
         // スレッド一覧のレス数や既読を更新
         setThreadList((currentThreads) =>
           currentThreads.map((currentThread) =>
@@ -705,18 +889,25 @@ export function App() {
         );
         void reloadFeeds();
 
-        scrollReadMarkerToTop();
+        if (selectedThreadIdRef.current === threadId) {
+          scrollReadMarkerToTop();
+        }
       }
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
+      if (selectedThreadIdRef.current === threadId) {
+        setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
+      }
       setIsPosting(false);
-      setPostStatus("idle");
+      if (selectedThreadIdRef.current === threadId) {
+        setPostStatus("idle");
+      }
     }
   }
 
   async function handleGenerateReplies() {
     if (!selectedThread || !window.viperReader || isPosting) return;
 
+    const threadId = selectedThread.id;
     // 再読み込み前の最後のレス番号を記録してセパレーターに使う
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
@@ -724,16 +915,18 @@ export function App() {
     setPostError("");
 
     const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
-      if (data.threadId === selectedThread.id) {
+      if (data.threadId === threadId && selectedThreadIdRef.current === threadId) {
         setPostStatus(data.status);
       }
     });
 
     try {
-      const result = await window.viperReader.generateReplies(selectedThread.id);
+      const result = await window.viperReader.generateReplies(threadId);
       if (result) {
-        setReadMarkerNo(markerNo);
-        setSelectedThread(result);
+        if (selectedThreadIdRef.current === threadId) {
+          setReadMarkerNo(markerNo);
+          setSelectedThread(result);
+        }
         
         setThreadList((currentThreads) =>
           currentThreads.map((currentThread) =>
@@ -742,10 +935,14 @@ export function App() {
         );
         void reloadFeeds();
 
-        scrollReadMarkerToTop();
+        if (selectedThreadIdRef.current === threadId) {
+          scrollReadMarkerToTop();
+        }
       }
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : "レス生成に失敗しました。");
+      if (selectedThreadIdRef.current === threadId) {
+        setPostError(err instanceof Error ? err.message : "レス生成に失敗しました。");
+      }
     } finally {
       unsubscribePostStatus();
       setIsPosting(false);
@@ -765,15 +962,16 @@ export function App() {
 
   async function toggleFavorite() {
     if (!selectedThread || !window.viperReader) return;
+    const threadId = selectedThread.id;
     const nextFavorite = !selectedThread.isFavorite;
     try {
-      await window.viperReader.toggleFavorite(selectedThread.id, nextFavorite);
+      await window.viperReader.toggleFavorite(threadId, nextFavorite);
       
-      setSelectedThread((current) => current ? { ...current, isFavorite: nextFavorite } : null);
+      setSelectedThread((current) => current?.id === threadId ? { ...current, isFavorite: nextFavorite } : current);
       
       setThreadList((currentList) =>
         currentList.map((item) =>
-          item.id === selectedThread.id ? { ...item, isFavorite: nextFavorite } : item
+          item.id === threadId ? { ...item, isFavorite: nextFavorite } : item
         )
       );
 
@@ -784,8 +982,7 @@ export function App() {
   }
 
   function handleSelectFavoriteThread(thread: ThreadListItem) {
-    setSelectedFeedId(thread.feedId);
-    setSelectedThreadId(thread.id);
+    openThreadTab(thread);
   }
 
   function scrollToPost(postNo: number) {
@@ -1001,7 +1198,7 @@ export function App() {
             threadGridColumns={threadGridColumns}
             threadListMinWidth={threadListMinWidth}
             onRefresh={() => void refreshSelectedFeed()}
-            onSelectThread={setSelectedThreadId}
+            onSelectThread={openThreadTabById}
             onToggleUnreadOnly={() => setShowUnreadOnly((current) => !current)}
             onMarkAllRead={() => void markAllThreadsRead()}
             onStartColumnResize={startThreadColumnResize}
@@ -1014,34 +1211,46 @@ export function App() {
             role="separator"
           />
 
-          <ThreadReaderPane
-            selectedThread={selectedThread}
-            isSelectedThreadGenerating={isSelectedThreadGenerating}
-            isRegeneratingTitle={isRegeneratingSelectedTitle}
-            isPosting={isPosting}
-            postStatus={postStatus}
-            postError={postError}
-            replyName={replyName}
-            replyMail={replyMail}
-            replyBody={replyBody}
-            readMarkerNo={readMarkerNo}
-            replyBodyRef={replyBodyRef}
-            onToggleFavorite={() => void toggleFavorite()}
-            onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
-            onGenerateResponses={(force) => void generateResponses(force)}
-            onGenerateReplies={() => void handleGenerateReplies()}
-            onPostMessage={handlePostMessage}
-            onReplyNameChange={setReplyName}
-            onReplyMailChange={setReplyMail}
-            onReplyBodyChange={setReplyBody}
-            onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
-            onReplyToPost={replyToPost}
-            onScrollToPost={scrollToPost}
-            onPostNoMouseEnter={handlePostNoMouseEnter}
-            onPostNoMouseLeave={handlePostNoMouseLeave}
-            onAnchorMouseEnter={handleAnchorMouseEnter}
-            onAnchorMouseLeave={handleAnchorMouseLeave}
-          />
+          <section className="thread-workspace">
+            <ThreadTabs
+              tabs={openThreadTabs}
+              activeTabId={selectedThreadId}
+              generatingThreadIds={generatingThreadIds}
+              completedThreadIds={completedGenerationThreadIds}
+              onActivate={activateThreadTab}
+              onClose={closeThreadTab}
+              onToggleLock={toggleThreadTabLock}
+              onMove={moveThreadTab}
+            />
+            <ThreadReaderPane
+              selectedThread={selectedThread}
+              isSelectedThreadGenerating={isSelectedThreadGenerating}
+              isRegeneratingTitle={isRegeneratingSelectedTitle}
+              isPosting={isPosting}
+              postStatus={postStatus}
+              postError={postError}
+              replyName={replyName}
+              replyMail={replyMail}
+              replyBody={replyBody}
+              readMarkerNo={readMarkerNo}
+              replyBodyRef={replyBodyRef}
+              onToggleFavorite={() => void toggleFavorite()}
+              onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
+              onGenerateResponses={(force) => void generateResponses(force)}
+              onGenerateReplies={() => void handleGenerateReplies()}
+              onPostMessage={handlePostMessage}
+              onReplyNameChange={setReplyName}
+              onReplyMailChange={setReplyMail}
+              onReplyBodyChange={setReplyBody}
+              onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
+              onReplyToPost={replyToPost}
+              onScrollToPost={scrollToPost}
+              onPostNoMouseEnter={handlePostNoMouseEnter}
+              onPostNoMouseLeave={handlePostNoMouseLeave}
+              onAnchorMouseEnter={handleAnchorMouseEnter}
+              onAnchorMouseLeave={handleAnchorMouseLeave}
+            />
+          </section>
         </section>
       </div>
 
@@ -1111,4 +1320,58 @@ export function App() {
 
 function limitLogs(logs: AppLogEntry[]): AppLogEntry[] {
   return logs.length > maxRendererLogs ? logs.slice(logs.length - maxRendererLogs) : logs;
+}
+
+type ThreadTabsSession = {
+  tabs: OpenThreadTab[];
+  activeTabId: string | null;
+};
+
+function parseThreadTabsSession(value: string | null): ThreadTabsSession {
+  const emptySession: ThreadTabsSession = { tabs: [], activeTabId: null };
+  if (!value) {
+    return emptySession;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return emptySession;
+    }
+
+    const candidate = parsed as { tabs?: unknown; activeTabId?: unknown };
+    if (!Array.isArray(candidate.tabs)) {
+      return emptySession;
+    }
+
+    const seenIds = new Set<string>();
+    const tabs: OpenThreadTab[] = [];
+    for (const item of candidate.tabs.slice(0, 100)) {
+      if (!item || typeof item !== "object") continue;
+      const tab = item as Partial<OpenThreadTab>;
+      if (
+        typeof tab.id !== "string" || !tab.id ||
+        typeof tab.feedId !== "string" || !tab.feedId ||
+        typeof tab.title !== "string" || !tab.title ||
+        seenIds.has(tab.id)
+      ) {
+        continue;
+      }
+
+      seenIds.add(tab.id);
+      tabs.push({
+        id: tab.id,
+        feedId: tab.feedId,
+        title: tab.title.slice(0, 160),
+        isLocked: tab.isLocked === true
+      });
+    }
+
+    const activeTabId = typeof candidate.activeTabId === "string" && seenIds.has(candidate.activeTabId)
+      ? candidate.activeTabId
+      : null;
+    return { tabs, activeTabId };
+  } catch {
+    return emptySession;
+  }
 }

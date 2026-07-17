@@ -7,7 +7,8 @@ const geminiApiKeySettingKey = "geminiApiKey";
 const rendererSettingKeys = new Set([
   "replyModel",
   "threadColumnWidths",
-  "threadListHeight"
+  "threadListHeight",
+  "threadTabs"
 ]);
 
 export function getUserSetting(key: string): string | null {

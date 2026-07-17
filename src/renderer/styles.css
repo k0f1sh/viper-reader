@@ -176,6 +176,124 @@ body.is-column-resizing * {
   background: #efeffc;
 }
 
+.thread-workspace {
+  display: grid;
+  grid-template-rows: 27px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #efeffc;
+}
+
+.thread-tabs {
+  display: flex;
+  min-width: 0;
+  min-height: 27px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 1px solid #ffffff;
+  border-bottom: 1px solid #808080;
+  background: #c0c0c0;
+  scrollbar-width: thin;
+}
+
+.thread-tabs-empty {
+  flex: 1;
+  padding: 4px 8px;
+  color: #606060;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.thread-tab {
+  display: flex;
+  flex: 0 1 230px;
+  align-items: stretch;
+  min-width: 112px;
+  max-width: 280px;
+  height: 25px;
+  margin: 1px 0 0 2px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #606060;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  color: #202020;
+}
+
+.thread-tab.is-active {
+  height: 26px;
+  margin-top: 0;
+  border-top-width: 2px;
+  border-top-color: #000080;
+  background: #efeffc;
+  color: #000060;
+  font-weight: 700;
+}
+
+.thread-tab-label,
+.thread-tab-lock,
+.thread-tab-close {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.thread-tab-label {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  align-items: center;
+  padding: 2px 5px;
+  overflow: hidden;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.thread-tab-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-tab-state {
+  flex: none;
+  color: #0000aa;
+  font-size: 10px;
+}
+
+.thread-tab-state.is-completed {
+  color: #cc0000;
+}
+
+.thread-tab-lock,
+.thread-tab-close {
+  flex: none;
+  width: 20px;
+  color: #505050;
+  font: 11px monospace;
+}
+
+.thread-tab-lock {
+  opacity: 0.35;
+}
+
+.thread-tab.is-locked .thread-tab-lock,
+.thread-tab:hover .thread-tab-lock,
+.thread-tab:focus-within .thread-tab-lock {
+  color: #000080;
+  opacity: 1;
+}
+
+.thread-tab-close:not(:disabled):hover,
+.thread-tab-lock:hover {
+  background: #b6b3ad;
+}
+
+.thread-tab-close:disabled {
+  color: #a0a0a0;
+}
+
 .thread-reader-pane {
   display: flex;
   flex-direction: column;
