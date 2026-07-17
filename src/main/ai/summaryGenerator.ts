@@ -1,7 +1,7 @@
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { SUMMARY_SYSTEM_INSTRUCTION } from "./promptParts.js";
-import { createLogId, generateText, resolveApiKey } from "./genaiClient.js";
+import { createLogId, generateText, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import crypto from "node:crypto";
 
 /**
@@ -50,7 +50,7 @@ export async function generateArticleSummary(
         promptChars: contents.length,
         responseChars: 0,
         usageMetadata: undefined,
-        errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
+        errorMessage: missingApiKeyMessage,
         startedAt,
         finishedAt
       })

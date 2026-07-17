@@ -4,6 +4,7 @@ import type {
   AppLogEntry,
   FeedResidentPrompt,
   FeedSource,
+  GeminiApiKeyStatus,
   RefreshFeedResult,
   RefreshProgress,
   ReplyRating,
@@ -45,6 +46,9 @@ export type ViperReaderApi = {
   onPromptProposalReady: (callback: (data: { feedId: string; versionId: string }) => void) => () => void;
   getUserSetting: (key: string) => Promise<string | null>;
   saveUserSetting: (key: string, value: string) => Promise<void>;
+  getGeminiApiKeyStatus: () => Promise<GeminiApiKeyStatus>;
+  saveGeminiApiKey: (apiKey: string) => Promise<GeminiApiKeyStatus>;
+  clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
   addFeedSource: (title: string, url: string) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
 };
@@ -108,6 +112,9 @@ const api: ViperReaderApi = {
   },
   getUserSetting: (key) => ipcRenderer.invoke("settings:get", key),
   saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value),
+  getGeminiApiKeyStatus: () => ipcRenderer.invoke("settings:get-gemini-api-key-status"),
+  saveGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings:save-gemini-api-key", apiKey),
+  clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),
   addFeedSource: (title, url) => ipcRenderer.invoke("feeds:add", title, url),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId)
 };

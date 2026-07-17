@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedSource, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, FeedSource, GeminiApiKeyStatus, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { FeedPane } from "./components/FeedPane";
 import { MenuBar } from "./components/MenuBar";
 import { ReplyPopup } from "./components/ReplyPopup";
 import { ResidentPromptsModal } from "./components/ResidentPromptsModal";
+import { SettingsModal } from "./components/SettingsModal";
 import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
@@ -43,6 +44,11 @@ export function App() {
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
   const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [geminiApiKeyStatus, setGeminiApiKeyStatus] = useState<GeminiApiKeyStatus | null>(null);
+  const [isApiKeySaving, setIsApiKeySaving] = useState(false);
+  const [apiKeyStatusMessage, setApiKeyStatusMessage] = useState("");
   const [isResidentPromptsOpen, setIsResidentPromptsOpen] = useState(false);
   const [promptTargetFeedId, setPromptTargetFeedId] = useState("");
   const [promptText, setPromptText] = useState("");
@@ -321,6 +327,62 @@ export function App() {
     setReplyModel(newModel);
     if (window.viperReader) {
       await window.viperReader.saveUserSetting("replyModel", newModel);
+    }
+  }
+
+  async function openSettings() {
+    setIsSettingsOpen(true);
+    setGeminiApiKey("");
+    setApiKeyStatusMessage("");
+
+    if (!window.viperReader) {
+      setGeminiApiKeyStatus(null);
+      return;
+    }
+
+    try {
+      setGeminiApiKeyStatus(await window.viperReader.getGeminiApiKeyStatus());
+    } catch (err) {
+      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キー設定の読込に失敗しました。");
+    }
+  }
+
+  async function saveApiKey() {
+    if (!window.viperReader || !geminiApiKey.trim()) {
+      return;
+    }
+
+    setIsApiKeySaving(true);
+    setApiKeyStatusMessage("");
+    try {
+      setGeminiApiKeyStatus(await window.viperReader.saveGeminiApiKey(geminiApiKey));
+      setGeminiApiKey("");
+      setApiKeyStatusMessage("API キーをローカル設定へ保存しました。");
+    } catch (err) {
+      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キーの保存に失敗しました。");
+    } finally {
+      setIsApiKeySaving(false);
+    }
+  }
+
+  async function clearApiKey() {
+    if (!window.viperReader) {
+      return;
+    }
+
+    setIsApiKeySaving(true);
+    setApiKeyStatusMessage("");
+    try {
+      const status = await window.viperReader.clearGeminiApiKey();
+      setGeminiApiKeyStatus(status);
+      setGeminiApiKey("");
+      setApiKeyStatusMessage(status.source === "environment"
+        ? "ローカル設定のキーを削除しました。環境変数のキーへ切り替わりました。"
+        : "保存済みの API キーを削除しました。");
+    } catch (err) {
+      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キーの削除に失敗しました。");
+    } finally {
+      setIsApiKeySaving(false);
     }
   }
 
@@ -899,6 +961,7 @@ export function App() {
       <MenuBar
         replyModel={replyModel}
         onReplyModelChange={(model) => void handleReplyModelChange(model)}
+        onOpenSettings={() => void openSettings()}
         onOpenStatistics={openStatistics}
         onOpenResidentPrompts={openResidentPrompts}
         hasPromptProposal={hasPromptProposal}
@@ -987,6 +1050,19 @@ export function App() {
           statistics={statistics}
           isLoading={isStatisticsLoading}
           onClose={() => setIsStatisticsOpen(false)}
+        />
+      ) : null}
+
+      {isSettingsOpen ? (
+        <SettingsModal
+          apiKey={geminiApiKey}
+          apiKeyStatus={geminiApiKeyStatus}
+          isSaving={isApiKeySaving}
+          statusMessage={apiKeyStatusMessage}
+          onApiKeyChange={setGeminiApiKey}
+          onSave={() => void saveApiKey()}
+          onClear={() => void clearApiKey()}
+          onClose={() => setIsSettingsOpen(false)}
         />
       ) : null}
 

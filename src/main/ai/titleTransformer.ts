@@ -2,7 +2,7 @@ import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../
 import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
-import { createLogId, generateJson, resolveApiKey } from "./genaiClient.js";
+import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { vipTitleArraySchema } from "./schemas.js";
 
 export type TitleTransformResult = {
@@ -57,7 +57,7 @@ export async function transformTitlesToVipStyle(
           candidatesTokenCount: null,
           totalTokenCount: null,
           cachedContentTokenCount: null,
-          errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
+          errorMessage: missingApiKeyMessage,
           startedAt: now,
           finishedAt: now
         }

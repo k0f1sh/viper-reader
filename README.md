@@ -16,6 +16,7 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 - スレッドのお気に入り（ブックマーク）登録
 - 板（フィード）ごとの住民設定（カスタムプロンプト）
 - レス生成 AI モデル（3.5 flash / 3.1 flash lite）切り替え
+- アプリ内設定による Gemini API キー管理
 - SQLite キャッシュによるデータローカル保存
 - robots.txt 判定によるアクセス制限
 
@@ -41,20 +42,38 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 npm install
 ```
 
-### 2. 環境変数の設定
-ルートディレクトリに `.env` ファイルを作成し、Gemini API キーを設定します。
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 3. 開発モードでの起動
+### 2. 開発モードでの起動
 ```bash
 npm run dev:app
 ```
 
-### 4. ビルド
+起動後、上部メニューの「設定」から Gemini API キーを登録してください。キーはローカルの SQLite 設定に保存され、保存済みの値が Renderer に返されることはありません。
+
+環境変数 `GEMINI_API_KEY` または `GOOGLE_API_KEY` もフォールバックとして利用できますが、アプリ内設定が優先されます。
+
+### 3. ビルド
 ```bash
 npm run build
+```
+
+### 4. Linux 用パッケージの作成
+
+```bash
+npm run package:linux
+```
+
+自己完結した展開済みアプリが `release/linux-unpacked/` に作成されます。このコマンドは `--publish never` を指定しており、成果物を外部へ公開しません。Electron 本体などがキャッシュにない場合は、ビルド用ファイルのダウンロードが発生することがあります。
+
+### 5. ユーザー領域へのインストール
+
+```bash
+npm run install:local
+```
+
+アプリ本体を `${XDG_DATA_HOME:-~/.local/share}/viper-reader`、起動用リンクを `${XDG_BIN_HOME:-~/.local/bin}/viper-reader` へ配置します。root 権限は不要です。`~/.local/bin` に PATH が通っていれば、任意のディレクトリから次のコマンドで起動できます。
+
+```bash
+viper-reader
 ```
 
 ---

@@ -77,6 +77,11 @@ export type RefreshProgress = {
   message: string;
 };
 
+export type GeminiApiKeyStatus = {
+  configured: boolean;
+  source: "settings" | "environment" | "none";
+};
+
 export type ThreadGenerationStatus = {
   threadId: string;
   status: "done" | "skipped" | "error";

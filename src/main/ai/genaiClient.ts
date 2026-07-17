@@ -8,6 +8,7 @@
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import type { ContentUnion, SchemaUnion } from "@google/genai";
+import { getGeminiApiKey } from "../settings/settingsService.js";
 
 export type LlmPurpose =
   | "title_transform"
@@ -42,9 +43,12 @@ export type GenaiJsonResult<T> = {
   errorMessage: string | null;
 };
 
-/** API キーを環境変数から取得する。なければ null を返す。 */
+export const missingApiKeyMessage =
+  "Gemini API キーが設定されていません。アプリの「設定」から登録してください。";
+
+/** API キーをローカル設定、環境変数の順に取得する。なければ null を返す。 */
 export function resolveApiKey(): string | null {
-  return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? null;
+  return getGeminiApiKey();
 }
 
 /**
@@ -64,7 +68,7 @@ export async function generateJson<T>(
       value: null,
       responseText: "",
       promptChars,
-      errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set"
+      errorMessage: missingApiKeyMessage
     };
   }
 
@@ -147,7 +151,7 @@ export async function generateText(params: {
       text: null,
       responseText: "",
       promptChars,
-      errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set"
+      errorMessage: missingApiKeyMessage
     };
   }
 

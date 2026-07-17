@@ -12,6 +12,8 @@
     "start": "electron --no-sandbox .",
     "build": "npm run build:main && vite build",
     "build:main": "tsc -p tsconfig.main.json",
+    "package:linux": "npm run build && electron-builder --linux dir --publish never",
+    "install:local": "npm run package:linux && bash scripts/install-local.sh",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.main.json --noEmit",
     "resident-prompt": "node scripts/feed-resident-prompt.mjs"
   },
@@ -33,7 +35,25 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
+  },
+  "build": {
+    "appId": "dev.yushi.viperreader",
+    "productName": "ViperReader",
+    "executableName": "viper-reader",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": "dir",
+      "category": "Network"
+    }
   }
 }

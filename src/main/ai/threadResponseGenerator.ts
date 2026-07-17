@@ -4,7 +4,7 @@ import type { LlmRequestLogWrite } from "../db/repository.js";
 import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
-import { createLogId, generateJson, resolveApiKey } from "./genaiClient.js";
+import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
 
 export type ThreadResponseGenerationResult = {
@@ -62,7 +62,7 @@ export async function generateThreadResponses(
         promptChars: prompt.length,
         responseChars: 0,
         usageMetadata: undefined,
-        errorMessage: "GEMINI_API_KEY or GOOGLE_API_KEY is not set",
+        errorMessage: missingApiKeyMessage,
         startedAt,
         finishedAt,
         model: modelToUse

@@ -1,6 +1,7 @@
 type MenuBarProps = {
   replyModel: string;
   onReplyModelChange: (model: string) => void;
+  onOpenSettings: () => void;
   onOpenStatistics: () => void;
   onOpenResidentPrompts: () => void;
   hasPromptProposal: boolean;
@@ -9,6 +10,7 @@ type MenuBarProps = {
 export function MenuBar({
   replyModel,
   onReplyModelChange,
+  onOpenSettings,
   onOpenStatistics,
   onOpenResidentPrompts,
   hasPromptProposal
@@ -20,6 +22,9 @@ export function MenuBar({
       </button>
       <button className="menu-item" type="button">
         表示
+      </button>
+      <button className="menu-item" onClick={onOpenSettings} type="button">
+        設定
       </button>
       <button className="menu-item" onClick={onOpenStatistics} type="button">
         統計情報

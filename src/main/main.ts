@@ -17,14 +17,20 @@ import {
   saveReplyFeedback,
   saveFeedResidentPrompt,
   setThreadFavorite,
-  listFavoriteThreads
-  ,markFeedRead
-  ,setThreadRead
+  listFavoriteThreads,
+  markFeedRead,
+  setThreadRead
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
-import { getUserSetting, saveUserSetting } from "./settings/settingsService.js";
+import {
+  clearGeminiApiKey,
+  getGeminiApiKeyStatus,
+  getRendererUserSetting,
+  saveGeminiApiKey,
+  saveRendererUserSetting
+} from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
@@ -121,8 +127,11 @@ ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRat
 ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => listResidentPromptVersions(feedId));
 ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => reviewResidentPromptVersion(id, decision));
 ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => rollbackResidentPromptVersion(feedId));
-ipcMain.handle("settings:get", (_event, key: string) => getUserSetting(key));
-ipcMain.handle("settings:save", (_event, key: string, value: string) => saveUserSetting(key, value));
+ipcMain.handle("settings:get", (_event, key: string) => getRendererUserSetting(key));
+ipcMain.handle("settings:save", (_event, key: string, value: string) => saveRendererUserSetting(key, value));
+ipcMain.handle("settings:get-gemini-api-key-status", () => getGeminiApiKeyStatus());
+ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => saveGeminiApiKey(apiKey));
+ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
 ipcMain.handle("feeds:add", (_event, title: string, url: string) => addFeedSource(title, url));
 ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
