@@ -10,11 +10,14 @@ type ThreadListPaneProps = {
   completedThreadIds: Set<string>;
   isRefreshing: boolean;
   refreshMessage: string;
+  showUnreadOnly: boolean;
   threadColumnLabels: readonly string[];
   threadGridColumns: string;
   threadListMinWidth: number;
   onRefresh: () => void;
   onSelectThread: (threadId: string) => void;
+  onToggleUnreadOnly: () => void;
+  onMarkAllRead: () => void;
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
 };
 
@@ -26,11 +29,14 @@ export function ThreadListPane({
   completedThreadIds,
   isRefreshing,
   refreshMessage,
+  showUnreadOnly,
   threadColumnLabels,
   threadGridColumns,
   threadListMinWidth,
   onRefresh,
   onSelectThread,
+  onToggleUnreadOnly,
+  onMarkAllRead,
   onStartColumnResize
 }: ThreadListPaneProps) {
   return (
@@ -49,6 +55,13 @@ export function ThreadListPane({
           <div className="pane-title">スレタイ一覧</div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
         </div>
+        <div className="thread-toolbar-actions">
+        <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
+          {showUnreadOnly ? "未読のみ ✓" : "未読のみ"}
+        </button>
+        <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">
+          すべて既読
+        </button>
         <button
           className="refresh-button"
           disabled={isRefreshing || !selectedFeed}
@@ -57,6 +70,7 @@ export function ThreadListPane({
         >
           {isRefreshing ? "取得中" : "更新"}
         </button>
+        </div>
       </div>
       {refreshMessage ? (
         <div className={`refresh-status ${isRefreshing ? "is-loading" : ""}`}>

@@ -1582,6 +1582,22 @@ export function markThreadRead(threadId: string): void {
   );
 }
 
+export function setThreadRead(threadId: string, isRead: boolean): void {
+  const db = getDatabase();
+  db.prepare("UPDATE feed_items SET read_at = ?, updated_at = ? WHERE id = ?").run(
+    isRead ? new Date().toISOString() : null,
+    new Date().toISOString(),
+    threadId
+  );
+}
+
+export function markFeedRead(feedId: string): void {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  db.prepare("UPDATE feed_items SET read_at = COALESCE(read_at, ?), updated_at = ? WHERE feed_id = ?")
+    .run(now, now, feedId);
+}
+
 function seedDatabase(db: DatabaseSync): void {
   const now = new Date().toISOString();
 

@@ -76,12 +76,14 @@ export function App() {
   const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
   const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
+  const visibleThreads = showUnreadOnly ? threadList.filter((thread) => !thread.isRead) : threadList;
 
   useEffect(() => {
     void reloadFeeds();
@@ -239,12 +241,53 @@ export function App() {
 
     const nextThreads = await window.viperReader.listThreads(feedId);
     setThreadList(nextThreads);
-    setSelectedThreadId(
-      preferredThreadId && nextThreads.some((thread) => thread.id === preferredThreadId)
-        ? preferredThreadId
-        : nextThreads[0]?.id
-    );
+    setSelectedThreadId((currentId) => {
+      const candidate = preferredThreadId ?? currentId;
+      return candidate && nextThreads.some((thread) => thread.id === candidate) ? candidate : undefined;
+    });
   }
+
+  async function markAllThreadsRead() {
+    if (!window.viperReader || !selectedFeedId) return;
+    await window.viperReader.markFeedRead(selectedFeedId);
+    setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
+    await reloadFeeds();
+  }
+
+  async function toggleSelectedThreadRead() {
+    if (!window.viperReader || !selectedThreadId) return;
+    const item = threadList.find((thread) => thread.id === selectedThreadId);
+    if (!item) return;
+    const isRead = !item.isRead;
+    await window.viperReader.setThreadRead(item.id, isRead);
+    setThreadList((threads) => threads.map((thread) => thread.id === item.id ? { ...thread, isRead } : thread));
+    setSelectedThread((thread) => thread?.id === item.id ? { ...thread, isRead } : thread);
+    await reloadFeeds();
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']") || event.ctrlKey || event.metaKey || event.altKey) return;
+      const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
+      if (event.key === "j" || event.key === "k") {
+        const delta = event.key === "j" ? 1 : -1;
+        const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
+        const next = visibleThreads[nextIndex];
+        if (next) { event.preventDefault(); setSelectedThreadId(next.id); }
+      } else if (event.key === "r") {
+        event.preventDefault(); void refreshSelectedFeed();
+      } else if (event.key === "g") {
+        event.preventDefault(); void generateResponses(false);
+      } else if (event.key === "b") {
+        event.preventDefault(); void toggleFavorite();
+      } else if (event.key === "u") {
+        event.preventDefault(); void toggleSelectedThreadRead();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -885,16 +928,19 @@ export function App() {
           <ThreadListPane
             selectedFeed={selectedFeed}
             selectedThread={selectedThread}
-            threads={threadList}
+            threads={visibleThreads}
             generatingThreadIds={generatingThreadIds}
             completedThreadIds={completedGenerationThreadIds}
             isRefreshing={isRefreshing}
             refreshMessage={refreshMessage}
+            showUnreadOnly={showUnreadOnly}
             threadColumnLabels={threadColumnLabels}
             threadGridColumns={threadGridColumns}
             threadListMinWidth={threadListMinWidth}
             onRefresh={() => void refreshSelectedFeed()}
             onSelectThread={setSelectedThreadId}
+            onToggleUnreadOnly={() => setShowUnreadOnly((current) => !current)}
+            onMarkAllRead={() => void markAllThreadsRead()}
             onStartColumnResize={startThreadColumnResize}
           />
 

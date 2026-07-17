@@ -18,6 +18,8 @@ import {
   saveFeedResidentPrompt,
   setThreadFavorite,
   listFavoriteThreads
+  ,markFeedRead
+  ,setThreadRead
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
@@ -98,6 +100,8 @@ ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
 });
 ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
 ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
+ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => setThreadRead(threadId, isRead));
+ipcMain.handle("feeds:mark-read", (_event, feedId: string) => markFeedRead(feedId));
 ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
   refreshFeed(feedId, (message) => {
     event.sender.send("feeds:refresh-progress", { feedId, message });

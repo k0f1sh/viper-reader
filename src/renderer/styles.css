@@ -557,7 +557,13 @@ body.is-column-resizing * {
 
 .thread-row.is-read .thread-title {
   font-weight: 400;
+  color: #555555;
 }
+
+.thread-toolbar-actions { display: flex; gap: 4px; align-items: center; }
+.refresh-button.is-active { color: #ffffff; background: #0a246a; }
+.thread-row:not(.is-read) .thread-title::before { content: "● "; color: #cc0000; font-size: 9px; }
+.thread-row.is-selected .thread-title { color: #ffffff; }
 
 .thread-original-title {
   color: #333333;
