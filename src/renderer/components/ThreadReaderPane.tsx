@@ -14,6 +14,7 @@ type ThreadReaderPaneProps = {
   replyMail: string;
   replyBody: string;
   readMarkerNo: number | null;
+  extractedPostId: string | null;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   onToggleFavorite: () => void;
   onRegenerateVipTitle: () => void;
@@ -28,6 +29,9 @@ type ThreadReaderPaneProps = {
   onScrollToPost: (postNo: number) => void;
   onPostNoMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onPostNoMouseLeave: () => void;
+  onPostIdClick: (postId: string) => void;
+  onPostIdMouseEnter: (postId: string, event: ReactMouseEvent<HTMLElement>) => void;
+  onPostIdMouseLeave: () => void;
   onAnchorMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onAnchorMouseLeave: () => void;
 };
@@ -43,6 +47,7 @@ export function ThreadReaderPane({
   replyMail,
   replyBody,
   readMarkerNo,
+  extractedPostId,
   replyBodyRef,
   onToggleFavorite,
   onRegenerateVipTitle,
@@ -57,6 +62,9 @@ export function ThreadReaderPane({
   onScrollToPost,
   onPostNoMouseEnter,
   onPostNoMouseLeave,
+  onPostIdClick,
+  onPostIdMouseEnter,
+  onPostIdMouseLeave,
   onAnchorMouseEnter,
   onAnchorMouseLeave
 }: ThreadReaderPaneProps) {
@@ -69,6 +77,13 @@ export function ThreadReaderPane({
         : isSelectedThreadGenerating
           ? "レスを生成しています"
           : "書き込みを処理しています";
+  const idPostCounts = new Map<string, number>();
+  for (const post of selectedThread?.posts ?? []) {
+    idPostCounts.set(post.id, (idPostCounts.get(post.id) ?? 0) + 1);
+  }
+  const visiblePosts = extractedPostId
+    ? selectedThread?.posts.filter((post) => post.id === extractedPostId) ?? []
+    : selectedThread?.posts ?? [];
 
   return (
     <section className="thread-body-pane" aria-label="スレ本文">
@@ -110,7 +125,15 @@ export function ThreadReaderPane({
             </div>
           </div>
           <div className="posts">
-            {selectedThread.posts.map((post) => {
+            {extractedPostId ? (
+              <div className="id-extraction-bar" role="status">
+                <span>
+                  ID:{extractedPostId} の発言を抽出中（{visiblePosts.length}/{selectedThread.posts.length}）
+                </span>
+                <button onClick={() => onPostIdClick(extractedPostId)} type="button">抽出解除</button>
+              </div>
+            ) : null}
+            {visiblePosts.map((post) => {
               const replyRegex = new RegExp(`>>${post.no}(?!\\d)`);
               const hasReplies = selectedThread.posts.some((candidate) => replyRegex.test(candidate.body));
               return (
@@ -119,10 +142,16 @@ export function ThreadReaderPane({
                     selectedThreadId={selectedThread.id}
                     post={post}
                     hasReplies={hasReplies}
+                    idPostCount={idPostCounts.get(post.id) ?? 1}
+                    totalPostCount={selectedThread.posts.length}
+                    isIdExtracted={extractedPostId === post.id}
                     readMarkerNo={readMarkerNo}
                     onScrollToPost={onScrollToPost}
                     onPostNoMouseEnter={onPostNoMouseEnter}
                     onPostNoMouseLeave={onPostNoMouseLeave}
+                    onPostIdClick={onPostIdClick}
+                    onPostIdMouseEnter={onPostIdMouseEnter}
+                    onPostIdMouseLeave={onPostIdMouseLeave}
                     onAnchorMouseEnter={onAnchorMouseEnter}
                     onAnchorMouseLeave={onAnchorMouseLeave}
                     onReplyToPost={onReplyToPost}
@@ -251,10 +280,16 @@ function FragmentPost({
   selectedThreadId,
   post,
   hasReplies,
+  idPostCount,
+  totalPostCount,
+  isIdExtracted,
   readMarkerNo,
   onScrollToPost,
   onPostNoMouseEnter,
   onPostNoMouseLeave,
+  onPostIdClick,
+  onPostIdMouseEnter,
+  onPostIdMouseLeave,
   onAnchorMouseEnter,
   onAnchorMouseLeave,
   onReplyToPost
@@ -262,10 +297,16 @@ function FragmentPost({
   selectedThreadId: string;
   post: ThreadDetail["posts"][number];
   hasReplies: boolean;
+  idPostCount: number;
+  totalPostCount: number;
+  isIdExtracted: boolean;
   readMarkerNo: number | null;
   onScrollToPost: (postNo: number) => void;
   onPostNoMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onPostNoMouseLeave: () => void;
+  onPostIdClick: (postId: string) => void;
+  onPostIdMouseEnter: (postId: string, event: ReactMouseEvent<HTMLElement>) => void;
+  onPostIdMouseLeave: () => void;
   onAnchorMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onAnchorMouseLeave: () => void;
   onReplyToPost: (postNo: number) => void;
@@ -286,7 +327,17 @@ function FragmentPost({
           <span className="post-name">{post.name}</span>
           {post.mail ? <span className="post-mail">[{post.mail}]</span> : null}
           <span className="post-date">{post.date}</span>
-          <span className="post-id">ID:{post.id}</span>
+          <button
+            aria-pressed={isIdExtracted}
+            className={`post-id ${isIdExtracted ? "is-extracted" : ""}`}
+            onClick={() => onPostIdClick(post.id)}
+            onMouseEnter={(event) => onPostIdMouseEnter(post.id, event)}
+            onMouseLeave={onPostIdMouseLeave}
+            title={`ID:${post.id} の発言を抽出`}
+            type="button"
+          >
+            ID:{post.id} ({idPostCount}/{totalPostCount})
+          </button>
         </div>
         <div className="post-body">
           <PostBody

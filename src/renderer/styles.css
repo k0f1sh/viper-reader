@@ -790,6 +790,62 @@ body.is-column-resizing * {
   color: #555555;
 }
 
+.post-id {
+  display: inline;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
+.post-id:hover,
+.post-id:focus-visible {
+  color: #0000cc;
+  background: #ffffcc;
+  outline: 1px dotted #000080;
+}
+
+.post-id.is-extracted {
+  color: #ffffff;
+  background: #0a246a;
+  text-decoration: none;
+}
+
+.id-extraction-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 10px;
+  padding: 4px 6px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  border-left: 1px solid #ffffff;
+  background: #ffffe1;
+  color: #000080;
+  font-size: 12px;
+}
+
+.id-extraction-bar button {
+  flex: none;
+  min-width: 64px;
+  padding: 1px 7px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  color: #000000;
+}
+
 .post-body {
   margin: 0 0 0 26px;
   color: #111111;

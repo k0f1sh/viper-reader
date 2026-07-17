@@ -88,6 +88,7 @@ export function App() {
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
   const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
+  const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
@@ -143,6 +144,7 @@ export function App() {
 
   useEffect(() => {
     setReadMarkerNo(null);
+    setExtractedPostId(null);
     if (!selectedThreadId || !window.viperReader) {
       setSelectedThread(null);
       return;
@@ -417,6 +419,12 @@ export function App() {
         return;
       }
 
+      if (event.key === "Escape" && extractedPostId) {
+        event.preventDefault();
+        setExtractedPostId(null);
+        return;
+      }
+
       if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
       if (event.key === "j" || event.key === "k") {
@@ -436,7 +444,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, openThreadTabs]);
+  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, openThreadTabs, extractedPostId]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -986,13 +994,20 @@ export function App() {
   }
 
   function scrollToPost(postNo: number) {
-    const element = document.getElementById(`post-${postNo}`);
-    if (element) {
+    function scrollToVisiblePost() {
+      const element = document.getElementById(`post-${postNo}`);
+      if (!element) return;
       element.scrollIntoView({ behavior: "smooth", block: "nearest" });
       element.classList.add("highlighted-post");
-      setTimeout(() => {
-        element.classList.remove("highlighted-post");
-      }, 2000);
+      setTimeout(() => element.classList.remove("highlighted-post"), 2000);
+    }
+
+    const targetPost = selectedThread?.posts.find((post) => post.no === postNo);
+    if (extractedPostId && targetPost?.id !== extractedPostId) {
+      setExtractedPostId(null);
+      setTimeout(scrollToVisiblePost, 0);
+    } else {
+      scrollToVisiblePost();
     }
   }
 
@@ -1094,6 +1109,50 @@ export function App() {
 
   function handleAnchorMouseLeave() {
     handleMouseLeaveWithDelay();
+  }
+
+  function handlePostIdMouseEnter(postId: string, event: ReactMouseEvent<HTMLElement>) {
+    if (!selectedThread) return;
+    clearPopupTimeout();
+
+    const posts = selectedThread.posts.filter((post) => post.id === postId);
+    if (posts.length === 0) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 4;
+    const popupMaxWidth = 480;
+    const popupMaxHeight = 300;
+
+    if (left + popupMaxWidth > window.innerWidth) {
+      left = window.innerWidth - popupMaxWidth - 16;
+    }
+    if (left < 0) left = 8;
+
+    if (top + popupMaxHeight > window.innerHeight) {
+      top = rect.top - popupMaxHeight - 4;
+      if (top < 0) {
+        top = window.innerHeight - popupMaxHeight - 16;
+      }
+    }
+
+    setPopupData({
+      title: `ID:${postId} の発言 (${posts.length}/${selectedThread.posts.length})`,
+      posts,
+      style: {
+        left: `${left}px`,
+        top: `${top}px`
+      }
+    });
+  }
+
+  function handleExtractPostId(postId: string) {
+    setPopupData(null);
+    setExtractedPostId((currentId) => currentId === postId ? null : postId);
+    setTimeout(() => {
+      const postsContainer = document.querySelector<HTMLElement>(".posts");
+      if (postsContainer) postsContainer.scrollTop = 0;
+    }, 0);
   }
 
   function startVerticalResize(event: ReactMouseEvent<HTMLDivElement>) {
@@ -1233,6 +1292,7 @@ export function App() {
               replyMail={replyMail}
               replyBody={replyBody}
               readMarkerNo={readMarkerNo}
+              extractedPostId={extractedPostId}
               replyBodyRef={replyBodyRef}
               onToggleFavorite={() => void toggleFavorite()}
               onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
@@ -1247,6 +1307,9 @@ export function App() {
               onScrollToPost={scrollToPost}
               onPostNoMouseEnter={handlePostNoMouseEnter}
               onPostNoMouseLeave={handlePostNoMouseLeave}
+              onPostIdClick={handleExtractPostId}
+              onPostIdMouseEnter={handlePostIdMouseEnter}
+              onPostIdMouseLeave={handleMouseLeaveWithDelay}
               onAnchorMouseEnter={handleAnchorMouseEnter}
               onAnchorMouseLeave={handleAnchorMouseLeave}
             />
