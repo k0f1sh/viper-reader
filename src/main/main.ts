@@ -53,6 +53,7 @@ function getAppIconPath(): string {
 
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("class", "viper-reader");
 }
 
 function createMainWindow(): void {
