@@ -45,6 +45,12 @@ installConsoleLogForwarder();
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 
+function getAppIconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "icon.png")
+    : path.join(app.getAppPath(), "assets/icon.png");
+}
+
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("no-sandbox");
 }
@@ -56,6 +62,7 @@ function createMainWindow(): void {
     minWidth: 920,
     minHeight: 600,
     title: appInfo.name,
+    icon: getAppIconPath(),
     backgroundColor: "#efeffc",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),

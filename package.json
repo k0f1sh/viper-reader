@@ -51,9 +51,16 @@
       "dist/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "assets/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "linux": {
       "target": "dir",
-      "category": "Network"
+      "category": "Network",
+      "icon": "assets/icon.png"
     }
   }
 }
