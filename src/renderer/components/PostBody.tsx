@@ -8,9 +8,10 @@ type PostBodyProps = {
 };
 
 export function PostBody({ body, onAnchorClick, onAnchorMouseEnter, onAnchorMouseLeave }: PostBodyProps) {
+  const displayBody = normalizeDisplayBody(body);
   return (
     <>
-      {splitBody(body).map((part, index) => {
+      {splitBody(displayBody).map((part, index) => {
         if (part.type === "url") {
           return (
             <button className="post-link" key={`${part.value}-${index}`} onClick={() => openPostUrl(part.value)} type="button">
@@ -37,6 +38,10 @@ export function PostBody({ body, onAnchorClick, onAnchorMouseEnter, onAnchorMous
       })}
     </>
   );
+}
+
+function normalizeDisplayBody(body: string): string {
+  return body.includes("\n") ? body : body.replace(/\\n/g, "\n");
 }
 
 function splitBody(body: string): Array<{ type: "text" | "url" | "anchor"; value: string }> {

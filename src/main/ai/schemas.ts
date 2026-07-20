@@ -39,7 +39,7 @@ export const expertThreadPostArraySchema = {
       mail: { type: "string", description: "メール欄。原則sage", maxLength: "20" },
       date: { type: "string", description: "2010年前後の2ちゃんねる風日時", maxLength: "40" },
       id: { type: "string", description: "8桁のランダムな英数字", pattern: "^[A-Za-z0-9]{8}$" },
-      body: { type: "string", description: "専門家による詳しく正確な解説本文", maxLength: "6000" }
+      body: { type: "string", description: "専門家による詳しく正確な解説本文。段落や箇条書きの区切りには実際の改行を入れる", maxLength: "6000" }
     },
     required: ["no", "name", "mail", "date", "id", "body"]
   }

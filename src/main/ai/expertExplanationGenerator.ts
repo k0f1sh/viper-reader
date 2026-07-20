@@ -73,7 +73,7 @@ function validateExpertPost(value: unknown): ThreadPost[] {
     return [];
   }
   const item = value[0] as Record<string, unknown>;
-  const body = typeof item.body === "string" ? item.body.trim().slice(0, 6000) : "";
+  const body = typeof item.body === "string" ? normalizeExpertBody(item.body).slice(0, 6000) : "";
   if (!body) return [];
 
   const rawId = typeof item.id === "string" ? item.id.replace(/^ID:/i, "").trim() : "";
@@ -85,4 +85,9 @@ function validateExpertPost(value: unknown): ThreadPost[] {
     id: /^[A-Za-z0-9]{8}$/.test(rawId) ? rawId : crypto.randomBytes(4).toString("hex"),
     body
   }];
+}
+
+function normalizeExpertBody(body: string): string {
+  const trimmed = body.trim();
+  return trimmed.includes("\n") ? trimmed : trimmed.replace(/\\n/g, "\n");
 }
