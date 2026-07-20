@@ -20,6 +20,7 @@ type ThreadListPaneProps = {
   onMarkAllRead: () => void;
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
   canRefresh: boolean;
+  refreshLabel: string;
 };
 
 export function ThreadListPane({
@@ -39,7 +40,8 @@ export function ThreadListPane({
   onToggleUnreadOnly,
   onMarkAllRead,
   onStartColumnResize,
-  canRefresh
+  canRefresh,
+  refreshLabel
 }: ThreadListPaneProps) {
   return (
     <section
@@ -70,7 +72,7 @@ export function ThreadListPane({
           onClick={onRefresh}
           type="button"
         >
-          {isRefreshing ? "取得中" : "更新"}
+          {isRefreshing ? "取得中" : refreshLabel}
         </button>
         </div>
       </div>

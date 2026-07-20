@@ -805,8 +805,69 @@ export function App() {
   }
 
   async function refreshSelectedFeed() {
-    if (selectedFeed) {
+    if (selectedFeedId === allFeedsId) {
+      await refreshAllFeeds();
+    } else if (selectedFeed) {
       await refreshFeed(selectedFeed.id);
+    }
+  }
+
+  async function refreshAllFeeds() {
+    if (!window.viperReader || feedList.length === 0 || isRefreshing) {
+      return;
+    }
+
+    const feedsToRefresh = [...feedList];
+    const totals = {
+      fetchedCount: 0,
+      insertedCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      convertedCount: 0,
+      conversionFailedCount: 0,
+      conversionSkippedCount: 0
+    };
+    const failedFeeds: string[] = [];
+    let currentFeedId = "";
+    let currentFeedIndex = 0;
+
+    setIsRefreshing(true);
+    setRefreshMessage(`全板更新を開始...（0/${feedsToRefresh.length}板）`);
+    const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
+      if (progress.feedId === currentFeedId) {
+        const feed = feedsToRefresh[currentFeedIndex];
+        setRefreshMessage(`全板更新 ${currentFeedIndex + 1}/${feedsToRefresh.length}板「${feed.title}」: ${progress.message}`);
+      }
+    });
+
+    try {
+      for (const [index, feed] of feedsToRefresh.entries()) {
+        currentFeedId = feed.id;
+        currentFeedIndex = index;
+        setRefreshMessage(`全板更新 ${index + 1}/${feedsToRefresh.length}板「${feed.title}」: RSS取得中...`);
+        try {
+          const result = await window.viperReader.refreshFeed(feed.id);
+          totals.fetchedCount += result.fetchedCount;
+          totals.insertedCount += result.insertedCount;
+          totals.updatedCount += result.updatedCount;
+          totals.skippedCount += result.skippedCount;
+          totals.convertedCount += result.convertedCount;
+          totals.conversionFailedCount += result.conversionFailedCount;
+          totals.conversionSkippedCount += result.conversionSkippedCount;
+        } catch {
+          failedFeeds.push(feed.title);
+        }
+      }
+
+      await reloadFeeds();
+      await reloadThreads(allFeedsId, selectedThreadId);
+      const failureSummary = failedFeeds.length > 0 ? ` 更新失敗:${failedFeeds.length}板（${failedFeeds.join("、")}）` : "";
+      setRefreshMessage(
+        `全${feedsToRefresh.length}板完了 取得:${totals.fetchedCount} 新規:${totals.insertedCount} 更新:${totals.updatedCount} 既存:${totals.skippedCount} 変換:${totals.convertedCount} 失敗:${totals.conversionFailedCount} 未変換:${totals.conversionSkippedCount}${failureSummary}`
+      );
+    } finally {
+      unsubscribeProgress();
+      setIsRefreshing(false);
     }
   }
 
@@ -1268,7 +1329,8 @@ export function App() {
             onToggleUnreadOnly={() => setShowUnreadOnly((current) => !current)}
             onMarkAllRead={() => void markAllThreadsRead()}
             onStartColumnResize={startThreadColumnResize}
-            canRefresh={selectedFeedId !== allFeedsId}
+            canRefresh={selectedFeedId !== allFeedsId || feedList.length > 0}
+            refreshLabel={selectedFeedId === allFeedsId ? "全板更新" : "更新"}
           />
 
           <div
