@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
   AppLogEntry,
+  ArticleBodyContent,
   FeedResidentPrompt,
   FeedSource,
   GeminiApiKeyStatus,
@@ -20,6 +21,7 @@ export type ViperReaderApi = {
   listFeeds: () => Promise<FeedSource[]>;
   listThreads: (feedId: string | null) => Promise<ThreadListItem[]>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
+  getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
   regenerateVipTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
@@ -59,6 +61,7 @@ const api: ViperReaderApi = {
   listFeeds: () => ipcRenderer.invoke("feeds:list"),
   listThreads: (feedId) => ipcRenderer.invoke("threads:list", feedId),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
+  getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
   regenerateVipTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),

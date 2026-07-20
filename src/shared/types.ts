@@ -34,6 +34,11 @@ export type ThreadDetail = ThreadListItem & {
   replyRuns: ReplyGenerationRun[];
 };
 
+export type ArticleBodyContent = {
+  threadId: string;
+  contentText: string;
+};
+
 export type ReplyRating = "good" | "poor";
 
 export type ReplyGenerationRun = {

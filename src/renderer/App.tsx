@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedSource, GeminiApiKeyStatus, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
+import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { FeedPane } from "./components/FeedPane";
 import { MenuBar } from "./components/MenuBar";
 import { ReplyPopup } from "./components/ReplyPopup";
@@ -64,8 +65,15 @@ export function App() {
   const [promptVersions, setPromptVersions] = useState<ResidentPromptVersion[]>([]);
   const [hasPromptProposal, setHasPromptProposal] = useState(false);
   const [threadListHeight, setThreadListHeight] = useState(42);
+  const [feedPaneWidth, setFeedPaneWidth] = useState(248);
+  const [articlePaneWidth, setArticlePaneWidth] = useState(360);
+  const [isArticlePaneVisible, setIsArticlePaneVisible] = useState(false);
+  const [articleBody, setArticleBody] = useState<ArticleBodyContent | null>(null);
+  const [isArticleBodyLoading, setIsArticleBodyLoading] = useState(false);
   const [threadColumnWidths, setThreadColumnWidths] = useState(defaultThreadColumnWidths);
+  const appShellRef = useRef<HTMLDivElement>(null);
   const contentPaneRef = useRef<HTMLElement>(null);
+  const threadContentRef = useRef<HTMLElement>(null);
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
   const [addFeedTitle, setAddFeedTitle] = useState("");
   const [addFeedUrl, setAddFeedUrl] = useState("");
@@ -98,6 +106,7 @@ export function App() {
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
+  const shouldShowArticlePane = isArticlePaneVisible && Boolean(selectedThread && selectedThread.posts.length > 1);
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
   const visibleThreads = showUnreadOnly ? threadList.filter((thread) => !thread.isRead) : threadList;
@@ -195,6 +204,27 @@ export function App() {
         }
       });
   }, [selectedThreadId]);
+
+  useEffect(() => {
+    if (!selectedThreadId || !shouldShowArticlePane || !window.viperReader) {
+      setArticleBody(null);
+      setIsArticleBodyLoading(false);
+      return;
+    }
+
+    const threadId = selectedThreadId;
+    setArticleBody(null);
+    setIsArticleBodyLoading(true);
+    void window.viperReader.getArticleBody(threadId).then((body) => {
+      if (selectedThreadIdRef.current === threadId) {
+        setArticleBody(body);
+      }
+    }).finally(() => {
+      if (selectedThreadIdRef.current === threadId) {
+        setIsArticleBodyLoading(false);
+      }
+    });
+  }, [selectedThreadId, shouldShowArticlePane, isSelectedThreadGenerating]);
 
   useEffect(() => {
     if (!window.viperReader) return;
@@ -457,11 +487,14 @@ export function App() {
     }
 
     try {
-      const [height, widthsJson, model, threadTabsJson] = await Promise.all([
+      const [height, widthsJson, model, threadTabsJson, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidths"),
         window.viperReader.getUserSetting("replyModel"),
-        window.viperReader.getUserSetting("threadTabs")
+        window.viperReader.getUserSetting("threadTabs"),
+        window.viperReader.getUserSetting("feedPaneWidth"),
+        window.viperReader.getUserSetting("articlePaneWidth"),
+        window.viperReader.getUserSetting("articlePaneVisible")
       ]);
 
       if (height) {
@@ -478,6 +511,21 @@ export function App() {
       if (model) {
         setReplyModel(model);
       }
+
+      if (savedFeedPaneWidth) {
+        const width = Number.parseFloat(savedFeedPaneWidth);
+        if (Number.isFinite(width)) {
+          setFeedPaneWidth(Math.min(480, Math.max(180, width)));
+        }
+      }
+
+      if (savedArticlePaneWidth) {
+        const width = Number.parseFloat(savedArticlePaneWidth);
+        if (Number.isFinite(width)) {
+          setArticlePaneWidth(Math.min(640, Math.max(260, width)));
+        }
+      }
+      setIsArticlePaneVisible(savedArticlePaneVisible === "true");
 
       const restoredSession = parseThreadTabsSession(threadTabsJson);
       setOpenThreadTabs(restoredSession.tabs);
@@ -1250,6 +1298,35 @@ export function App() {
     window.addEventListener("mouseup", stopResize);
   }
 
+  function startFeedPaneResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const appShell = appShellRef.current;
+    if (!appShell) {
+      return;
+    }
+
+    const rect = appShell.getBoundingClientRect();
+    let currentWidth = feedPaneWidth;
+
+    function handleMouseMove(moveEvent: MouseEvent) {
+      const maxWidth = Math.max(180, Math.min(480, rect.width - 600));
+      currentWidth = Math.min(maxWidth, Math.max(180, moveEvent.clientX - rect.left));
+      setFeedPaneWidth(currentWidth);
+    }
+
+    function stopResize() {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+      document.body.classList.remove("is-feed-pane-resizing");
+      void window.viperReader?.saveUserSetting("feedPaneWidth", currentWidth.toString());
+    }
+
+    document.body.classList.add("is-feed-pane-resizing");
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+  }
+
   function startThreadColumnResize(columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -1278,6 +1355,43 @@ export function App() {
     window.addEventListener("mouseup", stopResize);
   }
 
+  function startArticlePaneResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const container = threadContentRef.current;
+    if (!container) {
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    let currentWidth = articlePaneWidth;
+
+    function handleMouseMove(moveEvent: MouseEvent) {
+      const maxWidth = Math.max(260, Math.min(640, rect.width - 420));
+      currentWidth = Math.min(maxWidth, Math.max(260, rect.right - moveEvent.clientX));
+      setArticlePaneWidth(currentWidth);
+    }
+
+    function stopResize() {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+      document.body.classList.remove("is-article-pane-resizing");
+      void window.viperReader?.saveUserSetting("articlePaneWidth", currentWidth.toString());
+    }
+
+    document.body.classList.add("is-article-pane-resizing");
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+  }
+
+  function toggleArticlePane() {
+    setIsArticlePaneVisible((current) => {
+      const next = !current;
+      void window.viperReader?.saveUserSetting("articlePaneVisible", String(next));
+      return next;
+    });
+  }
+
   return (
     <main className="app-frame">
       <MenuBar
@@ -1289,7 +1403,11 @@ export function App() {
         hasPromptProposal={hasPromptProposal}
       />
 
-      <div className="app-shell">
+      <div
+        className="app-shell"
+        ref={appShellRef}
+        style={{ "--feed-pane-width": `${feedPaneWidth}px` } as CSSProperties}
+      >
         <FeedPane
           feeds={feedList}
           favoriteThreads={favoriteThreads}
@@ -1305,6 +1423,14 @@ export function App() {
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}
           allUnreadCount={feedList.reduce((sum, feed) => sum + feed.unreadCount, 0)}
+        />
+
+        <div
+          aria-label="板一覧とコンテンツの境界"
+          aria-orientation="vertical"
+          className="feed-pane-splitter"
+          onMouseDown={startFeedPaneResize}
+          role="separator"
         />
 
         <section
@@ -1351,38 +1477,63 @@ export function App() {
               onToggleLock={toggleThreadTabLock}
               onMove={moveThreadTab}
             />
-            <ThreadReaderPane
-              selectedThread={selectedThread}
-              isSelectedThreadGenerating={isSelectedThreadGenerating}
-              isRegeneratingTitle={isRegeneratingSelectedTitle}
-              isPosting={isPosting}
-              postStatus={postStatus}
-              postError={postError}
-              replyName={replyName}
-              replyMail={replyMail}
-              replyBody={replyBody}
-              readMarkerNo={readMarkerNo}
-              extractedPostId={extractedPostId}
-              replyBodyRef={replyBodyRef}
-              onToggleFavorite={() => void toggleFavorite()}
-              onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
-              onGenerateResponses={(force) => void generateResponses(force)}
-              onGenerateReplies={() => void handleGenerateReplies()}
-              onPostMessage={handlePostMessage}
-              onReplyNameChange={setReplyName}
-              onReplyMailChange={setReplyMail}
-              onReplyBodyChange={setReplyBody}
-              onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
-              onReplyToPost={replyToPost}
-              onScrollToPost={scrollToPost}
-              onPostNoMouseEnter={handlePostNoMouseEnter}
-              onPostNoMouseLeave={handlePostNoMouseLeave}
-              onPostIdClick={handleExtractPostId}
-              onPostIdMouseEnter={handlePostIdMouseEnter}
-              onPostIdMouseLeave={handleMouseLeaveWithDelay}
-              onAnchorMouseEnter={handleAnchorMouseEnter}
-              onAnchorMouseLeave={handleAnchorMouseLeave}
-            />
+            <section
+              className={`thread-content ${shouldShowArticlePane ? "has-article-pane" : ""}`}
+              ref={threadContentRef}
+              style={{ "--article-pane-width": `${articlePaneWidth}px` } as CSSProperties}
+            >
+              <ThreadReaderPane
+                selectedThread={selectedThread}
+                isSelectedThreadGenerating={isSelectedThreadGenerating}
+                isRegeneratingTitle={isRegeneratingSelectedTitle}
+                isPosting={isPosting}
+                postStatus={postStatus}
+                postError={postError}
+                replyName={replyName}
+                replyMail={replyMail}
+                replyBody={replyBody}
+                readMarkerNo={readMarkerNo}
+                extractedPostId={extractedPostId}
+                replyBodyRef={replyBodyRef}
+                onToggleFavorite={() => void toggleFavorite()}
+                onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
+                onGenerateResponses={(force) => void generateResponses(force)}
+                onGenerateReplies={() => void handleGenerateReplies()}
+                onPostMessage={handlePostMessage}
+                onReplyNameChange={setReplyName}
+                onReplyMailChange={setReplyMail}
+                onReplyBodyChange={setReplyBody}
+                onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
+                onReplyToPost={replyToPost}
+                onScrollToPost={scrollToPost}
+                onPostNoMouseEnter={handlePostNoMouseEnter}
+                onPostNoMouseLeave={handlePostNoMouseLeave}
+                onPostIdClick={handleExtractPostId}
+                onPostIdMouseEnter={handlePostIdMouseEnter}
+                onPostIdMouseLeave={handleMouseLeaveWithDelay}
+                onAnchorMouseEnter={handleAnchorMouseEnter}
+                onAnchorMouseLeave={handleAnchorMouseLeave}
+                isArticlePaneVisible={shouldShowArticlePane}
+                onToggleArticlePane={toggleArticlePane}
+              />
+              {shouldShowArticlePane ? (
+                <>
+                  <div
+                    aria-label="レス一覧と記事本文の境界"
+                    aria-orientation="vertical"
+                    className="article-pane-splitter"
+                    onMouseDown={startArticlePaneResize}
+                    role="separator"
+                  />
+                  <ArticleBodyPane
+                    selectedThread={selectedThread}
+                    articleBody={articleBody}
+                    isLoading={isArticleBodyLoading}
+                    onClose={toggleArticlePane}
+                  />
+                </>
+              ) : null}
+            </section>
           </section>
         </section>
       </div>

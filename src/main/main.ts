@@ -7,6 +7,7 @@ import {
   clearFeedResidentPrompt,
   deleteFeedSource,
   getFeedResidentPrompt,
+  getArticleBody,
   getStatistics,
   initializeRepository,
   listFeeds,
@@ -96,6 +97,10 @@ ipcMain.handle("threads:list", (_event, feedId: string | null) => listThreads(fe
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   const thread = openThread(threadId);
   return thread;
+});
+ipcMain.handle("articles:get-body", (_event, threadId: string) => {
+  const contentText = getArticleBody(threadId);
+  return contentText ? { threadId, contentText } : null;
 });
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
   startThreadResponseGeneration(threadId, force, (status) => {

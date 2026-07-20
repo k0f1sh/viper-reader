@@ -34,6 +34,8 @@ type ThreadReaderPaneProps = {
   onPostIdMouseLeave: () => void;
   onAnchorMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
   onAnchorMouseLeave: () => void;
+  isArticlePaneVisible: boolean;
+  onToggleArticlePane: () => void;
 };
 
 export function ThreadReaderPane({
@@ -66,7 +68,9 @@ export function ThreadReaderPane({
   onPostIdMouseEnter,
   onPostIdMouseLeave,
   onAnchorMouseEnter,
-  onAnchorMouseLeave
+  onAnchorMouseLeave,
+  isArticlePaneVisible,
+  onToggleArticlePane
 }: ThreadReaderPaneProps) {
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
@@ -95,6 +99,15 @@ export function ThreadReaderPane({
               <div className="original-title">元記事: {selectedThread.originalTitle}</div>
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              {selectedThread.posts.length > 1 ? (
+                <button
+                  className={`deep-dive-button ${isArticlePaneVisible ? "is-active" : ""}`}
+                  onClick={onToggleArticlePane}
+                  type="button"
+                >
+                  {isArticlePaneVisible ? "記事本文を閉じる" : "記事本文"}
+                </button>
+              ) : null}
               <button
                 className={`favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
                 onClick={onToggleFavorite}
