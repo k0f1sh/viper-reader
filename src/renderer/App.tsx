@@ -14,9 +14,9 @@ import { ThreadReaderPane } from "./components/ThreadReaderPane";
 import { ThreadTabs } from "./components/ThreadTabs";
 import type { OpenThreadTab } from "./components/ThreadTabs";
 
-const threadColumnLabels = ["スレタイ", "元タイトル", "レス", "取得元", "日時 ▼", "URL"] as const;
-const defaultThreadColumnWidths = [360, 300, 54, 170, 126, 260];
-const minThreadColumnWidths = [220, 180, 44, 100, 96, 140];
+const threadColumnLabels = ["スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
+const defaultThreadColumnWidths = [360, 170, 300, 54, 126, 260];
+const minThreadColumnWidths = [220, 100, 180, 44, 96, 140];
 const maxRendererLogs = 300;
 const allFeedsId = "__all_feeds__";
 
@@ -500,7 +500,7 @@ export function App() {
     try {
       const [height, widthsJson, model, threadTabsJson, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
-        window.viperReader.getUserSetting("threadColumnWidths"),
+        window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
         window.viperReader.getUserSetting("threadTabs"),
         window.viperReader.getUserSetting("feedPaneWidth"),
@@ -1358,7 +1358,7 @@ export function App() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", stopResize);
       document.body.classList.remove("is-column-resizing");
-      void window.viperReader?.saveUserSetting("threadColumnWidths", JSON.stringify(currentWidths));
+      void window.viperReader?.saveUserSetting("threadColumnWidthsV2", JSON.stringify(currentWidths));
     }
 
     document.body.classList.add("is-column-resizing");

@@ -126,9 +126,9 @@ export function ThreadListPane({
                 {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
                 {thread.vipTitle}
               </span>
+              <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>
               <span className="thread-count">{thread.responseCount}</span>
-              <span className="thread-source">{thread.source}</span>
               <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>
               <span className="thread-url">{thread.url}</span>
             </button>
