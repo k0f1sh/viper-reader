@@ -1529,9 +1529,6 @@ body.is-article-pane-resizing * {
 
 /* 読み込む（生成）ボタン */
 .thread-load-trigger {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   margin: 12px 0 18px 26px;
 }
 

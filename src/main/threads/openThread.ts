@@ -1,5 +1,4 @@
 import type { ThreadDetail } from "../../shared/types.js";
-import { generateExpertExplanation, expertExplanationModel } from "../ai/expertExplanationGenerator.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
@@ -12,7 +11,6 @@ import {
   saveThreadResponsePosts
 } from "../db/repository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
-import { vipExpertExplanationPromptHash } from "../prompts/vipExpertExplanationPrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -50,40 +48,6 @@ export function startThreadResponseGeneration(
       onComplete(status);
     } catch (error) {
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
-      onComplete("error");
-    } finally {
-      releaseThreadLock(threadId);
-    }
-  })();
-}
-
-export function startExpertExplanationGeneration(
-  threadId: string,
-  onComplete: (status: "done" | "skipped" | "error") => void
-): void {
-  const thread = getThread(threadId);
-  if (!thread || thread.posts.length > 1 || !acquireThreadLock(threadId)) {
-    onComplete("skipped");
-    return;
-  }
-
-  void (async () => {
-    try {
-      const scrapedBody = await getOrScrapeArticleBody(thread);
-      const generated = await generateExpertExplanation(thread, scrapedBody, vipExpertExplanationPromptHash);
-      recordLlmRequestLog(generated.log);
-      if (generated.log.status !== "success" || generated.posts.length === 0) {
-        onComplete(generated.log.status === "error" ? "error" : "skipped");
-        return;
-      }
-      saveThreadResponsePosts(
-        { feedItemId: thread.id, posts: generated.posts },
-        expertExplanationModel,
-        vipExpertExplanationPromptHash
-      );
-      onComplete("done");
-    } catch (error) {
-      console.error(`有識者解説の生成でエラーが発生しました (threadId: ${threadId})`, error);
       onComplete("error");
     } finally {
       releaseThreadLock(threadId);

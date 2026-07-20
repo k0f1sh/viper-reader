@@ -33,7 +33,7 @@ import {
   saveGeminiApiKey,
   saveRendererUserSetting
 } from "./settings/settingsService.js";
-import { openThread, startExpertExplanationGeneration, startThreadResponseGeneration } from "./threads/openThread.js";
+import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
 import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
@@ -106,11 +106,6 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
 });
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
   startThreadResponseGeneration(threadId, force, (status) => {
-    event.sender.send("threads:generation-complete", { threadId, status });
-  });
-});
-ipcMain.handle("threads:generate-expert", (event, threadId: string) => {
-  startExpertExplanationGeneration(threadId, (status) => {
     event.sender.send("threads:generation-complete", { threadId, status });
   });
 });

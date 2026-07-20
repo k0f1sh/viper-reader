@@ -952,23 +952,6 @@ export function App() {
     }
   }
 
-  async function generateExpertExplanation() {
-    if (!selectedThread || !window.viperReader || isSelectedThreadGenerating) {
-      return;
-    }
-
-    setGeneratingThreadIds((currentIds) => new Set(currentIds).add(selectedThread.id));
-    try {
-      await window.viperReader.generateExpertExplanation(selectedThread.id);
-    } catch {
-      setGeneratingThreadIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        nextIds.delete(selectedThread.id);
-        return nextIds;
-      });
-    }
-  }
-
   async function regenerateSelectedVipTitle() {
     if (!selectedThread || !window.viperReader || regeneratingTitleThreadId) {
       return;
@@ -1531,7 +1514,6 @@ export function App() {
                 onToggleFavorite={() => void toggleFavorite()}
                 onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
                 onGenerateResponses={(force) => void generateResponses(force)}
-                onGenerateExpertExplanation={() => void generateExpertExplanation()}
                 onGenerateReplies={() => void handleGenerateReplies()}
                 onPostMessage={handlePostMessage}
                 onReplyNameChange={setReplyName}
