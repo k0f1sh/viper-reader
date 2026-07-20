@@ -705,6 +705,32 @@ body.is-article-pane-resizing * {
     );
 }
 
+.thread-list-pagination {
+  display: flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-top: 1px solid #808080;
+  background: #d4d0c8;
+  font-size: 11px;
+}
+
+.thread-list-pagination button {
+  min-width: 92px;
+  padding: 2px 7px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  font: inherit;
+}
+
+.thread-list-pagination button:disabled {
+  color: #808080;
+}
+
 .thread-row {
   display: grid;
   grid-template-columns: var(--thread-grid-columns);
@@ -1503,6 +1529,9 @@ body.is-article-pane-resizing * {
 
 /* 読み込む（生成）ボタン */
 .thread-load-trigger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 12px 0 18px 26px;
 }
 

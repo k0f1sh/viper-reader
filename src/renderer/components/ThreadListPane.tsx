@@ -21,6 +21,11 @@ type ThreadListPaneProps = {
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
   canRefresh: boolean;
   refreshLabel: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
 };
 
 export function ThreadListPane({
@@ -41,7 +46,12 @@ export function ThreadListPane({
   onMarkAllRead,
   onStartColumnResize,
   canRefresh,
-  refreshLabel
+  refreshLabel,
+  page,
+  pageSize,
+  totalCount,
+  onPreviousPage,
+  onNextPage
 }: ThreadListPaneProps) {
   return (
     <section
@@ -124,6 +134,11 @@ export function ThreadListPane({
             </button>
           );
         })}
+      </div>
+      <div className="thread-list-pagination">
+        <button disabled={page === 0} onClick={onPreviousPage} type="button">◀ 前の100件</button>
+        <span>{totalCount === 0 ? "0件" : `${page * pageSize + 1}〜${Math.min((page + 1) * pageSize, totalCount)} / ${totalCount}件`}</span>
+        <button disabled={(page + 1) * pageSize >= totalCount} onClick={onNextPage} type="button">次の100件 ▶</button>
       </div>
     </section>
   );

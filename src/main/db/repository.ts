@@ -14,6 +14,7 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadListItem,
+  ThreadListPage,
   ThreadPost
 } from "../../shared/types.js";
 import {
@@ -1039,9 +1040,18 @@ export function getStatistics(): StatisticsSummary {
   };
 }
 
-export function listThreads(feedId: string | null): ThreadListItem[] {
+export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false): ThreadListPage {
   const db = getDatabase();
   const activeModel = getActiveModel();
+  const safePage = Math.max(0, Math.floor(page));
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const filterUnread = unreadOnly ? 1 : 0;
+  const countRow = db.prepare(`
+    SELECT COUNT(*) AS total_count
+    FROM feed_items fi
+    WHERE (? IS NULL OR fi.feed_id = ?)
+      AND (? = 0 OR fi.read_at IS NULL)
+  `).get(feedId, feedId, filterUnread) as { total_count: number };
   const rows = db
     .prepare(
       `
@@ -1078,7 +1088,9 @@ export function listThreads(feedId: string | null): ThreadListItem[] {
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE (? IS NULL OR fi.feed_id = ?)
+        AND (? = 0 OR fi.read_at IS NULL)
       ORDER BY COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
+      LIMIT ? OFFSET ?
       `
     )
     .all(
@@ -1092,10 +1104,18 @@ export function listThreads(feedId: string | null): ThreadListItem[] {
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
       feedId,
-      feedId
+      feedId,
+      filterUnread,
+      safePageSize,
+      safePage * safePageSize
     ) as ThreadRow[];
 
-  return rows.map(rowToThreadListItem);
+  return {
+    items: rows.map(rowToThreadListItem),
+    totalCount: Number(countRow.total_count),
+    page: safePage,
+    pageSize: safePageSize
+  };
 }
 
 export function markAllFeedsRead(): void {

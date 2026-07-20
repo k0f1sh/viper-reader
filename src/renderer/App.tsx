@@ -37,6 +37,8 @@ function scrollReadMarkerToTop() {
 export function App() {
   const [feedList, setFeedList] = useState<FeedSource[]>([]);
   const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
+  const [threadListPage, setThreadListPage] = useState(0);
+  const [threadListTotalCount, setThreadListTotalCount] = useState(0);
   const [selectedFeedId, setSelectedFeedId] = useState("");
   const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
@@ -151,8 +153,9 @@ export function App() {
       return;
     }
 
-    void reloadThreads(selectedFeedId);
-  }, [selectedFeedId]);
+    setThreadListPage(0);
+    void reloadThreads(selectedFeedId, undefined, 0);
+  }, [selectedFeedId, showUnreadOnly]);
 
   useEffect(() => {
     setReadMarkerNo(null);
@@ -306,16 +309,23 @@ export function App() {
     );
   }
 
-  async function reloadThreads(feedId: string, preferredThreadId?: string) {
+  async function reloadThreads(feedId: string, preferredThreadId?: string, page = threadListPage) {
     if (!window.viperReader) {
       return;
     }
 
-    const nextThreads = await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId);
-    setThreadList(nextThreads);
-    if (preferredThreadId && nextThreads.some((thread) => thread.id === preferredThreadId)) {
+    const result = await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId, page, showUnreadOnly);
+    setThreadList(result.items);
+    setThreadListPage(result.page);
+    setThreadListTotalCount(result.totalCount);
+    if (preferredThreadId && result.items.some((thread) => thread.id === preferredThreadId)) {
       setSelectedThreadId(preferredThreadId);
     }
+  }
+
+  function changeThreadListPage(nextPage: number) {
+    if (!selectedFeedId || nextPage < 0) return;
+    void reloadThreads(selectedFeedId, undefined, nextPage);
   }
 
   function openThreadTab(thread: ThreadListItem | ThreadDetail) {
@@ -423,6 +433,7 @@ export function App() {
       await window.viperReader.markFeedRead(selectedFeedId);
     }
     setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
+    if (showUnreadOnly) setThreadListTotalCount(0);
     await reloadFeeds();
   }
 
@@ -933,6 +944,23 @@ export function App() {
     try {
       await window.viperReader.generateThreadResponses(selectedThread.id, force);
     } catch (err) {
+      setGeneratingThreadIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(selectedThread.id);
+        return nextIds;
+      });
+    }
+  }
+
+  async function generateExpertExplanation() {
+    if (!selectedThread || !window.viperReader || isSelectedThreadGenerating) {
+      return;
+    }
+
+    setGeneratingThreadIds((currentIds) => new Set(currentIds).add(selectedThread.id));
+    try {
+      await window.viperReader.generateExpertExplanation(selectedThread.id);
+    } catch {
       setGeneratingThreadIds((currentIds) => {
         const nextIds = new Set(currentIds);
         nextIds.delete(selectedThread.id);
@@ -1457,6 +1485,11 @@ export function App() {
             onStartColumnResize={startThreadColumnResize}
             canRefresh={selectedFeedId !== allFeedsId || feedList.length > 0}
             refreshLabel={selectedFeedId === allFeedsId ? "全板更新" : "更新"}
+            page={threadListPage}
+            pageSize={100}
+            totalCount={threadListTotalCount}
+            onPreviousPage={() => changeThreadListPage(threadListPage - 1)}
+            onNextPage={() => changeThreadListPage(threadListPage + 1)}
           />
 
           <div
@@ -1498,6 +1531,7 @@ export function App() {
                 onToggleFavorite={() => void toggleFavorite()}
                 onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
                 onGenerateResponses={(force) => void generateResponses(force)}
+                onGenerateExpertExplanation={() => void generateExpertExplanation()}
                 onGenerateReplies={() => void handleGenerateReplies()}
                 onPostMessage={handlePostMessage}
                 onReplyNameChange={setReplyName}

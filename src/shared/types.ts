@@ -29,6 +29,13 @@ export type ThreadListItem = {
   isFavorite: boolean;
 };
 
+export type ThreadListPage = {
+  items: ThreadListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+};
+
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
   replyRuns: ReplyGenerationRun[];

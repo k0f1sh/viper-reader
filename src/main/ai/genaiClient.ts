@@ -13,6 +13,7 @@ import { getGeminiApiKey } from "../settings/settingsService.js";
 export type LlmPurpose =
   | "title_transform"
   | "thread_response"
+  | "expert_explanation"
   | "thread_reply"
   | "article_summary"
   | "prompt_optimization";

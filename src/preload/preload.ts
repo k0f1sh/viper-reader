@@ -13,17 +13,19 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationStatus,
-  ThreadListItem
+  ThreadListItem,
+  ThreadListPage
 } from "../shared/types.js";
 
 export type ViperReaderApi = {
   getAppInfo: () => Promise<typeof appInfo>;
   listFeeds: () => Promise<FeedSource[]>;
-  listThreads: (feedId: string | null) => Promise<ThreadListItem[]>;
+  listThreads: (feedId: string | null, page: number, unreadOnly: boolean) => Promise<ThreadListPage>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
   regenerateVipTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
+  generateExpertExplanation: (threadId: string) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
   generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
   toggleFavorite: (threadId: string, isFavorite: boolean) => Promise<void>;
@@ -59,11 +61,12 @@ export type ViperReaderApi = {
 const api: ViperReaderApi = {
   getAppInfo: () => ipcRenderer.invoke("app:get-info"),
   listFeeds: () => ipcRenderer.invoke("feeds:list"),
-  listThreads: (feedId) => ipcRenderer.invoke("threads:list", feedId),
+  listThreads: (feedId, page, unreadOnly) => ipcRenderer.invoke("threads:list", feedId, page, unreadOnly),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
   regenerateVipTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
+  generateExpertExplanation: (threadId) => ipcRenderer.invoke("threads:generate-expert", threadId),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),
   generateReplies: (threadId) => ipcRenderer.invoke("threads:generate-replies", threadId),
   toggleFavorite: (threadId, isFavorite) => ipcRenderer.invoke("threads:toggle-favorite", threadId, isFavorite),

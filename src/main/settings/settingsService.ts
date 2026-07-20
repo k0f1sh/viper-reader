@@ -8,7 +8,10 @@ const rendererSettingKeys = new Set([
   "replyModel",
   "threadColumnWidths",
   "threadListHeight",
-  "threadTabs"
+  "threadTabs",
+  "feedPaneWidth",
+  "articlePaneWidth",
+  "articlePaneVisible"
 ]);
 
 export function getUserSetting(key: string): string | null {

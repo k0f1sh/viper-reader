@@ -33,7 +33,7 @@ import {
   saveGeminiApiKey,
   saveRendererUserSetting
 } from "./settings/settingsService.js";
-import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
+import { openThread, startExpertExplanationGeneration, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
 import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
@@ -93,7 +93,9 @@ function createMainWindow(): void {
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
-ipcMain.handle("threads:list", (_event, feedId: string | null) => listThreads(feedId));
+ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) =>
+  listThreads(feedId, page, 100, unreadOnly)
+);
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   const thread = openThread(threadId);
   return thread;
@@ -104,6 +106,11 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
 });
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
   startThreadResponseGeneration(threadId, force, (status) => {
+    event.sender.send("threads:generation-complete", { threadId, status });
+  });
+});
+ipcMain.handle("threads:generate-expert", (event, threadId: string) => {
+  startExpertExplanationGeneration(threadId, (status) => {
     event.sender.send("threads:generation-complete", { threadId, status });
   });
 });

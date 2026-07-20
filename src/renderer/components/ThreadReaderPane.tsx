@@ -19,6 +19,7 @@ type ThreadReaderPaneProps = {
   onToggleFavorite: () => void;
   onRegenerateVipTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
+  onGenerateExpertExplanation: () => void;
   onGenerateReplies: () => void;
   onPostMessage: (event: FormEvent) => void;
   onReplyNameChange: (value: string) => void;
@@ -54,6 +55,7 @@ export function ThreadReaderPane({
   onToggleFavorite,
   onRegenerateVipTitle,
   onGenerateResponses,
+  onGenerateExpertExplanation,
   onGenerateReplies,
   onPostMessage,
   onReplyNameChange,
@@ -186,6 +188,14 @@ export function ThreadReaderPane({
                   type="button"
                 >
                   読み込む（生成）
+                </button>
+                <button
+                  className="load-button"
+                  onClick={onGenerateExpertExplanation}
+                  type="button"
+                  title="Gemini 3.5 Flashで、その分野の有識者としてレス番2が詳しく解説"
+                >
+                  読み込む（2が詳しく解説）
                 </button>
               </div>
             ) : null}

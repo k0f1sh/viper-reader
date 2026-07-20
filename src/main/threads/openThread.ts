@@ -1,4 +1,5 @@
 import type { ThreadDetail } from "../../shared/types.js";
+import { generateExpertExplanation, expertExplanationModel } from "../ai/expertExplanationGenerator.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
@@ -11,6 +12,7 @@ import {
   saveThreadResponsePosts
 } from "../db/repository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
+import { vipExpertExplanationPromptHash } from "../prompts/vipExpertExplanationPrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -40,31 +42,7 @@ export function startThreadResponseGeneration(
 
   void (async () => {
     try {
-      // 1. 本文キャッシュの確認
-      let scrapedBody = getArticleBody(threadId);
-
-      // 2. キャッシュにない場合はスクレイピングして保存
-      if (!scrapedBody) {
-        const scrapeResult = await scrapeArticle(thread.url);
-
-        // 元記事の取得履歴を記録
-        recordArticleFetchLog({
-          feedItemId: threadId,
-          url: thread.url,
-          status: scrapeResult.success ? "success" : "error",
-          robotsResult: scrapeResult.robotsResult,
-          elapsedMs: scrapeResult.elapsedMs,
-          contentSize: scrapeResult.contentSize,
-          errorMessage: scrapeResult.reason || null
-        });
-
-        if (scrapeResult.success) {
-          scrapedBody = scrapeResult.contentText;
-          saveArticleBody(threadId, thread.url, scrapedBody);
-        } else {
-          console.warn(`スクレイピングをスキップまたは失敗したため、RSS要約を使用します: ${scrapeResult.reason}`);
-        }
-      }
+      const scrapedBody = await getOrScrapeArticleBody(thread);
 
       // 3. レスの生成・保存
       const articleSummary = getArticleSummary(threadId);
@@ -77,6 +55,67 @@ export function startThreadResponseGeneration(
       releaseThreadLock(threadId);
     }
   })();
+}
+
+export function startExpertExplanationGeneration(
+  threadId: string,
+  onComplete: (status: "done" | "skipped" | "error") => void
+): void {
+  const thread = getThread(threadId);
+  if (!thread || thread.posts.length > 1 || !acquireThreadLock(threadId)) {
+    onComplete("skipped");
+    return;
+  }
+
+  void (async () => {
+    try {
+      const scrapedBody = await getOrScrapeArticleBody(thread);
+      const generated = await generateExpertExplanation(thread, scrapedBody, vipExpertExplanationPromptHash);
+      recordLlmRequestLog(generated.log);
+      if (generated.log.status !== "success" || generated.posts.length === 0) {
+        onComplete(generated.log.status === "error" ? "error" : "skipped");
+        return;
+      }
+      saveThreadResponsePosts(
+        { feedItemId: thread.id, posts: generated.posts },
+        expertExplanationModel,
+        vipExpertExplanationPromptHash
+      );
+      onComplete("done");
+    } catch (error) {
+      console.error(`有識者解説の生成でエラーが発生しました (threadId: ${threadId})`, error);
+      onComplete("error");
+    } finally {
+      releaseThreadLock(threadId);
+    }
+  })();
+}
+
+async function getOrScrapeArticleBody(thread: ThreadDetail): Promise<string | null> {
+  let scrapedBody = getArticleBody(thread.id);
+  if (scrapedBody) {
+    return scrapedBody;
+  }
+
+  const scrapeResult = await scrapeArticle(thread.url);
+  recordArticleFetchLog({
+    feedItemId: thread.id,
+    url: thread.url,
+    status: scrapeResult.success ? "success" : "error",
+    robotsResult: scrapeResult.robotsResult,
+    elapsedMs: scrapeResult.elapsedMs,
+    contentSize: scrapeResult.contentSize,
+    errorMessage: scrapeResult.reason || null
+  });
+
+  if (!scrapeResult.success) {
+    console.warn(`スクレイピングをスキップまたは失敗したため、RSS要約を使用します: ${scrapeResult.reason}`);
+    return null;
+  }
+
+  scrapedBody = scrapeResult.contentText;
+  saveArticleBody(thread.id, thread.url, scrapedBody);
+  return scrapedBody;
 }
 
 async function generateAndSaveThreadResponses(
