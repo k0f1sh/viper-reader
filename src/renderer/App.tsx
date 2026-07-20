@@ -17,6 +17,7 @@ const threadColumnLabels = ["スレタイ", "取得元", "元タイトル", "レ
 const defaultThreadColumnWidths = [360, 170, 300, 54, 126, 260];
 const minThreadColumnWidths = [220, 100, 180, 44, 96, 140];
 const maxRendererLogs = 300;
+const maxConcurrentFeedRefreshes = 5;
 const allFeedsId = "__all_feeds__";
 
 function scrollReadMarkerToTop() {
@@ -794,36 +795,45 @@ export function App() {
       conversionSkippedCount: 0
     };
     const failedFeeds: string[] = [];
-    let currentFeedId = "";
-    let currentFeedIndex = 0;
+    const feedById = new Map(feedsToRefresh.map((feed) => [feed.id, feed]));
+    let nextFeedIndex = 0;
+    let completedFeedCount = 0;
 
     setIsRefreshing(true);
-    setRefreshMessage(`全板更新を開始...（0/${feedsToRefresh.length}板）`);
+    setRefreshMessage(`全板更新を開始...（0/${feedsToRefresh.length}板・最大${maxConcurrentFeedRefreshes}並列）`);
     const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
-      if (progress.feedId === currentFeedId) {
-        const feed = feedsToRefresh[currentFeedIndex];
-        setRefreshMessage(`全板更新 ${currentFeedIndex + 1}/${feedsToRefresh.length}板「${feed.title}」: ${progress.message}`);
+      const feed = feedById.get(progress.feedId);
+      if (feed) {
+        setRefreshMessage(`全板更新 完了${completedFeedCount}/${feedsToRefresh.length}板「${feed.title}」: ${progress.message}`);
       }
     });
 
     try {
-      for (const [index, feed] of feedsToRefresh.entries()) {
-        currentFeedId = feed.id;
-        currentFeedIndex = index;
-        setRefreshMessage(`全板更新 ${index + 1}/${feedsToRefresh.length}板「${feed.title}」: RSS取得中...`);
-        try {
-          const result = await window.viperReader.refreshFeed(feed.id);
-          totals.fetchedCount += result.fetchedCount;
-          totals.insertedCount += result.insertedCount;
-          totals.updatedCount += result.updatedCount;
-          totals.skippedCount += result.skippedCount;
-          totals.convertedCount += result.convertedCount;
-          totals.conversionFailedCount += result.conversionFailedCount;
-          totals.conversionSkippedCount += result.conversionSkippedCount;
-        } catch {
-          failedFeeds.push(feed.title);
+      async function refreshNextFeed(): Promise<void> {
+        while (nextFeedIndex < feedsToRefresh.length) {
+          const feed = feedsToRefresh[nextFeedIndex];
+          nextFeedIndex += 1;
+          setRefreshMessage(`全板更新 完了${completedFeedCount}/${feedsToRefresh.length}板「${feed.title}」: RSS取得中...`);
+          try {
+            const result = await window.viperReader!.refreshFeed(feed.id);
+            totals.fetchedCount += result.fetchedCount;
+            totals.insertedCount += result.insertedCount;
+            totals.updatedCount += result.updatedCount;
+            totals.skippedCount += result.skippedCount;
+            totals.convertedCount += result.convertedCount;
+            totals.conversionFailedCount += result.conversionFailedCount;
+            totals.conversionSkippedCount += result.conversionSkippedCount;
+          } catch {
+            failedFeeds.push(feed.title);
+          } finally {
+            completedFeedCount += 1;
+            setRefreshMessage(`全板更新 ${completedFeedCount}/${feedsToRefresh.length}板完了`);
+          }
         }
       }
+
+      const workerCount = Math.min(maxConcurrentFeedRefreshes, feedsToRefresh.length);
+      await Promise.all(Array.from({ length: workerCount }, () => refreshNextFeed()));
 
       await reloadFeeds();
       await reloadThreads(allFeedsId, selectedThreadId);
