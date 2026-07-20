@@ -22,7 +22,8 @@ const titleBatchSize = 12;
 export async function transformTitlesToVipStyle(
   feedId: string,
   feedTitle: string,
-  items: UnconvertedFeedItem[]
+  items: UnconvertedFeedItem[],
+  useSummary = false
 ): Promise<TitleTransformResult> {
   if (items.length === 0) {
     return {
@@ -71,7 +72,7 @@ export async function transformTitlesToVipStyle(
 
   for (const chunk of chunkItems(items, titleBatchSize)) {
     const startedAt = new Date().toISOString();
-    const prompt = buildVipTitlePrompt(feedTitle, chunk);
+    const prompt = buildVipTitlePrompt(feedTitle, chunk, useSummary);
 
     const result = await generateJson<GeminiTitleResponse>({
       model: modelToUse,

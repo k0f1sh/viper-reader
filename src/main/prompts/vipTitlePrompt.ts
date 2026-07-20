@@ -20,17 +20,21 @@ export type VipTitlePromptItem = {
   title: string;
   url: string;
   publishedAt: string | null;
+  rawSummary: string | null;
 };
 
-export function buildVipTitlePrompt(feedTitle: string, items: VipTitlePromptItem[]): string {
+export function buildVipTitlePrompt(feedTitle: string, items: VipTitlePromptItem[], useSummary = false): string {
   return `あなたは2010年前後（2008年〜2012年頃）の2ちゃんねる「ニュース速報(VIP)板」のスレタイ職人です。
-技術記事やニュース記事の元タイトルを、VIPまとめブログ風のスレタイへ変換してください。
+技術記事やニュース記事の${useSummary ? "RSS概要を主な材料として" : "元タイトルを材料として"}、VIPまとめブログ風のスレタイへ変換してください。
 
 ルール:
 - 出力はJSON配列だけ。Markdownや説明文は禁止。
 - 各要素は {"feedItemId":"...","vipTitle":"..."} の形にする。
 - feedItemIdは入力値をそのまま返す。
-- 元タイトルの意味は残しつつ、2008年〜2012年頃のVIPっぽい勢い・ツッコミ・祭り感を足す。
+${useSummary
+  ? "- rssSummaryの内容を材料にし、記事の要点が伝わるタイトルにする。rssSummaryが空の場合だけtitleへフォールバックする。"
+  : "- 元タイトルの意味を残す。"}
+- 元情報の技術的な意味を保ちつつ、2008年〜2012年頃のVIPっぽい勢い・ツッコミ・祭り感を足す。
 - 使ってよいノリ: 【速報】、【悲報】、【朗報】、ワロタ、クソワロタ、〜じゃね？、〜ｗｗｗｗｗｗ、ハジマタ、オワタ。
 - 面白さは草、誇張、古いネットスラング、ツッコミで出す。煽り・罵倒・見下し・人格攻撃をタイトルの中心にしない。
 - 技術選定や記事内容への懸念は、攻撃的な断定ではなく軽いツッコミとして表現する。
@@ -47,7 +51,8 @@ ${JSON.stringify(
     feedItemId: item.id,
     title: item.title,
     url: item.url,
-    publishedAt: item.publishedAt
+    publishedAt: item.publishedAt,
+    ...(useSummary ? { rssSummary: item.rawSummary } : {})
   }))
 )}`;
 }

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { AppLogEntry, FeedSource, ThreadListItem } from "../../shared/types";
 import { LogPane } from "./LogPane";
 
@@ -12,6 +13,7 @@ type FeedPaneProps = {
   onRefreshFeed: (feedId: string) => void;
   onAddFeed: () => void;
   onDeleteSelectedFeed: () => void;
+  onOpenFeedSettings: (feed: FeedSource) => void;
   onToggleFavoriteCollapsed: () => void;
   onSelectFavoriteThread: (thread: ThreadListItem) => void;
   allFeedsId: string;
@@ -29,11 +31,25 @@ export function FeedPane({
   onRefreshFeed,
   onAddFeed,
   onDeleteSelectedFeed,
+  onOpenFeedSettings,
   onToggleFavoriteCollapsed,
   onSelectFavoriteThread,
   allFeedsId,
   allUnreadCount
 }: FeedPaneProps) {
+  const [contextMenu, setContextMenu] = useState<{ feed: FeedSource; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [contextMenu]);
+
   return (
     <aside className="feed-pane" aria-label="RSS ソース">
       <div className="pane-title">
@@ -60,6 +76,11 @@ export function FeedPane({
             key={feed.id}
             onClick={() => onSelectFeed(feed.id)}
             onDoubleClick={() => onRefreshFeed(feed.id)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              onSelectFeed(feed.id);
+              setContextMenu({ feed, x: event.clientX, y: event.clientY });
+            }}
             title="ダブルクリックでこの板を更新"
             type="button"
           >
@@ -103,6 +124,25 @@ export function FeedPane({
 
       <div className="log-divider" />
       <LogPane logs={logs} />
+      {contextMenu ? (
+        <div
+          className="feed-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              onOpenFeedSettings(contextMenu.feed);
+              setContextMenu(null);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            板の設定...
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

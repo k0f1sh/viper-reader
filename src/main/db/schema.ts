@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS feed_sources (
   url TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_fetched_at TEXT
+  last_fetched_at TEXT,
+  generate_title_from_summary INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS feed_items (

@@ -78,7 +78,12 @@ export async function refreshFeed(
         ? `スレタイ生成中...（最大${maxTitleConversionsPerRefresh}件 / 残り${titleConversionSkippedByLimit}件は次回以降）`
         : "スレタイ生成中..."
     );
-    const transformed = await transformTitlesToVipStyle(feed.id, feed.title, titleConversionItems);
+    const transformed = await transformTitlesToVipStyle(
+      feed.id,
+      feed.title,
+      titleConversionItems,
+      feed.generateTitleFromSummary
+    );
     const convertedCount = saveVipTitles(transformed.titles, modelToUse, vipTitlePromptHash);
 
     for (const log of transformed.logs) {

@@ -2,9 +2,11 @@ type AddFeedModalProps = {
   addFeedTitle: string;
   addFeedUrl: string;
   addFeedError: string;
+  generateTitleFromSummary: boolean;
   isAddFeedLoading: boolean;
   onTitleChange: (title: string) => void;
   onUrlChange: (url: string) => void;
+  onGenerateTitleFromSummaryChange: (enabled: boolean) => void;
   onAddFeed: () => void;
   onClose: () => void;
 };
@@ -13,9 +15,11 @@ export function AddFeedModal({
   addFeedTitle,
   addFeedUrl,
   addFeedError,
+  generateTitleFromSummary,
   isAddFeedLoading,
   onTitleChange,
   onUrlChange,
+  onGenerateTitleFromSummaryChange,
   onAddFeed,
   onClose
 }: AddFeedModalProps) {
@@ -52,6 +56,18 @@ export function AddFeedModal({
               className="form-input"
               disabled={isAddFeedLoading}
             />
+          </div>
+          <label className="add-feed-checkbox">
+            <input
+              type="checkbox"
+              checked={generateTitleFromSummary}
+              disabled={isAddFeedLoading}
+              onChange={(event) => onGenerateTitleFromSummaryChange(event.target.checked)}
+            />
+            <span>タイトルではなく本文からスレタイ生成</span>
+          </label>
+          <div className="add-feed-checkbox-help">
+            RSSに含まれる description / summary を使います（記事ページは取得しません）。
           </div>
 
           {addFeedError ? (

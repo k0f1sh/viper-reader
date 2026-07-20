@@ -2,6 +2,7 @@ import type { ThreadDetail } from "../../shared/types.js";
 import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
 import {
   getFeedItemForTitleGeneration,
+  getFeedSource,
   getThread,
   recordLlmRequestLog,
   replaceVipTitle
@@ -16,14 +17,16 @@ export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail
   }
 
   const modelToUse = getActiveModel();
+  const feed = getFeedSource(item.feedId);
   const result = await transformTitlesToVipStyle(item.feedId, item.feedTitle, [
     {
       id: item.id,
       title: item.title,
       url: item.url,
-      publishedAt: item.publishedAt
+      publishedAt: item.publishedAt,
+      rawSummary: item.rawSummary
     }
-  ]);
+  ], feed?.generateTitleFromSummary ?? false);
 
   for (const log of result.logs) {
     recordLlmRequestLog(log);

@@ -4,6 +4,7 @@ export type FeedSource = {
   url: string;
   unreadCount: number;
   lastFetchedAt: string | null;
+  generateTitleFromSummary: boolean;
 };
 
 export type ThreadPost = {

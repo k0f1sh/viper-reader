@@ -4,6 +4,7 @@ import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, R
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { FeedPane } from "./components/FeedPane";
+import { FeedSettingsModal } from "./components/FeedSettingsModal";
 import { MenuBar } from "./components/MenuBar";
 import { ReplyPopup } from "./components/ReplyPopup";
 import { ResidentPromptsModal } from "./components/ResidentPromptsModal";
@@ -79,8 +80,13 @@ export function App() {
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
   const [addFeedTitle, setAddFeedTitle] = useState("");
   const [addFeedUrl, setAddFeedUrl] = useState("");
+  const [addFeedGenerateTitleFromSummary, setAddFeedGenerateTitleFromSummary] = useState(false);
   const [addFeedError, setAddFeedError] = useState("");
   const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
+  const [settingsFeed, setSettingsFeed] = useState<FeedSource | null>(null);
+  const [settingsGenerateTitleFromSummary, setSettingsGenerateTitleFromSummary] = useState(false);
+  const [isFeedSettingsSaving, setIsFeedSettingsSaving] = useState(false);
+  const [feedSettingsError, setFeedSettingsError] = useState("");
   const [replyName, setReplyName] = useState("");
   const [replyMail, setReplyMail] = useState("sage");
   const [replyBody, setReplyBody] = useState("");
@@ -104,7 +110,7 @@ export function App() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
-    ? { id: allFeedsId, title: "全板共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null }
+    ? { id: allFeedsId, title: "全板共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
@@ -629,12 +635,17 @@ export function App() {
     setIsAddFeedLoading(true);
     setAddFeedError("");
     try {
-      const newFeed = await window.viperReader.addFeedSource(addFeedTitle.trim(), addFeedUrl.trim());
+      const newFeed = await window.viperReader.addFeedSource(
+        addFeedTitle.trim(),
+        addFeedUrl.trim(),
+        addFeedGenerateTitleFromSummary
+      );
       setFeedList((current) => [...current, newFeed]);
       setSelectedFeedId(newFeed.id);
       setIsAddFeedOpen(false);
       setAddFeedTitle("");
       setAddFeedUrl("");
+      setAddFeedGenerateTitleFromSummary(false);
     } catch (err) {
       setAddFeedError(err instanceof Error ? err.message : "追加に失敗しました。");
     } finally {
@@ -687,6 +698,30 @@ export function App() {
       });
     } catch (err) {
       alert("削除に失敗しました。");
+    }
+  }
+
+  function openFeedSettings(feed: FeedSource) {
+    setSettingsFeed(feed);
+    setSettingsGenerateTitleFromSummary(feed.generateTitleFromSummary);
+    setFeedSettingsError("");
+  }
+
+  async function saveFeedSettings() {
+    if (!window.viperReader || !settingsFeed) return;
+    setIsFeedSettingsSaving(true);
+    setFeedSettingsError("");
+    try {
+      const updated = await window.viperReader.updateFeedTitleGenerationSetting(
+        settingsFeed.id,
+        settingsGenerateTitleFromSummary
+      );
+      setFeedList((current) => current.map((feed) => feed.id === updated.id ? updated : feed));
+      setSettingsFeed(null);
+    } catch (err) {
+      setFeedSettingsError(err instanceof Error ? err.message : "設定の保存に失敗しました。");
+    } finally {
+      setIsFeedSettingsSaving(false);
     }
   }
 
@@ -1430,6 +1465,7 @@ export function App() {
           onRefreshFeed={(feedId) => void refreshFeed(feedId)}
           onAddFeed={() => setIsAddFeedOpen(true)}
           onDeleteSelectedFeed={() => void deleteSelectedFeed()}
+          onOpenFeedSettings={openFeedSettings}
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}
@@ -1598,11 +1634,25 @@ export function App() {
           addFeedTitle={addFeedTitle}
           addFeedUrl={addFeedUrl}
           addFeedError={addFeedError}
+          generateTitleFromSummary={addFeedGenerateTitleFromSummary}
           isAddFeedLoading={isAddFeedLoading}
           onTitleChange={setAddFeedTitle}
           onUrlChange={setAddFeedUrl}
+          onGenerateTitleFromSummaryChange={setAddFeedGenerateTitleFromSummary}
           onAddFeed={() => void addFeed()}
           onClose={() => setIsAddFeedOpen(false)}
+        />
+      ) : null}
+
+      {settingsFeed ? (
+        <FeedSettingsModal
+          feed={settingsFeed}
+          generateTitleFromSummary={settingsGenerateTitleFromSummary}
+          isSaving={isFeedSettingsSaving}
+          error={feedSettingsError}
+          onGenerateTitleFromSummaryChange={setSettingsGenerateTitleFromSummary}
+          onSave={() => void saveFeedSettings()}
+          onClose={() => setSettingsFeed(null)}
         />
       ) : null}
 

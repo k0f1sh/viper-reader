@@ -21,7 +21,8 @@ import {
   listFavoriteThreads,
   markFeedRead,
   markAllFeedsRead,
-  setThreadRead
+  setThreadRead,
+  updateFeedTitleGenerationSetting
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
@@ -149,8 +150,13 @@ ipcMain.handle("settings:save", (_event, key: string, value: string) => saveRend
 ipcMain.handle("settings:get-gemini-api-key-status", () => getGeminiApiKeyStatus());
 ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => saveGeminiApiKey(apiKey));
 ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string) => addFeedSource(title, url));
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) =>
+  addFeedSource(title, url, generateTitleFromSummary)
+);
 ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
+ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) =>
+  updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary)
+);
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   const parsedUrl = new URL(url);
   if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {

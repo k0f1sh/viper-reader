@@ -37,6 +37,7 @@ type FeedRow = {
   url: string;
   unread_count: number;
   last_fetched_at: string | null;
+  generate_title_from_summary: number;
 };
 
 type FeedSourceRow = {
@@ -44,6 +45,7 @@ type FeedSourceRow = {
   title: string;
   url: string;
   last_fetched_at: string | null;
+  generate_title_from_summary: number;
 };
 
 type ThreadRow = {
@@ -131,6 +133,7 @@ export type UnconvertedFeedItem = {
   title: string;
   url: string;
   publishedAt: string | null;
+  rawSummary: string | null;
 };
 
 export type FeedItemTitleGenerationSource = UnconvertedFeedItem & {
@@ -209,6 +212,7 @@ export function listFeeds(): FeedSource[] {
         fs.title,
         fs.url,
         fs.last_fetched_at,
+        fs.generate_title_from_summary,
         COUNT(CASE WHEN fi.read_at IS NULL THEN 1 END) AS unread_count
       FROM feed_sources fs
       LEFT JOIN feed_items fi ON fi.feed_id = fs.id
@@ -223,7 +227,8 @@ export function listFeeds(): FeedSource[] {
     title: row.title,
     url: row.url,
     unreadCount: Number(row.unread_count),
-    lastFetchedAt: row.last_fetched_at
+    lastFetchedAt: row.last_fetched_at,
+    generateTitleFromSummary: Boolean(row.generate_title_from_summary)
   }));
 }
 
@@ -232,7 +237,7 @@ export function getFeedSource(feedId: string): FeedSource | null {
   const row = db
     .prepare(
       `
-      SELECT id, title, url, last_fetched_at
+      SELECT id, title, url, last_fetched_at, generate_title_from_summary
       FROM feed_sources
       WHERE id = ?
       `
@@ -252,7 +257,8 @@ export function getFeedSource(feedId: string): FeedSource | null {
     title: row.title,
     url: row.url,
     unreadCount: Number(unreadRow?.unread_count ?? 0),
-    lastFetchedAt: row.last_fetched_at
+    lastFetchedAt: row.last_fetched_at,
+    generateTitleFromSummary: Boolean(row.generate_title_from_summary)
   };
 }
 
@@ -634,7 +640,7 @@ export function listUnconvertedFeedItems(
   const rows = db
     .prepare(
       `
-      SELECT fi.id, fi.title, fi.url, fi.published_at
+      SELECT fi.id, fi.title, fi.url, fi.published_at, fi.raw_summary
       FROM feed_items fi
       LEFT JOIN vip_titles vt
         ON vt.feed_item_id = fi.id
@@ -650,13 +656,15 @@ export function listUnconvertedFeedItems(
       title: string;
       url: string;
       published_at: string | null;
+      raw_summary: string | null;
     }>;
 
   return rows.map((row) => ({
     id: row.id,
     title: row.title,
     url: row.url,
-    publishedAt: row.published_at
+    publishedAt: row.published_at,
+    rawSummary: row.raw_summary
   }));
 }
 
@@ -671,6 +679,7 @@ export function getFeedItemForTitleGeneration(feedItemId: string): FeedItemTitle
         fi.title,
         fi.url,
         fi.published_at,
+        fi.raw_summary,
         fs.title AS feed_title
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
@@ -684,6 +693,7 @@ export function getFeedItemForTitleGeneration(feedItemId: string): FeedItemTitle
         title: string;
         url: string;
         published_at: string | null;
+        raw_summary: string | null;
         feed_title: string;
       }
     | undefined;
@@ -698,7 +708,8 @@ export function getFeedItemForTitleGeneration(feedItemId: string): FeedItemTitle
     feedTitle: row.feed_title,
     title: row.title,
     url: row.url,
-    publishedAt: row.published_at
+    publishedAt: row.published_at,
+    rawSummary: row.raw_summary
   };
 }
 
@@ -1711,7 +1722,7 @@ function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts
   ];
 }
 
-export function addFeedSource(title: string, url: string): FeedSource {
+export function addFeedSource(title: string, url: string, generateTitleFromSummary = false): FeedSource {
   const db = getDatabase();
   const createdAt = new Date().toISOString();
 
@@ -1730,23 +1741,40 @@ export function addFeedSource(title: string, url: string): FeedSource {
 
   db.prepare(
     `
-    INSERT INTO feed_sources (id, title, url, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary)
+    VALUES (?, ?, ?, ?, ?, ?)
     `
-  ).run(id, title, url, createdAt, createdAt);
+  ).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0);
 
   return {
     id,
     title,
     url,
     unreadCount: 0,
-    lastFetchedAt: null
+    lastFetchedAt: null,
+    generateTitleFromSummary
   };
 }
 
 export function deleteFeedSource(feedId: string): void {
   const db = getDatabase();
   db.prepare("DELETE FROM feed_sources WHERE id = ?").run(feedId);
+}
+
+export function updateFeedTitleGenerationSetting(feedId: string, generateTitleFromSummary: boolean): FeedSource {
+  const db = getDatabase();
+  const result = db.prepare(
+    "UPDATE feed_sources SET generate_title_from_summary = ?, updated_at = ? WHERE id = ?"
+  ).run(generateTitleFromSummary ? 1 : 0, new Date().toISOString(), feedId);
+  if (result.changes === 0) {
+    throw new Error(`Feed not found: ${feedId}`);
+  }
+
+  const feed = getFeedSource(feedId);
+  if (!feed) {
+    throw new Error(`Feed not found: ${feedId}`);
+  }
+  return feed;
 }
 
 export function setThreadFavorite(threadId: string, isFavorite: boolean): void {
