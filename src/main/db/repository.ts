@@ -1100,7 +1100,11 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE (? IS NULL OR fi.feed_id = ?)
         AND (? = 0 OR fi.read_at IS NULL)
-      ORDER BY COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
+      ORDER BY
+        CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END ASC,
+        COALESCE(fi.published_at, fi.created_at) DESC,
+        fi.created_at DESC,
+        fi.id DESC
       LIMIT ? OFFSET ?
       `
     )
