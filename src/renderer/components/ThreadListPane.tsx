@@ -19,6 +19,7 @@ type ThreadListPaneProps = {
   onToggleUnreadOnly: () => void;
   onMarkAllRead: () => void;
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
+  canRefresh: boolean;
 };
 
 export function ThreadListPane({
@@ -37,7 +38,8 @@ export function ThreadListPane({
   onSelectThread,
   onToggleUnreadOnly,
   onMarkAllRead,
-  onStartColumnResize
+  onStartColumnResize,
+  canRefresh
 }: ThreadListPaneProps) {
   return (
     <section
@@ -64,7 +66,7 @@ export function ThreadListPane({
         </button>
         <button
           className="refresh-button"
-          disabled={isRefreshing || !selectedFeed}
+          disabled={isRefreshing || !selectedFeed || !canRefresh}
           onClick={onRefresh}
           type="button"
         >

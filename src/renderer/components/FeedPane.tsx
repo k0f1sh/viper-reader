@@ -14,6 +14,8 @@ type FeedPaneProps = {
   onDeleteSelectedFeed: () => void;
   onToggleFavoriteCollapsed: () => void;
   onSelectFavoriteThread: (thread: ThreadListItem) => void;
+  allFeedsId: string;
+  allUnreadCount: number;
 };
 
 export function FeedPane({
@@ -28,7 +30,9 @@ export function FeedPane({
   onAddFeed,
   onDeleteSelectedFeed,
   onToggleFavoriteCollapsed,
-  onSelectFavoriteThread
+  onSelectFavoriteThread,
+  allFeedsId,
+  allUnreadCount
 }: FeedPaneProps) {
   return (
     <aside className="feed-pane" aria-label="RSS ソース">
@@ -36,11 +40,20 @@ export function FeedPane({
         <span>板一覧</span>
         <div className="pane-title-actions">
           <button onClick={onAddFeed} title="板を追加" type="button">+</button>
-          <button onClick={onDeleteSelectedFeed} disabled={!selectedFeedId} title="選択中の板を削除" type="button">-</button>
+          <button onClick={onDeleteSelectedFeed} disabled={!selectedFeedId || selectedFeedId === allFeedsId} title="選択中の板を削除" type="button">-</button>
         </div>
       </div>
       <div className="feed-tree">
         <div className="tree-heading">RSS</div>
+        <button
+          className={`feed-row ${selectedFeedId === allFeedsId ? "is-selected" : ""}`}
+          onClick={() => onSelectFeed(allFeedsId)}
+          title="全板の記事を新着順で表示"
+          type="button"
+        >
+          <span className="feed-name">全板共通</span>
+          <span className="feed-count">{allUnreadCount}</span>
+        </button>
         {feeds.map((feed) => (
           <button
             className={`feed-row ${feed.id === selectedFeedId ? "is-selected" : ""}`}

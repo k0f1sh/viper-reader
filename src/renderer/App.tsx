@@ -17,6 +17,7 @@ const threadColumnLabels = ["スレタイ", "元タイトル", "レス", "取得
 const defaultThreadColumnWidths = [360, 300, 54, 170, 126, 260];
 const minThreadColumnWidths = [220, 180, 44, 100, 96, 140];
 const maxRendererLogs = 300;
+const allFeedsId = "__all_feeds__";
 
 function scrollReadMarkerToTop() {
   setTimeout(() => {
@@ -92,7 +93,9 @@ export function App() {
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
-  const selectedFeed = feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
+  const selectedFeed = selectedFeedId === allFeedsId
+    ? { id: allFeedsId, title: "全板共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null }
+    : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
@@ -268,11 +271,9 @@ export function App() {
     const versionGroups = await Promise.all(nextFeeds.map((feed) => window.viperReader!.listResidentPromptVersions(feed.id)));
     setHasPromptProposal(versionGroups.some((versions) => versions.some((version) => version.status === "pending")));
 
-    if (nextFeeds.length > 0) {
-      setSelectedFeedId((currentFeedId) =>
-        nextFeeds.some((feed) => feed.id === currentFeedId) ? currentFeedId : nextFeeds[0].id
-      );
-    }
+    setSelectedFeedId((currentFeedId) =>
+      currentFeedId === allFeedsId || nextFeeds.some((feed) => feed.id === currentFeedId) ? currentFeedId : allFeedsId
+    );
   }
 
   async function reloadThreads(feedId: string, preferredThreadId?: string) {
@@ -280,7 +281,7 @@ export function App() {
       return;
     }
 
-    const nextThreads = await window.viperReader.listThreads(feedId);
+    const nextThreads = await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId);
     setThreadList(nextThreads);
     if (preferredThreadId && nextThreads.some((thread) => thread.id === preferredThreadId)) {
       setSelectedThreadId(preferredThreadId);
@@ -304,7 +305,7 @@ export function App() {
           )
         : [...currentTabs, tab]
     );
-    activateThreadTab(tab);
+    activateThreadTab(tab, selectedFeedId === allFeedsId ? allFeedsId : undefined);
   }
 
   function openThreadTabById(threadId: string) {
@@ -314,7 +315,7 @@ export function App() {
     }
   }
 
-  function activateThreadTab(tab: OpenThreadTab) {
+  function activateThreadTab(tab: OpenThreadTab, feedSelection?: string) {
     if (selectedThreadId !== tab.id) {
       if (selectedThreadId) {
         replyDraftsRef.current.set(selectedThreadId, replyBody);
@@ -325,7 +326,7 @@ export function App() {
       setSelectedThread(null);
       setPopupData(null);
     }
-    setSelectedFeedId(tab.feedId);
+    setSelectedFeedId(feedSelection ?? tab.feedId);
     setSelectedThreadId(tab.id);
   }
 
@@ -386,7 +387,11 @@ export function App() {
 
   async function markAllThreadsRead() {
     if (!window.viperReader || !selectedFeedId) return;
-    await window.viperReader.markFeedRead(selectedFeedId);
+    if (selectedFeedId === allFeedsId) {
+      await window.viperReader.markAllFeedsRead();
+    } else {
+      await window.viperReader.markFeedRead(selectedFeedId);
+    }
     setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
     await reloadFeeds();
   }
@@ -579,7 +584,7 @@ export function App() {
   }
 
   async function deleteSelectedFeed() {
-    if (!selectedFeedId || !window.viperReader) {
+    if (!selectedFeedId || selectedFeedId === allFeedsId || !window.viperReader) {
       return;
     }
 
@@ -1237,6 +1242,8 @@ export function App() {
           onDeleteSelectedFeed={() => void deleteSelectedFeed()}
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
           onSelectFavoriteThread={handleSelectFavoriteThread}
+          allFeedsId={allFeedsId}
+          allUnreadCount={feedList.reduce((sum, feed) => sum + feed.unreadCount, 0)}
         />
 
         <section
@@ -1261,6 +1268,7 @@ export function App() {
             onToggleUnreadOnly={() => setShowUnreadOnly((current) => !current)}
             onMarkAllRead={() => void markAllThreadsRead()}
             onStartColumnResize={startThreadColumnResize}
+            canRefresh={selectedFeedId !== allFeedsId}
           />
 
           <div

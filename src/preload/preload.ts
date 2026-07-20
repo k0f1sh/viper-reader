@@ -18,7 +18,7 @@ import type {
 export type ViperReaderApi = {
   getAppInfo: () => Promise<typeof appInfo>;
   listFeeds: () => Promise<FeedSource[]>;
-  listThreads: (feedId: string) => Promise<ThreadListItem[]>;
+  listThreads: (feedId: string | null) => Promise<ThreadListItem[]>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   regenerateVipTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
@@ -28,6 +28,7 @@ export type ViperReaderApi = {
   listFavoriteThreads: () => Promise<ThreadListItem[]>;
   setThreadRead: (threadId: string, isRead: boolean) => Promise<void>;
   markFeedRead: (feedId: string) => Promise<void>;
+  markAllFeedsRead: () => Promise<void>;
   refreshFeed: (feedId: string) => Promise<RefreshFeedResult>;
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
@@ -66,6 +67,7 @@ const api: ViperReaderApi = {
   listFavoriteThreads: () => ipcRenderer.invoke("threads:list-favorites"),
   setThreadRead: (threadId, isRead) => ipcRenderer.invoke("threads:set-read", threadId, isRead),
   markFeedRead: (feedId) => ipcRenderer.invoke("feeds:mark-read", feedId),
+  markAllFeedsRead: () => ipcRenderer.invoke("feeds:mark-all-read"),
   refreshFeed: (feedId) => ipcRenderer.invoke("feeds:refresh", feedId),
   onRefreshProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: RefreshProgress) => callback(progress);

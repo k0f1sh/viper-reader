@@ -1039,7 +1039,7 @@ export function getStatistics(): StatisticsSummary {
   };
 }
 
-export function listThreads(feedId: string): ThreadListItem[] {
+export function listThreads(feedId: string | null): ThreadListItem[] {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const rows = db
@@ -1077,7 +1077,7 @@ export function listThreads(feedId: string): ThreadListItem[] {
         ON response_ts.feed_item_id = fi.id
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
-      WHERE fi.feed_id = ?
+      WHERE (? IS NULL OR fi.feed_id = ?)
       ORDER BY COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
       `
     )
@@ -1091,10 +1091,15 @@ export function listThreads(feedId: string): ThreadListItem[] {
       activeModel,
       vipThreadResponsePromptHash,
       defaultResidentPromptHash,
+      feedId,
       feedId
     ) as ThreadRow[];
 
   return rows.map(rowToThreadListItem);
+}
+
+export function markAllFeedsRead(): void {
+  getDatabase().prepare("UPDATE feed_items SET read_at = COALESCE(read_at, datetime('now'))").run();
 }
 
 function rowToRssRefreshRunSummary(row: RssRunRow): RssRefreshRunSummary {

@@ -19,6 +19,7 @@ import {
   setThreadFavorite,
   listFavoriteThreads,
   markFeedRead,
+  markAllFeedsRead,
   setThreadRead
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
@@ -91,7 +92,7 @@ function createMainWindow(): void {
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
-ipcMain.handle("threads:list", (_event, feedId: string) => listThreads(feedId));
+ipcMain.handle("threads:list", (_event, feedId: string | null) => listThreads(feedId));
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   const thread = openThread(threadId);
   return thread;
@@ -116,6 +117,7 @@ ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite:
 ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
 ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => setThreadRead(threadId, isRead));
 ipcMain.handle("feeds:mark-read", (_event, feedId: string) => markFeedRead(feedId));
+ipcMain.handle("feeds:mark-all-read", () => markAllFeedsRead());
 ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
   refreshFeed(feedId, (message) => {
     event.sender.send("feeds:refresh-progress", { feedId, message });
