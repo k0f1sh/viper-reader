@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AppLogEntry, FeedSource, ThreadListItem } from "../../shared/types";
 import { LogPane } from "./LogPane";
 
@@ -38,6 +38,12 @@ export function FeedPane({
   allUnreadCount
 }: FeedPaneProps) {
   const [contextMenu, setContextMenu] = useState<{ feed: FeedSource; x: number; y: number } | null>(null);
+  const feedTreeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const selectedRow = feedTreeRef.current?.querySelector<HTMLElement>(".feed-row.is-selected");
+    selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedFeedId, feeds]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -59,7 +65,7 @@ export function FeedPane({
           <button onClick={onDeleteSelectedFeed} disabled={!selectedFeedId || selectedFeedId === allFeedsId} title="選択中の板を削除" type="button">-</button>
         </div>
       </div>
-      <div className="feed-tree">
+      <div className="feed-tree" ref={feedTreeRef}>
         <div className="tree-heading">RSS</div>
         <button
           className={`feed-row ${selectedFeedId === allFeedsId ? "is-selected" : ""}`}

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { FeedSource, ThreadDetail, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
@@ -53,6 +54,13 @@ export function ThreadListPane({
   onPreviousPage,
   onNextPage
 }: ThreadListPaneProps) {
+  const threadListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const selectedRow = threadListRef.current?.querySelector<HTMLElement>(".thread-row.is-selected");
+    selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedThread?.id, threads]);
+
   return (
     <section
       className="thread-list-pane"
@@ -108,7 +116,7 @@ export function ThreadListPane({
           </span>
         ))}
       </div>
-      <div className="thread-list">
+      <div className="thread-list" ref={threadListRef}>
         {threads.map((thread) => {
           const isGenerating = generatingThreadIds.has(thread.id);
           const isCompleted = completedThreadIds.has(thread.id);
