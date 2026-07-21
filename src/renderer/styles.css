@@ -36,11 +36,6 @@ button {
   background: #d4d0c8;
 }
 
-[data-keyboard-pane]:focus {
-  outline: 1px dotted #000000;
-  outline-offset: -2px;
-}
-
 .shortcut-bar {
   display: flex;
   align-items: center;

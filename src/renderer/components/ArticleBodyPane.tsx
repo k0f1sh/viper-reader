@@ -9,7 +9,7 @@ type ArticleBodyPaneProps = {
 
 export function ArticleBodyPane({ selectedThread, articleBody, isLoading, onClose }: ArticleBodyPaneProps) {
   return (
-    <aside className="article-body-pane" aria-label="スクレイピングした記事本文" data-keyboard-pane tabIndex={-1}>
+    <aside className="article-body-pane" aria-label="スクレイピングした記事本文">
       <div className="pane-title article-body-title">
         <span>記事本文</span>
         <button onClick={onClose} title="記事本文を閉じる" type="button">×</button>

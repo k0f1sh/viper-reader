@@ -57,8 +57,6 @@ export function ThreadListPane({
     <section
       className="thread-list-pane"
       aria-label="スレタイ一覧"
-      data-keyboard-pane
-      tabIndex={-1}
       style={
         {
           "--thread-grid-columns": threadGridColumns,

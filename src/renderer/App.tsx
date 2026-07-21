@@ -371,19 +371,15 @@ export function App() {
         return;
       }
 
-      if (event.key === "F6" && !document.querySelector("[role='dialog']")) {
-        const panes = Array.from(document.querySelectorAll<HTMLElement>("[data-keyboard-pane]"))
-          .filter((pane) => pane.offsetParent !== null);
-        if (panes.length > 0) {
+      if (event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "j" || event.key === "k")) {
+        if (!document.querySelector("[role='dialog']")) {
+          const posts = document.querySelector<HTMLElement>(".posts");
+          if (posts) {
+            const direction = event.key === "j" ? 1 : -1;
+            const distance = Math.max(80, Math.round(posts.clientHeight * 0.35));
+            posts.scrollBy({ top: direction * distance, behavior: "smooth" });
+          }
           event.preventDefault();
-          const currentPane = document.activeElement instanceof HTMLElement
-            ? document.activeElement.closest<HTMLElement>("[data-keyboard-pane]")
-            : null;
-          const currentIndex = currentPane ? panes.indexOf(currentPane) : -1;
-          const nextIndex = event.shiftKey
-            ? (currentIndex <= 0 ? panes.length - 1 : currentIndex - 1)
-            : (currentIndex + 1) % panes.length;
-          panes[nextIndex]?.focus();
         }
         return;
       }
@@ -398,7 +394,17 @@ export function App() {
       } else if (event.key === "r") {
         event.preventDefault(); void refreshSelectedFeed();
       } else if (event.key === "g") {
-        event.preventDefault(); void generateResponses(false);
+        event.preventDefault();
+        if ((selectedThread?.posts.length ?? 0) <= 1) {
+          void generateResponses(false);
+        } else if (selectedThread && selectedThread.posts.length < 1000) {
+          void handleGenerateReplies();
+        }
+      } else if (event.key === "w") {
+        if (replyBodyRef.current && !replyBodyRef.current.disabled) {
+          event.preventDefault();
+          replyBodyRef.current.focus();
+        }
       } else if (event.key === "b") {
         event.preventDefault(); void toggleFavorite();
       } else if (event.key === "u") {
@@ -407,7 +413,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, extractedPostId]);
+  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -1477,11 +1483,11 @@ export function App() {
       </div>
 
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
-        <span><kbd>F6</kbd> 次のペイン</span>
-        <span><kbd>Shift</kbd>+<kbd>F6</kbd> 前のペイン</span>
+        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
-        <span><kbd>R</kbd> 更新</span>
         <span><kbd>G</kbd> AIレス</span>
+        <span><kbd>W</kbd> 書き込み</span>
+        <span><kbd>R</kbd> 更新</span>
         <span><kbd>B</kbd> お気に入り</span>
         <span><kbd>U</kbd> 既読切替</span>
       </footer>
