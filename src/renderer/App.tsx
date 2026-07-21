@@ -155,8 +155,8 @@ export function App() {
       setSelectedThread(null);
       return;
     }
-    // スレッド切り替え時に書き込みフォームにフォーカスを当てる
-    setTimeout(() => replyBodyRef.current?.focus(), 50);
+    // スレッド切り替え時は、明示操作なしに書き込み欄へフォーカスを残さない
+    replyBodyRef.current?.blur();
 
     setCompletedGenerationThreadIds((currentIds) => {
       if (currentIds.has(selectedThreadId)) {
@@ -364,6 +364,12 @@ export function App() {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const primaryModifier = event.ctrlKey || event.metaKey;
+
+      if (event.key === "Escape" && target === replyBodyRef.current) {
+        event.preventDefault();
+        target?.blur();
+        return;
+      }
 
       if (event.key === "Escape" && extractedPostId) {
         event.preventDefault();
