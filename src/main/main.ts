@@ -68,6 +68,7 @@ function createMainWindow(): void {
     title: appInfo.name,
     icon: getAppIconPath(),
     backgroundColor: "#efeffc",
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -75,6 +76,8 @@ function createMainWindow(): void {
       sandbox: false
     }
   });
+
+  window.setMenu(null);
 
   window.webContents.on("context-menu", (_event, params) => {
     if (params.selectionText) {
@@ -167,6 +170,7 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 });
 
 void app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   initializeRepository();
   createMainWindow();
 

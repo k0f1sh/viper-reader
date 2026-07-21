@@ -17,12 +17,6 @@ export function MenuBar({
 }: MenuBarProps) {
   return (
     <nav className="menu-bar" aria-label="メニュー">
-      <button className="menu-item" type="button">
-        ファイル
-      </button>
-      <button className="menu-item" type="button">
-        表示
-      </button>
       <button className="menu-item" onClick={onOpenSettings} type="button">
         設定
       </button>
