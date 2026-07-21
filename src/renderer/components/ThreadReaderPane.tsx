@@ -90,7 +90,7 @@ export function ThreadReaderPane({
     : selectedThread?.posts ?? [];
 
   return (
-    <section className="thread-body-pane" aria-label="スレ本文">
+    <section className="thread-body-pane" aria-label="スレ本文" data-keyboard-pane tabIndex={-1}>
       {selectedThread ? (
         <section className="thread-reader-pane" aria-label="スレ本文">
           <div className="thread-header">

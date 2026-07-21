@@ -51,7 +51,7 @@ export function FeedPane({
   }, [contextMenu]);
 
   return (
-    <aside className="feed-pane" aria-label="RSS ソース">
+    <aside className="feed-pane" aria-label="RSS ソース" data-keyboard-pane tabIndex={-1}>
       <div className="pane-title">
         <span>板一覧</span>
         <div className="pane-title-actions">

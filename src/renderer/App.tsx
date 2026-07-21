@@ -371,6 +371,23 @@ export function App() {
         return;
       }
 
+      if (event.key === "F6" && !document.querySelector("[role='dialog']")) {
+        const panes = Array.from(document.querySelectorAll<HTMLElement>("[data-keyboard-pane]"))
+          .filter((pane) => pane.offsetParent !== null);
+        if (panes.length > 0) {
+          event.preventDefault();
+          const currentPane = document.activeElement instanceof HTMLElement
+            ? document.activeElement.closest<HTMLElement>("[data-keyboard-pane]")
+            : null;
+          const currentIndex = currentPane ? panes.indexOf(currentPane) : -1;
+          const nextIndex = event.shiftKey
+            ? (currentIndex <= 0 ? panes.length - 1 : currentIndex - 1)
+            : (currentIndex + 1) % panes.length;
+          panes[nextIndex]?.focus();
+        }
+        return;
+      }
+
       if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
       if (event.key === "j" || event.key === "k") {
@@ -1458,6 +1475,16 @@ export function App() {
           </section>
         </section>
       </div>
+
+      <footer className="shortcut-bar" aria-label="キーボードショートカット">
+        <span><kbd>F6</kbd> 次のペイン</span>
+        <span><kbd>Shift</kbd>+<kbd>F6</kbd> 前のペイン</span>
+        <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
+        <span><kbd>R</kbd> 更新</span>
+        <span><kbd>G</kbd> AIレス</span>
+        <span><kbd>B</kbd> お気に入り</span>
+        <span><kbd>U</kbd> 既読切替</span>
+      </footer>
 
       {isStatisticsOpen ? (
         <StatisticsModal
