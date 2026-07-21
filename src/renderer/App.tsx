@@ -397,6 +397,16 @@ export function App() {
         const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
         const next = visibleThreads[nextIndex];
         if (next) { event.preventDefault(); selectThread(next, selectedFeedId === allFeedsId ? allFeedsId : undefined); }
+      } else if (event.key === "h" || event.key === "l") {
+        const feedIds = [allFeedsId, ...feedList.map((feed) => feed.id)];
+        const currentIndex = feedIds.indexOf(selectedFeedId);
+        const delta = event.key === "l" ? 1 : -1;
+        const nextIndex = currentIndex < 0 ? (delta > 0 ? 0 : feedIds.length - 1) : currentIndex + delta;
+        const nextFeedId = feedIds[nextIndex];
+        if (nextFeedId) {
+          event.preventDefault();
+          selectFeed(nextFeedId);
+        }
       } else if (event.key === "r") {
         event.preventDefault(); void refreshSelectedFeed();
       } else if (event.key === "g") {
@@ -419,7 +429,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId]);
+  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -1491,6 +1501,7 @@ export function App() {
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
         <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
+        <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
         <span><kbd>G</kbd> AIレス</span>
         <span><kbd>W</kbd> 書き込み</span>
         <span><kbd>R</kbd> 更新</span>
