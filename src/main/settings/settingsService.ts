@@ -7,6 +7,7 @@ const geminiApiKeySettingKey = "geminiApiKey";
 const rendererSettingKeys = new Set([
   "replyModel",
   "threadColumnWidths",
+  "threadColumnWidthsV2",
   "threadListHeight",
   "threadTabs",
   "feedPaneWidth",
