@@ -96,7 +96,7 @@ export function App() {
     posts: ThreadPost[];
     style: CSSProperties;
   } | null>(null);
-  const [replyModel, setReplyModel] = useState("gemini-3.1-flash-lite");
+  const [replyModel, setReplyModel] = useState("gemini-3.6-flash");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);

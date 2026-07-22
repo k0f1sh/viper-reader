@@ -34,6 +34,8 @@ export function MenuBar({
           value={replyModel}
           onChange={(event) => onReplyModelChange(event.target.value)}
         >
+          <option value="gemini-3.6-flash">3.6 flash</option>
+          <option value="gemini-3.5-flash-lite">3.5 flash lite</option>
           <option value="gemini-3.1-flash-lite">3.1 flash lite</option>
           <option value="gemini-3.5-flash">3.5 flash</option>
         </select>

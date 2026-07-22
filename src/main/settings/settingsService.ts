@@ -2,7 +2,7 @@ import { getDatabase } from "../db/database.js";
 import type { GeminiApiKeyStatus } from "../../shared/types.js";
 
 const activeModelSettingKey = "replyModel";
-const defaultActiveModel = "gemini-3.1-flash-lite";
+const defaultActiveModel = "gemini-3.6-flash";
 const geminiApiKeySettingKey = "geminiApiKey";
 const rendererSettingKeys = new Set([
   "replyModel",

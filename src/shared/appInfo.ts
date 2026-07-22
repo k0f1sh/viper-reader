@@ -1,4 +1,4 @@
 export const appInfo = {
   name: "ViperReader",
-  model: "gemini-3.1-flash-lite"
+  model: "gemini-3.6-flash"
 } as const;
