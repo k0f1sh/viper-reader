@@ -23,6 +23,7 @@ import {
 } from "../prompts/vipThreadResponsePrompt.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
+import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 import {
   createFirstPostBody,
   createInitialPosts,
@@ -443,14 +444,14 @@ export function upsertFeedItems(
   );
   const insertItem = db.prepare(
     `
-    INSERT INTO feed_items (id, feed_id, guid, title, url, published_at, raw_summary, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO feed_items (id, feed_id, guid, title, url, canonical_url, published_at, raw_summary, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   );
   const updateItem = db.prepare(
     `
     UPDATE feed_items
-    SET title = ?, url = ?, published_at = ?, raw_summary = ?, updated_at = ?
+    SET title = ?, url = ?, canonical_url = ?, published_at = ?, raw_summary = ?, updated_at = ?
     WHERE id = ?
     `
   );
@@ -459,6 +460,7 @@ export function upsertFeedItems(
   db.exec("BEGIN");
   try {
     for (const item of items) {
+      const canonicalUrl = canonicalizeArticleUrl(item.url);
       const existing = existingStatement.get(item.id, item.feedId, item.url) as
         | {
             id: string;
@@ -477,6 +479,7 @@ export function upsertFeedItems(
           item.guid,
           item.title,
           item.url,
+          canonicalUrl,
           item.publishedAt,
           item.rawSummary,
           fetchedAt,
@@ -489,7 +492,7 @@ export function upsertFeedItems(
         existing.published_at !== item.publishedAt ||
         existing.raw_summary !== item.rawSummary
       ) {
-        updateItem.run(item.title, item.url, item.publishedAt, item.rawSummary, fetchedAt, feedItemId);
+        updateItem.run(item.title, item.url, canonicalUrl, item.publishedAt, item.rawSummary, fetchedAt, feedItemId);
         updatedCount += 1;
       } else {
         skippedCount += 1;
@@ -1062,6 +1065,9 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const filterUnread = unreadOnly ? 1 : 0;
+  if (feedId === null) {
+    return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread);
+  }
   const countRow = db.prepare(`
     SELECT COUNT(*) AS total_count
     FROM feed_items fi
@@ -1138,8 +1144,109 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   };
 }
 
+function listAllThreads(
+  db: ReturnType<typeof getDatabase>,
+  activeModel: string,
+  titleModel: string,
+  page: number,
+  pageSize: number,
+  filterUnread: number
+): ThreadListPage {
+  const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
+  const countRow = db.prepare(`
+    SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
+    FROM feed_items fi
+    WHERE (? = 0 OR fi.read_at IS NULL)
+  `).get(filterUnread) as { total_count: number };
+  const rows = db.prepare(`
+    WITH ranked_items AS (
+      SELECT
+        fi.*,
+        ${canonicalKey} AS article_key,
+        ROW_NUMBER() OVER (
+          PARTITION BY ${canonicalKey}
+          ORDER BY
+            CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+            COALESCE(fi.published_at, fi.created_at) DESC,
+            fi.created_at DESC,
+            fi.id DESC
+        ) AS article_rank
+      FROM feed_items fi
+      WHERE (? = 0 OR fi.read_at IS NULL)
+    ),
+    source_names AS (
+      SELECT article_key, GROUP_CONCAT(title, ' / ') AS source
+      FROM (
+        SELECT DISTINCT
+          COALESCE(NULLIF(fi.canonical_url, ''), fi.url) AS article_key,
+          fs.title AS title
+        FROM feed_items fi
+        INNER JOIN feed_sources fs ON fs.id = fi.feed_id
+        ORDER BY fs.title
+      )
+      GROUP BY article_key
+    )
+    SELECT
+      fi.id,
+      fi.feed_id,
+      fi.title AS original_title,
+      fi.url,
+      COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+      source_names.source,
+      fi.published_at,
+      fi.read_at,
+      fi.is_favorite,
+      fi.raw_summary,
+      COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
+    FROM ranked_items fi
+    INNER JOIN source_names ON source_names.article_key = fi.article_key
+    LEFT JOIN vip_titles generated_vt
+      ON generated_vt.feed_item_id = fi.id AND generated_vt.model = ? AND generated_vt.prompt_hash = ?
+    LEFT JOIN vip_titles raw_vt
+      ON raw_vt.feed_item_id = fi.id AND raw_vt.model = ? AND raw_vt.prompt_hash = ?
+    LEFT JOIN thread_summaries rss_ts
+      ON rss_ts.feed_item_id = fi.id AND rss_ts.model = ? AND rss_ts.prompt_hash = ?
+    LEFT JOIN feed_resident_prompts frp ON frp.feed_id = fi.feed_id
+    LEFT JOIN thread_summaries response_ts
+      ON response_ts.feed_item_id = fi.id
+      AND response_ts.model = ?
+      AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
+    WHERE fi.article_rank = 1
+    ORDER BY
+      CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+      COALESCE(fi.published_at, fi.created_at) DESC,
+      fi.created_at DESC,
+      fi.id DESC
+    LIMIT ? OFFSET ?
+  `).all(
+    filterUnread,
+    titleModel,
+    vipTitlePromptHash,
+    titleModel,
+    rawTitlePromptHash,
+    activeModel,
+    rssSummaryPromptHash,
+    activeModel,
+    vipThreadResponsePromptHash,
+    defaultResidentPromptHash,
+    pageSize,
+    page * pageSize
+  ) as ThreadRow[];
+
+  return { items: rows.map(rowToThreadListItem), totalCount: Number(countRow.total_count), page, pageSize };
+}
+
 export function markAllFeedsRead(): void {
   getDatabase().prepare("UPDATE feed_items SET read_at = COALESCE(read_at, datetime('now'))").run();
+}
+
+export function countAllUnreadArticles(): number {
+  const row = getDatabase().prepare(`
+    SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
+    FROM feed_items
+    WHERE read_at IS NULL
+  `).get() as { count: number };
+  return Number(row.count);
 }
 
 function rowToRssRefreshRunSummary(row: RssRunRow): RssRefreshRunSummary {
@@ -1586,7 +1693,16 @@ export function postUserMessage(params: {
 export function getArticleBody(feedItemId: string): string | null {
   const db = getDatabase();
   const row = db
-    .prepare("SELECT content_text FROM article_bodies WHERE feed_item_id = ?")
+    .prepare(`
+      SELECT ab.content_text
+      FROM article_bodies ab
+      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
+      INNER JOIN feed_items target_item ON target_item.id = ?
+      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
+        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
+      ORDER BY ab.fetched_at DESC
+      LIMIT 1
+    `)
     .get(feedItemId) as { content_text: string } | undefined;
   return row ? row.content_text : null;
 }
@@ -1608,33 +1724,60 @@ export function saveArticleBody(feedItemId: string, url: string, contentText: st
 export function getArticleSummary(feedItemId: string): string | null {
   const db = getDatabase();
   const row = db
-    .prepare("SELECT summary_text FROM article_bodies WHERE feed_item_id = ?")
+    .prepare(`
+      SELECT ab.summary_text
+      FROM article_bodies ab
+      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
+      INNER JOIN feed_items target_item ON target_item.id = ?
+      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
+        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
+        AND ab.summary_text IS NOT NULL
+      ORDER BY ab.fetched_at DESC
+      LIMIT 1
+    `)
     .get(feedItemId) as { summary_text: string | null } | undefined;
   return row ? row.summary_text : null;
 }
 
 export function saveArticleSummary(feedItemId: string, summaryText: string): void {
   const db = getDatabase();
-  db.prepare("UPDATE article_bodies SET summary_text = ? WHERE feed_item_id = ?")
+  db.prepare(`
+    UPDATE article_bodies SET summary_text = ? WHERE id = (
+      SELECT ab.id
+      FROM article_bodies ab
+      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
+      INNER JOIN feed_items target_item ON target_item.id = ?
+      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
+        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
+      ORDER BY ab.fetched_at DESC
+      LIMIT 1
+    )
+  `)
     .run(summaryText, feedItemId);
 }
 
 export function markThreadRead(threadId: string): void {
   const db = getDatabase();
-  db.prepare("UPDATE feed_items SET read_at = COALESCE(read_at, ?), updated_at = ? WHERE id = ?").run(
-    new Date().toISOString(),
-    new Date().toISOString(),
-    threadId
-  );
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE feed_items
+    SET read_at = COALESCE(read_at, ?), updated_at = ?
+    WHERE COALESCE(NULLIF(canonical_url, ''), url) = (
+      SELECT COALESCE(NULLIF(canonical_url, ''), url) FROM feed_items WHERE id = ?
+    )
+  `).run(now, now, threadId);
 }
 
 export function setThreadRead(threadId: string, isRead: boolean): void {
   const db = getDatabase();
-  db.prepare("UPDATE feed_items SET read_at = ?, updated_at = ? WHERE id = ?").run(
-    isRead ? new Date().toISOString() : null,
-    new Date().toISOString(),
-    threadId
-  );
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE feed_items
+    SET read_at = ?, updated_at = ?
+    WHERE COALESCE(NULLIF(canonical_url, ''), url) = (
+      SELECT COALESCE(NULLIF(canonical_url, ''), url) FROM feed_items WHERE id = ?
+    )
+  `).run(isRead ? now : null, now, threadId);
 }
 
 export function markFeedRead(feedId: string): void {

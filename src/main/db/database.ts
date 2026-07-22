@@ -2,6 +2,7 @@ import { app } from "electron";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { schemaSql } from "./schema.js";
+import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 
 let database: DatabaseSync | null = null;
 
@@ -29,17 +30,34 @@ function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
+  addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
   addColumnIfMissing(db, "article_bodies", "summary_text", "TEXT");
   addColumnIfMissing(db, "llm_request_logs", "cached_content_token_count", "INTEGER");
   addColumnIfMissing(db, "thread_posts", "generation_run_id", "TEXT");
   addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   addColumnIfMissing(db, "feed_sources", "generate_title_from_summary", "INTEGER NOT NULL DEFAULT 0");
+  backfillCanonicalUrls(db);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(2, new Date().toISOString());
+}
+
+function backfillCanonicalUrls(db: DatabaseSync): void {
+  const rows = db.prepare("SELECT id, url FROM feed_items WHERE canonical_url IS NULL OR canonical_url = ''").all() as Array<{ id: string; url: string }>;
+  if (rows.length === 0) return;
+  const update = db.prepare("UPDATE feed_items SET canonical_url = ? WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    for (const row of rows) update.run(canonicalizeArticleUrl(row.url), row.id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): void {

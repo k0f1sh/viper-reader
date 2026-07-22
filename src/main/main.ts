@@ -12,6 +12,7 @@ import {
   initializeRepository,
   listFeeds,
   listThreads,
+  countAllUnreadArticles,
   listResidentPromptVersions,
   reviewResidentPromptVersion,
   rollbackResidentPromptVersion,
@@ -100,6 +101,7 @@ ipcMain.handle("feeds:list", () => listFeeds());
 ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) =>
   listThreads(feedId, page, 100, unreadOnly)
 );
+ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   const thread = openThread(threadId);
   return thread;

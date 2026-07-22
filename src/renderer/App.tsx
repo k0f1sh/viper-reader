@@ -40,6 +40,7 @@ export function App() {
   const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
   const [threadListPage, setThreadListPage] = useState(0);
   const [threadListTotalCount, setThreadListTotalCount] = useState(0);
+  const [allUnreadCount, setAllUnreadCount] = useState(0);
   const [selectedFeedId, setSelectedFeedId] = useState("");
   const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
@@ -291,8 +292,12 @@ export function App() {
       return;
     }
 
-    const nextFeeds = await window.viperReader.listFeeds();
+    const [nextFeeds, nextAllUnreadCount] = await Promise.all([
+      window.viperReader.listFeeds(),
+      window.viperReader.countUnreadArticles()
+    ]);
     setFeedList(nextFeeds);
+    setAllUnreadCount(nextAllUnreadCount);
     const versionGroups = await Promise.all(nextFeeds.map((feed) => window.viperReader!.listResidentPromptVersions(feed.id)));
     setHasPromptProposal(versionGroups.some((versions) => versions.some((version) => version.status === "pending")));
 
@@ -1412,7 +1417,7 @@ export function App() {
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}
-          allUnreadCount={feedList.reduce((sum, feed) => sum + feed.unreadCount, 0)}
+          allUnreadCount={allUnreadCount}
         />
 
         <div

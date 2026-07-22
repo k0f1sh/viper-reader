@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS feed_items (
   guid TEXT,
   title TEXT NOT NULL,
   url TEXT NOT NULL,
+  canonical_url TEXT,
   published_at TEXT,
   raw_summary TEXT,
   read_at TEXT,
