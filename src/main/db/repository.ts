@@ -1338,19 +1338,32 @@ export function getThread(threadId: string): ThreadDetail | null {
   // 基本的なスレッド情報（vipTitle など）を取得するクエリ
   const threadInfoRow = db
     .prepare(`
+      WITH source_names AS (
+        SELECT article_key, GROUP_CONCAT(title, ' / ') AS source
+        FROM (
+          SELECT DISTINCT
+            COALESCE(NULLIF(item.canonical_url, ''), item.url) AS article_key,
+            source.title AS title
+          FROM feed_items item
+          INNER JOIN feed_sources source ON source.id = item.feed_id
+          ORDER BY source.title
+        )
+        GROUP BY article_key
+      )
       SELECT
         fi.id,
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
         COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
-        fs.title AS source,
+        source_names.source,
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
         fi.raw_summary
       FROM feed_items fi
-      INNER JOIN feed_sources fs ON fs.id = fi.feed_id
+      INNER JOIN source_names
+        ON source_names.article_key = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
       LEFT JOIN vip_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
