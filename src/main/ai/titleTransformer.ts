@@ -1,6 +1,6 @@
 import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
 import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
-import { getActiveModel } from "../settings/settingsService.js";
+import { getTitleGenerationModel } from "../settings/settingsService.js";
 import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { vipTitleArraySchema } from "./schemas.js";
@@ -34,7 +34,7 @@ export async function transformTitlesToVipStyle(
     };
   }
 
-  const modelToUse = getActiveModel();
+  const modelToUse = getTitleGenerationModel();
 
   if (!resolveApiKey()) {
     const now = new Date().toISOString();

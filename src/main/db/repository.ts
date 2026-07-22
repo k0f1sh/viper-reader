@@ -22,7 +22,7 @@ import {
   vipThreadResponsePromptHash
 } from "../prompts/vipThreadResponsePrompt.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
-import { getActiveModel } from "../settings/settingsService.js";
+import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import {
   createFirstPostBody,
   createInitialPosts,
@@ -1054,6 +1054,7 @@ export function getStatistics(): StatisticsSummary {
 export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false): ThreadListPage {
   const db = getDatabase();
   const activeModel = getActiveModel();
+  const titleModel = getTitleGenerationModel();
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const filterUnread = unreadOnly ? 1 : 0;
@@ -1109,9 +1110,9 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       `
     )
     .all(
-      activeModel,
+      titleModel,
       vipTitlePromptHash,
-      activeModel,
+      titleModel,
       rawTitlePromptHash,
       activeModel,
       rssSummaryPromptHash,
@@ -1215,6 +1216,7 @@ type ThreadPostRow = {
 export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
   const activeModel = getActiveModel();
+  const titleModel = getTitleGenerationModel();
   markThreadRead(threadId);
 
   // 1. thread_posts から取得を試みる
@@ -1249,9 +1251,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       WHERE fi.id = ?
     `)
     .get(
-      activeModel,
+      titleModel,
       vipTitlePromptHash,
-      activeModel,
+      titleModel,
       rawTitlePromptHash,
       threadId
     ) as {
@@ -1790,6 +1792,7 @@ export function setThreadFavorite(threadId: string, isFavorite: boolean): void {
 export function listFavoriteThreads(): ThreadListItem[] {
   const db = getDatabase();
   const activeModel = getActiveModel();
+  const titleModel = getTitleGenerationModel();
   const rows = db
     .prepare(
       `
@@ -1830,9 +1833,9 @@ export function listFavoriteThreads(): ThreadListItem[] {
       `
     )
     .all(
-      activeModel,
+      titleModel,
       vipTitlePromptHash,
-      activeModel,
+      titleModel,
       rawTitlePromptHash,
       activeModel,
       rssSummaryPromptHash,

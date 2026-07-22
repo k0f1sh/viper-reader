@@ -6,6 +6,7 @@ import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { FeedPane } from "./components/FeedPane";
 import { FeedSettingsModal } from "./components/FeedSettingsModal";
 import { MenuBar } from "./components/MenuBar";
+import { ModelSettingsModal } from "./components/ModelSettingsModal";
 import { ReplyPopup } from "./components/ReplyPopup";
 import { ResidentPromptsModal } from "./components/ResidentPromptsModal";
 import { SettingsModal } from "./components/SettingsModal";
@@ -53,6 +54,8 @@ export function App() {
   const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
   const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
+  const [isModelSettingsSaving, setIsModelSettingsSaving] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [geminiApiKeyStatus, setGeminiApiKeyStatus] = useState<GeminiApiKeyStatus | null>(null);
   const [isApiKeySaving, setIsApiKeySaving] = useState(false);
@@ -97,6 +100,8 @@ export function App() {
     style: CSSProperties;
   } | null>(null);
   const [replyModel, setReplyModel] = useState("gemini-3.6-flash");
+  const [titleModel, setTitleModel] = useState("gemini-3.5-flash-lite");
+  const [optimizerModel, setOptimizerModel] = useState("gemini-3.6-flash");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
@@ -437,10 +442,12 @@ export function App() {
     }
 
     try {
-      const [height, widthsJson, model, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible] = await Promise.all([
+      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
+        window.viperReader.getUserSetting("titleModel"),
+        window.viperReader.getUserSetting("optimizerModel"),
         window.viperReader.getUserSetting("feedPaneWidth"),
         window.viperReader.getUserSetting("articlePaneWidth"),
         window.viperReader.getUserSetting("articlePaneVisible")
@@ -459,6 +466,12 @@ export function App() {
 
       if (model) {
         setReplyModel(model);
+      }
+      if (savedTitleModel) {
+        setTitleModel(savedTitleModel);
+      }
+      if (savedOptimizerModel) {
+        setOptimizerModel(savedOptimizerModel);
       }
 
       if (savedFeedPaneWidth) {
@@ -481,10 +494,23 @@ export function App() {
     }
   }
 
-  async function handleReplyModelChange(newModel: string) {
-    setReplyModel(newModel);
-    if (window.viperReader) {
-      await window.viperReader.saveUserSetting("replyModel", newModel);
+  async function saveModelSettings(models: { titleModel: string; replyModel: string; optimizerModel: string }) {
+    if (!window.viperReader) return;
+    setIsModelSettingsSaving(true);
+    try {
+      await Promise.all([
+        window.viperReader.saveUserSetting("titleModel", models.titleModel),
+        window.viperReader.saveUserSetting("replyModel", models.replyModel),
+        window.viperReader.saveUserSetting("optimizerModel", models.optimizerModel)
+      ]);
+      setTitleModel(models.titleModel);
+      setReplyModel(models.replyModel);
+      setOptimizerModel(models.optimizerModel);
+      setIsModelSettingsOpen(false);
+    } catch (err) {
+      console.error("モデル設定の保存に失敗しました:", err);
+    } finally {
+      setIsModelSettingsSaving(false);
     }
   }
 
@@ -1359,9 +1385,8 @@ export function App() {
   return (
     <main className="app-frame">
       <MenuBar
-        replyModel={replyModel}
-        onReplyModelChange={(model) => void handleReplyModelChange(model)}
         onOpenSettings={() => void openSettings()}
+        onOpenModelSettings={() => setIsModelSettingsOpen(true)}
         onOpenStatistics={openStatistics}
         onOpenResidentPrompts={openResidentPrompts}
         hasPromptProposal={hasPromptProposal}
@@ -1527,6 +1552,17 @@ export function App() {
           onSave={() => void saveApiKey()}
           onClear={() => void clearApiKey()}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      ) : null}
+
+      {isModelSettingsOpen ? (
+        <ModelSettingsModal
+          titleModel={titleModel}
+          replyModel={replyModel}
+          optimizerModel={optimizerModel}
+          isSaving={isModelSettingsSaving}
+          onSave={(models) => void saveModelSettings(models)}
+          onClose={() => setIsModelSettingsOpen(false)}
         />
       ) : null}
 

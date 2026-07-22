@@ -1,16 +1,14 @@
 type MenuBarProps = {
-  replyModel: string;
-  onReplyModelChange: (model: string) => void;
   onOpenSettings: () => void;
+  onOpenModelSettings: () => void;
   onOpenStatistics: () => void;
   onOpenResidentPrompts: () => void;
   hasPromptProposal: boolean;
 };
 
 export function MenuBar({
-  replyModel,
-  onReplyModelChange,
   onOpenSettings,
+  onOpenModelSettings,
   onOpenStatistics,
   onOpenResidentPrompts,
   hasPromptProposal
@@ -20,26 +18,15 @@ export function MenuBar({
       <button className="menu-item" onClick={onOpenSettings} type="button">
         設定
       </button>
+      <button className="menu-item" onClick={onOpenModelSettings} type="button">
+        モデル設定
+      </button>
       <button className="menu-item" onClick={onOpenStatistics} type="button">
         統計情報
       </button>
       <button className="menu-item" onClick={onOpenResidentPrompts} type="button">
         住民設定{hasPromptProposal ? " (改善案あり)" : ""}
       </button>
-      <div className="menu-select-wrapper">
-        <label htmlFor="reply-model-select">レスモデル:</label>
-        <select
-          id="reply-model-select"
-          className="menu-select"
-          value={replyModel}
-          onChange={(event) => onReplyModelChange(event.target.value)}
-        >
-          <option value="gemini-3.6-flash">3.6 flash</option>
-          <option value="gemini-3.5-flash-lite">3.5 flash lite</option>
-          <option value="gemini-3.1-flash-lite">3.1 flash lite</option>
-          <option value="gemini-3.5-flash">3.5 flash</option>
-        </select>
-      </div>
     </nav>
   );
 }

@@ -3,9 +3,15 @@ import type { GeminiApiKeyStatus } from "../../shared/types.js";
 
 const activeModelSettingKey = "replyModel";
 const defaultActiveModel = "gemini-3.6-flash";
+const titleModelSettingKey = "titleModel";
+const defaultTitleModel = "gemini-3.5-flash-lite";
+const optimizerModelSettingKey = "optimizerModel";
+const defaultOptimizerModel = "gemini-3.6-flash";
 const geminiApiKeySettingKey = "geminiApiKey";
 const rendererSettingKeys = new Set([
   "replyModel",
+  "titleModel",
+  "optimizerModel",
   "threadColumnWidths",
   "threadColumnWidthsV2",
   "threadListHeight",
@@ -86,6 +92,14 @@ export function clearGeminiApiKey(): GeminiApiKeyStatus {
 
 export function getActiveModel(): string {
   return getUserSetting(activeModelSettingKey) || defaultActiveModel;
+}
+
+export function getTitleGenerationModel(): string {
+  return getUserSetting(titleModelSettingKey) || defaultTitleModel;
+}
+
+export function getPromptOptimizerModel(): string {
+  return getUserSetting(optimizerModelSettingKey) || defaultOptimizerModel;
 }
 
 function assertRendererSettingKey(key: string): void {

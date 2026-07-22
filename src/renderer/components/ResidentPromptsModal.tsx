@@ -59,7 +59,7 @@ export function ResidentPromptsModal({
           </div>
 
           <div className="prompt-versions">
-            <div className="prompt-versions-title">自動改善（gemini-3.5-flash）</div>
+            <div className="prompt-versions-title">自動改善履歴</div>
             {promptVersions.length === 0 ? <div className="prompt-version-empty">まだ改善履歴はありません。レス評価が5件たまると改善案を作成します。</div> : null}
             {promptVersions.filter((version) => version.status === "pending" || version.status === "active").map((version) => (
               <section className={`prompt-version is-${version.status}`} key={version.id}>

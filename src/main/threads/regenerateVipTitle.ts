@@ -8,7 +8,7 @@ import {
   replaceVipTitle
 } from "../db/repository.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
-import { getActiveModel } from "../settings/settingsService.js";
+import { getTitleGenerationModel } from "../settings/settingsService.js";
 
 export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail | null> {
   const item = getFeedItemForTitleGeneration(threadId);
@@ -16,7 +16,7 @@ export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail
     throw new Error(`Thread not found: ${threadId}`);
   }
 
-  const modelToUse = getActiveModel();
+  const modelToUse = getTitleGenerationModel();
   const feed = getFeedSource(item.feedId);
   const result = await transformTitlesToVipStyle(item.feedId, item.feedTitle, [
     {
