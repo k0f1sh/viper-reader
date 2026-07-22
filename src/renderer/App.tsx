@@ -340,7 +340,6 @@ export function App() {
       setReplyBody(replyDraftsRef.current.get(thread.id) ?? "");
       setPostError("");
       setPostStatus("idle");
-      setSelectedThread(null);
       setPopupData(null);
     }
     setSelectedFeedId(feedSelection ?? thread.feedId);
@@ -1444,7 +1443,7 @@ export function App() {
         >
           <ThreadListPane
             selectedFeed={selectedFeed}
-            selectedThread={selectedThread}
+            selectedThreadId={selectedThreadId}
             threads={visibleThreads}
             generatingThreadIds={generatingThreadIds}
             completedThreadIds={completedGenerationThreadIds}

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { FeedSource, ThreadDetail, ThreadListItem } from "../../shared/types";
+import type { FeedSource, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
 
 type ThreadListPaneProps = {
   selectedFeed: FeedSource | undefined;
-  selectedThread: ThreadDetail | null;
+  selectedThreadId: string | undefined;
   threads: ThreadListItem[];
   generatingThreadIds: Set<string>;
   completedThreadIds: Set<string>;
@@ -31,7 +31,7 @@ type ThreadListPaneProps = {
 
 export function ThreadListPane({
   selectedFeed,
-  selectedThread,
+  selectedThreadId,
   threads,
   generatingThreadIds,
   completedThreadIds,
@@ -59,7 +59,7 @@ export function ThreadListPane({
   useEffect(() => {
     const selectedRow = threadListRef.current?.querySelector<HTMLElement>(".thread-row.is-selected");
     selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [selectedThread?.id, threads]);
+  }, [selectedThreadId, threads]);
 
   return (
     <section
@@ -122,7 +122,7 @@ export function ThreadListPane({
           const isCompleted = completedThreadIds.has(thread.id);
           return (
             <button
-              className={`thread-row ${thread.id === selectedThread?.id ? "is-selected" : ""} ${
+              className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
                 thread.isRead ? "is-read" : ""
               } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""}`}
               key={thread.id}
