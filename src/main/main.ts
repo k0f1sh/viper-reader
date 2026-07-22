@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Menu } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, shell, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
@@ -136,6 +136,12 @@ ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
 );
 ipcMain.handle("stats:get", () => getStatistics());
 ipcMain.handle("logs:list", () => listBufferedLogs());
+ipcMain.handle("logs:copy", (_event, text: string) => {
+  if (typeof text !== "string") {
+    throw new Error("コピーするログの形式が不正です。");
+  }
+  clipboard.writeText(text.slice(0, 1_000_000));
+});
 ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => getFeedResidentPrompt(feedId));
 ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => saveFeedResidentPrompt(feedId, prompt));
 ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));

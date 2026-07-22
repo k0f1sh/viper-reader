@@ -10,6 +10,7 @@ export function LogPane({ logs }: LogPaneProps) {
   const [filter, setFilter] = useState<"all" | "warn" | "error">("all");
   const [isFollowing, setIsFollowing] = useState(true);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   const groupedLogs = useMemo(() => groupConsecutiveLogs(logs), [logs]);
   const visibleLogs = useMemo(
@@ -30,6 +31,18 @@ export function LogPane({ logs }: LogPaneProps) {
     if (!list) return;
     const isAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 8;
     if (!isAtBottom && isFollowing) setIsFollowing(false);
+  }
+
+  async function copyVisibleLogs() {
+    if (!window.viperReader || visibleLogs.length === 0) return;
+    const text = visibleLogs.map(formatLogForCopy).join("\n");
+    try {
+      await window.viperReader.copyLogs(text);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+    window.setTimeout(() => setCopyStatus("idle"), 1800);
   }
 
   return (
@@ -53,6 +66,9 @@ export function LogPane({ logs }: LogPaneProps) {
           type="button"
         >
           {isFollowing ? "▼ 追従中" : "追従する"}
+        </button>
+        <button disabled={visibleLogs.length === 0} onClick={() => void copyVisibleLogs()} title="表示中のログをクリップボードへコピー" type="button">
+          {copyStatus === "copied" ? "コピー済" : copyStatus === "error" ? "失敗" : "コピー"}
         </button>
       </div>
       <div className="log-list" ref={listRef} onScroll={handleScroll}>
@@ -111,4 +127,9 @@ function formatLogTime(value: string): string {
 
   const pad = (number: number) => String(number).padStart(2, "0");
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function formatLogForCopy(entry: GroupedLogEntry): string {
+  const repeat = entry.count > 1 ? ` (x${entry.count})` : "";
+  return `[${entry.createdAt}] [${entry.level.toUpperCase()}] ${entry.message}${repeat}`;
 }

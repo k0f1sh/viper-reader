@@ -37,6 +37,7 @@ export type ViperReaderApi = {
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
   onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error" }) => void) => () => void;
   listLogs: () => Promise<AppLogEntry[]>;
+  copyLogs: (text: string) => Promise<void>;
   onLogEntry: (callback: (entry: AppLogEntry) => void) => () => void;
   getStatistics: () => Promise<StatisticsSummary>;
   openExternalUrl: (url: string) => Promise<void>;
@@ -96,6 +97,7 @@ const api: ViperReaderApi = {
     };
   },
   listLogs: () => ipcRenderer.invoke("logs:list"),
+  copyLogs: (text) => ipcRenderer.invoke("logs:copy", text),
   onLogEntry: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, entry: AppLogEntry) => callback(entry);
     ipcRenderer.on("logs:entry", listener);
