@@ -564,7 +564,7 @@ export function saveRawVipTitleFallbacks(items: FeedItemInitialCacheSource[], mo
   try {
     for (const item of items) {
       const result = insertTitle.run(
-        `vip-title:${item.id}:raw`,
+        createVipTitleId(item.id, model, rawTitlePromptHash),
         item.id,
         model,
         rawTitlePromptHash,
@@ -732,7 +732,7 @@ export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash
   try {
     for (const title of titles) {
       const result = insertTitle.run(
-        `vip-title:${title.feedItemId}:${promptHash}`,
+        createVipTitleId(title.feedItemId, model, promptHash),
         title.feedItemId,
         model,
         promptHash,
@@ -763,13 +763,17 @@ export function replaceVipTitle(title: VipTitleWrite, model: string, promptHash:
       generated_at = excluded.generated_at
     `
   ).run(
-    `vip-title:${title.feedItemId}:${promptHash}`,
+    createVipTitleId(title.feedItemId, model, promptHash),
     title.feedItemId,
     model,
     promptHash,
     title.title,
     generatedAt
   );
+}
+
+function createVipTitleId(feedItemId: string, model: string, promptHash: string): string {
+  return `vip-title:${feedItemId}:${model}:${promptHash}`;
 }
 
 export function recordRssRefreshRun(run: RssRefreshRunWrite): void {
