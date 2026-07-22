@@ -375,6 +375,21 @@ export function App() {
       const target = event.target as HTMLElement | null;
       const primaryModifier = event.ctrlKey || event.metaKey;
 
+      function scrollPosts(direction: -1 | 1) {
+        const posts = document.querySelector<HTMLElement>(".posts");
+        if (!posts) return;
+        const distance = Math.max(80, Math.round(posts.clientHeight * 0.35));
+        posts.scrollBy({ top: direction * distance, behavior: "smooth" });
+      }
+
+      function generateThreadPosts() {
+        if ((selectedThread?.posts.length ?? 0) <= 1) {
+          void generateResponses(false);
+        } else if (selectedThread && selectedThread.posts.length < 1000) {
+          void handleGenerateReplies();
+        }
+      }
+
       if (event.key === "Escape" && target === replyBodyRef.current) {
         event.preventDefault();
         target?.blur();
@@ -389,12 +404,7 @@ export function App() {
 
       if (event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "j" || event.key === "k")) {
         if (!document.querySelector("[role='dialog']")) {
-          const posts = document.querySelector<HTMLElement>(".posts");
-          if (posts) {
-            const direction = event.key === "j" ? 1 : -1;
-            const distance = Math.max(80, Math.round(posts.clientHeight * 0.35));
-            posts.scrollBy({ top: direction * distance, behavior: "smooth" });
-          }
+          scrollPosts(event.key === "j" ? 1 : -1);
           event.preventDefault();
         }
         return;
@@ -402,7 +412,10 @@ export function App() {
 
       if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
-      if (event.key === "j" || event.key === "k") {
+      if (event.key === "p" || event.key === "n") {
+        event.preventDefault();
+        scrollPosts(event.key === "n" ? 1 : -1);
+      } else if (event.key === "j" || event.key === "k") {
         const delta = event.key === "j" ? 1 : -1;
         const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
         const next = visibleThreads[nextIndex];
@@ -417,15 +430,11 @@ export function App() {
           event.preventDefault();
           selectFeed(nextFeedId);
         }
-      } else if (event.key === "r") {
+      } else if (event.key === "r" || event.key === "y") {
         event.preventDefault(); void refreshSelectedFeed();
-      } else if (event.key === "g") {
+      } else if (event.key === "g" || event.key === "u") {
         event.preventDefault();
-        if ((selectedThread?.posts.length ?? 0) <= 1) {
-          void generateResponses(false);
-        } else if (selectedThread && selectedThread.posts.length < 1000) {
-          void handleGenerateReplies();
-        }
+        generateThreadPosts();
       } else if (event.key === "w") {
         if (replyBodyRef.current && !replyBodyRef.current.disabled) {
           event.preventDefault();
@@ -433,7 +442,7 @@ export function App() {
         }
       } else if (event.key === "b") {
         event.preventDefault(); void toggleFavorite();
-      } else if (event.key === "u") {
+      } else if (event.key === "U") {
         event.preventDefault(); void toggleSelectedThreadRead();
       }
     }
@@ -1529,14 +1538,14 @@ export function App() {
       </div>
 
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
-        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
+        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd>・<kbd>P</kbd>/<kbd>N</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
         <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
-        <span><kbd>G</kbd> AIレス</span>
+        <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
         <span><kbd>W</kbd> 書き込み</span>
-        <span><kbd>R</kbd> 更新</span>
+        <span><kbd>R</kbd>/<kbd>Y</kbd> 更新</span>
         <span><kbd>B</kbd> お気に入り</span>
-        <span><kbd>U</kbd> 既読切替</span>
+        <span><kbd>Shift</kbd>+<kbd>U</kbd> 既読切替</span>
       </footer>
 
       {isStatisticsOpen ? (
