@@ -36,6 +36,7 @@ type ThreadReaderPaneProps = {
   onAnchorMouseLeave: () => void;
   isArticlePaneVisible: boolean;
   onToggleArticlePane: () => void;
+  onShowArticleBrowser: () => void;
 };
 
 export function ThreadReaderPane({
@@ -70,7 +71,8 @@ export function ThreadReaderPane({
   onAnchorMouseEnter,
   onAnchorMouseLeave,
   isArticlePaneVisible,
-  onToggleArticlePane
+  onToggleArticlePane,
+  onShowArticleBrowser
 }: ThreadReaderPaneProps) {
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
@@ -99,6 +101,9 @@ export function ThreadReaderPane({
               <div className="original-title">元記事: {selectedThread.originalTitle}</div>
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
+                元記事
+              </button>
               {selectedThread.posts.length > 1 ? (
                 <button
                   className={`deep-dive-button ${isArticlePaneVisible ? "is-active" : ""}`}

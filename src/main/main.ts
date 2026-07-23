@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, ipcMain, shell, Menu } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, shell, Menu, session } from "electron";
+import type { IpcMainInvokeEvent, Session } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
@@ -39,7 +40,10 @@ import { openThread, startThreadResponseGeneration } from "./threads/openThread.
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
 import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
-import type { ReplyRating } from "../shared/types.js";
+import { ArticleBlocker } from "./browser/articleBlocker.js";
+import { ArticleBrowserController } from "./browser/articleBrowserController.js";
+import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
+import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +52,9 @@ loadEnv();
 installConsoleLogForwarder();
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+const articleBrowserControllers = new Map<number, ArticleBrowserController>();
+let articleSession: Session | null = null;
+let articleBlocker: ArticleBlocker | null = null;
 
 function getAppIconPath(): string {
   return app.isPackaged
@@ -56,7 +63,6 @@ function getAppIconPath(): string {
 }
 
 if (process.platform === "linux") {
-  app.commandLine.appendSwitch("no-sandbox");
   app.commandLine.appendSwitch("class", "viper-reader");
 }
 
@@ -71,11 +77,21 @@ function createMainWindow(): void {
     backgroundColor: "#efeffc",
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, "../preload/preload.js"),
+      preload: path.join(__dirname, "../preload/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
+  });
+  if (!articleSession || !articleBlocker) {
+    throw new Error("Article browser services are not initialized.");
+  }
+  const articleBrowser = new ArticleBrowserController(window, articleSession, articleBlocker);
+  const rendererWebContentsId = window.webContents.id;
+  articleBrowserControllers.set(rendererWebContentsId, articleBrowser);
+  window.once("close", () => {
+    articleBrowserControllers.delete(rendererWebContentsId);
+    articleBrowser.destroy();
   });
 
   window.setMenu(null);
@@ -110,6 +126,27 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
 });
+ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
+  assertShowArticleBrowserRequest(request);
+  return getArticleBrowserController(event).show(request);
+});
+ipcMain.handle("article-browser:hide", (event) => getArticleBrowserController(event).hide());
+ipcMain.handle("article-browser:set-bounds", (event, bounds: ArticleBrowserBounds) => {
+  assertArticleBrowserBounds(bounds);
+  getArticleBrowserController(event).setBounds(bounds);
+});
+ipcMain.handle("article-browser:back", (event) => getArticleBrowserController(event).goBack());
+ipcMain.handle("article-browser:forward", (event) => getArticleBrowserController(event).goForward());
+ipcMain.handle("article-browser:reload", (event) => getArticleBrowserController(event).reload());
+ipcMain.handle("article-browser:open-external", (event) => getArticleBrowserController(event).openExternal());
+ipcMain.handle("article-browser:set-blocking-enabled", (event, enabled: boolean) => {
+  if (typeof enabled !== "boolean") {
+    throw new Error("Invalid blocker state.");
+  }
+  return getArticleBrowserController(event).setBlockingEnabled(enabled);
+});
+ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
+ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
   startThreadResponseGeneration(threadId, force, (status) => {
     event.sender.send("threads:generation-complete", { threadId, status });
@@ -180,6 +217,12 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   initializeRepository();
+  articleSession = session.fromPartition("viper-reader-articles", { cache: false });
+  articleSession.setUserAgent(CHROME_USER_AGENT);
+  articleSession.setPermissionCheckHandler(() => false);
+  articleSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  articleBlocker = new ArticleBlocker(articleSession);
+  void articleBlocker.initialize();
   createMainWindow();
 
   app.on("activate", () => {
@@ -188,6 +231,36 @@ void app.whenReady().then(() => {
     }
   });
 });
+
+function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserController {
+  const controller = articleBrowserControllers.get(event.sender.id);
+  if (!controller || !controller.ownsSender(event.sender.id)) {
+    throw new Error("Unauthorized article browser request.");
+  }
+  return controller;
+}
+
+function assertShowArticleBrowserRequest(value: ShowArticleBrowserRequest): void {
+  if (!value || typeof value.threadId !== "string" || typeof value.url !== "string") {
+    throw new Error("Invalid article browser request.");
+  }
+  assertArticleBrowserBounds(value.bounds);
+  if (typeof value.allowUnprotected !== "boolean") {
+    throw new Error("Invalid unprotected browsing flag.");
+  }
+}
+
+function assertArticleBrowserBounds(value: ArticleBrowserBounds): void {
+  if (
+    !value
+    || !Number.isFinite(value.x)
+    || !Number.isFinite(value.y)
+    || !Number.isFinite(value.width)
+    || !Number.isFinite(value.height)
+  ) {
+    throw new Error("Invalid article browser bounds.");
+  }
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

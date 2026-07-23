@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
   AppLogEntry,
+  ArticleBrowserBounds,
+  ArticleBrowserState,
   ArticleBodyContent,
   FeedResidentPrompt,
   FeedSource,
@@ -14,7 +16,8 @@ import type {
   ThreadDetail,
   ThreadGenerationStatus,
   ThreadListItem,
-  ThreadListPage
+  ThreadListPage,
+  ShowArticleBrowserRequest
 } from "../shared/types.js";
 
 export type ViperReaderApi = {
@@ -24,6 +27,17 @@ export type ViperReaderApi = {
   countUnreadArticles: () => Promise<number>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
+  showArticleBrowser: (request: ShowArticleBrowserRequest) => Promise<ArticleBrowserState>;
+  hideArticleBrowser: () => Promise<void>;
+  setArticleBrowserBounds: (bounds: ArticleBrowserBounds) => Promise<void>;
+  articleBrowserBack: () => Promise<void>;
+  articleBrowserForward: () => Promise<void>;
+  reloadArticleBrowser: () => Promise<void>;
+  openArticleBrowserExternally: () => Promise<void>;
+  setArticleBrowserBlockingEnabled: (enabled: boolean) => Promise<ArticleBrowserState>;
+  retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
+  getArticleBrowserState: () => Promise<ArticleBrowserState>;
+  onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
   regenerateVipTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
@@ -67,6 +81,21 @@ const api: ViperReaderApi = {
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
+  showArticleBrowser: (request) => ipcRenderer.invoke("article-browser:show", request),
+  hideArticleBrowser: () => ipcRenderer.invoke("article-browser:hide"),
+  setArticleBrowserBounds: (bounds) => ipcRenderer.invoke("article-browser:set-bounds", bounds),
+  articleBrowserBack: () => ipcRenderer.invoke("article-browser:back"),
+  articleBrowserForward: () => ipcRenderer.invoke("article-browser:forward"),
+  reloadArticleBrowser: () => ipcRenderer.invoke("article-browser:reload"),
+  openArticleBrowserExternally: () => ipcRenderer.invoke("article-browser:open-external"),
+  setArticleBrowserBlockingEnabled: (enabled) => ipcRenderer.invoke("article-browser:set-blocking-enabled", enabled),
+  retryArticleBrowserBlocker: () => ipcRenderer.invoke("article-browser:retry-blocker"),
+  getArticleBrowserState: () => ipcRenderer.invoke("article-browser:get-state"),
+  onArticleBrowserState: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: ArticleBrowserState) => callback(state);
+    ipcRenderer.on("article-browser:state", listener);
+    return () => ipcRenderer.removeListener("article-browser:state", listener);
+  },
   regenerateVipTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),

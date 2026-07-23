@@ -47,6 +47,37 @@ export type ArticleBodyContent = {
   contentText: string;
 };
 
+export type ArticleBrowserBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type ArticleBrowserBlockerStatus =
+  | "initializing"
+  | "active"
+  | "disabled-for-site"
+  | "unavailable";
+
+export type ArticleBrowserState = {
+  threadId: string | null;
+  url: string;
+  title: string;
+  isLoading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  blockerStatus: ArticleBrowserBlockerStatus;
+  error: string | null;
+};
+
+export type ShowArticleBrowserRequest = {
+  threadId: string;
+  url: string;
+  bounds: ArticleBrowserBounds;
+  allowUnprotected: boolean;
+};
+
 export type ReplyRating = "good" | "poor";
 
 export type ReplyGenerationRun = {

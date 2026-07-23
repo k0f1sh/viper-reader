@@ -3,6 +3,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
+import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
 import { FeedPane } from "./components/FeedPane";
 import { FeedSettingsModal } from "./components/FeedSettingsModal";
 import { MenuBar } from "./components/MenuBar";
@@ -111,13 +112,21 @@ export function App() {
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全板共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
-  const shouldShowArticlePane = isArticlePaneVisible && Boolean(selectedThread && selectedThread.posts.length > 1);
+  const shouldShowArticlePane = threadViewMode === "replies" && isArticlePaneVisible && Boolean(selectedThread && selectedThread.posts.length > 1);
+  const isArticleBrowserSuspended =
+    isStatisticsOpen
+    || isSettingsOpen
+    || isModelSettingsOpen
+    || isResidentPromptsOpen
+    || isAddFeedOpen
+    || settingsFeed !== null;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
   const visibleThreads = showUnreadOnly ? threadList.filter((thread) => !thread.isRead) : threadList;
@@ -1481,63 +1490,73 @@ export function App() {
           />
 
           <section className="thread-workspace">
-            <section
-              className={`thread-content ${shouldShowArticlePane ? "has-article-pane" : ""}`}
-              ref={threadContentRef}
-              style={{ "--article-pane-width": `${articlePaneWidth}px` } as CSSProperties}
-            >
-              <ThreadReaderPane
+            {threadViewMode === "browser" ? (
+              <ArticleBrowserPane
                 selectedThread={selectedThread}
-                isSelectedThreadGenerating={isSelectedThreadGenerating}
-                isRegeneratingTitle={isRegeneratingSelectedTitle}
-                isPosting={isPosting}
-                postStatus={postStatus}
-                postError={postError}
-                replyName={replyName}
-                replyMail={replyMail}
-                replyBody={replyBody}
-                readMarkerNo={readMarkerNo}
-                extractedPostId={extractedPostId}
-                replyBodyRef={replyBodyRef}
-                onToggleFavorite={() => void toggleFavorite()}
-                onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
-                onGenerateResponses={(force) => void generateResponses(force)}
-                onGenerateReplies={() => void handleGenerateReplies()}
-                onPostMessage={handlePostMessage}
-                onReplyNameChange={setReplyName}
-                onReplyMailChange={setReplyMail}
-                onReplyBodyChange={setReplyBody}
-                onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
-                onReplyToPost={replyToPost}
-                onScrollToPost={scrollToPost}
-                onPostNoMouseEnter={handlePostNoMouseEnter}
-                onPostNoMouseLeave={handlePostNoMouseLeave}
-                onPostIdClick={handleExtractPostId}
-                onPostIdMouseEnter={handlePostIdMouseEnter}
-                onPostIdMouseLeave={handleMouseLeaveWithDelay}
-                onAnchorMouseEnter={handleAnchorMouseEnter}
-                onAnchorMouseLeave={handleAnchorMouseLeave}
-                isArticlePaneVisible={shouldShowArticlePane}
-                onToggleArticlePane={toggleArticlePane}
+                isActive
+                isSuspended={isArticleBrowserSuspended}
+                onShowReplies={() => setThreadViewMode("replies")}
               />
-              {shouldShowArticlePane ? (
-                <>
-                  <div
-                    aria-label="レス一覧と記事本文の境界"
-                    aria-orientation="vertical"
-                    className="article-pane-splitter"
-                    onMouseDown={startArticlePaneResize}
-                    role="separator"
-                  />
-                  <ArticleBodyPane
-                    selectedThread={selectedThread}
-                    articleBody={articleBody}
-                    isLoading={isArticleBodyLoading}
-                    onClose={toggleArticlePane}
-                  />
-                </>
-              ) : null}
-            </section>
+            ) : (
+              <section
+                className={`thread-content ${shouldShowArticlePane ? "has-article-pane" : ""}`}
+                ref={threadContentRef}
+                style={{ "--article-pane-width": `${articlePaneWidth}px` } as CSSProperties}
+              >
+                <ThreadReaderPane
+                  selectedThread={selectedThread}
+                  isSelectedThreadGenerating={isSelectedThreadGenerating}
+                  isRegeneratingTitle={isRegeneratingSelectedTitle}
+                  isPosting={isPosting}
+                  postStatus={postStatus}
+                  postError={postError}
+                  replyName={replyName}
+                  replyMail={replyMail}
+                  replyBody={replyBody}
+                  readMarkerNo={readMarkerNo}
+                  extractedPostId={extractedPostId}
+                  replyBodyRef={replyBodyRef}
+                  onToggleFavorite={() => void toggleFavorite()}
+                  onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
+                  onGenerateResponses={(force) => void generateResponses(force)}
+                  onGenerateReplies={() => void handleGenerateReplies()}
+                  onPostMessage={handlePostMessage}
+                  onReplyNameChange={setReplyName}
+                  onReplyMailChange={setReplyMail}
+                  onReplyBodyChange={setReplyBody}
+                  onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
+                  onReplyToPost={replyToPost}
+                  onScrollToPost={scrollToPost}
+                  onPostNoMouseEnter={handlePostNoMouseEnter}
+                  onPostNoMouseLeave={handlePostNoMouseLeave}
+                  onPostIdClick={handleExtractPostId}
+                  onPostIdMouseEnter={handlePostIdMouseEnter}
+                  onPostIdMouseLeave={handleMouseLeaveWithDelay}
+                  onAnchorMouseEnter={handleAnchorMouseEnter}
+                  onAnchorMouseLeave={handleAnchorMouseLeave}
+                  isArticlePaneVisible={shouldShowArticlePane}
+                  onToggleArticlePane={toggleArticlePane}
+                  onShowArticleBrowser={() => setThreadViewMode("browser")}
+                />
+                {shouldShowArticlePane ? (
+                  <>
+                    <div
+                      aria-label="レス一覧と記事本文の境界"
+                      aria-orientation="vertical"
+                      className="article-pane-splitter"
+                      onMouseDown={startArticlePaneResize}
+                      role="separator"
+                    />
+                    <ArticleBodyPane
+                      selectedThread={selectedThread}
+                      articleBody={articleBody}
+                      isLoading={isArticleBodyLoading}
+                      onClose={toggleArticlePane}
+                    />
+                  </>
+                ) : null}
+              </section>
+            )}
           </section>
         </section>
       </div>

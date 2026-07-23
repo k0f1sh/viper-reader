@@ -14,6 +14,7 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 - AI住民との対話（書き込み）と続きのレス生成
 - レスプレビューポップアップ
 - IDポップアップと同一住民のレス抽出
+- レス表示と、広告・追跡通信を遮断する元記事ブラウザの切り替え
 - スレッドのお気に入り（ブックマーク）登録
 - 板（フィード）ごとの住民設定（カスタムプロンプト）
 - レス生成 AI モデル（3.5 flash / 3.1 flash lite）切り替え
@@ -28,6 +29,7 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 - Electron, TypeScript
 - React, CSS, Vite
 - @google/genai (gemini-3.1-flash-lite, gemini-3.5-flash)
+- @ghostery/adblocker-electron
 - SQLite
 - rss-parser, cheerio
 
@@ -81,3 +83,11 @@ viper-reader
 
 ## 免責事項
 本アプリは個人利用専用の情報収集パロディツールです。Web サイト運営者に負荷をかけないよう、キャッシュ機能および robots.txt 判定を備えています。
+
+## 広告フィルターとライセンス
+
+元記事ブラウザの広告・追跡通信の遮断には、以下のソフトウェアとフィルターリストを利用します。フィルターは初回利用時に各配布元から取得し、ローカルへキャッシュします。
+
+- [@ghostery/adblocker-electron](https://github.com/ghostery/adblocker) — Mozilla Public License 2.0
+- [EasyList / EasyPrivacy](https://easylist.to/) — GNU General Public License または Creative Commons Attribution-ShareAlike
+- [AdGuard Japanese filter](https://github.com/AdguardTeam/AdguardFilters) — GNU General Public License 3.0

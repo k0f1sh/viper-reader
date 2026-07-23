@@ -1,4 +1,5 @@
 import _robotsParser from "robots-parser";
+import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
 
 // CommonJSのデフォルトエクスポート型定義を補正
 const robotsParser = _robotsParser as unknown as (url: string, robotstxt: string) => {
@@ -6,7 +7,6 @@ const robotsParser = _robotsParser as unknown as (url: string, robotstxt: string
   isDisallowed(url: string, ua?: string): boolean | undefined;
 };
 
-const CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 const BOT_NAME = "*";
 
 export type RobotsCheckResult = {
