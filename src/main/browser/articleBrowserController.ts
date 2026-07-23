@@ -227,6 +227,20 @@ export class ArticleBrowserController {
     this.view = view;
 
     const contents = view.webContents;
+    contents.on("before-input-event", (event, input) => {
+      if (
+        input.type === "keyDown"
+        && input.key.toLowerCase() === "o"
+        && !input.isAutoRepeat
+        && !input.control
+        && !input.meta
+        && !input.alt
+        && !input.shift
+      ) {
+        event.preventDefault();
+        this.owner.webContents.send("article-browser:cycle-view-mode");
+      }
+    });
     contents.setWindowOpenHandler((details) => {
       const safeUrl = parseInternalArticleUrl(details.url);
       if (safeUrl && (details.disposition === "foreground-tab" || details.disposition === "background-tab" || details.disposition === "default")) {

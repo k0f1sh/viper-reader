@@ -37,6 +37,8 @@ type ThreadReaderPaneProps = {
   isArticlePaneVisible: boolean;
   onToggleArticlePane: () => void;
   onShowArticleBrowser: () => void;
+  onShowSplitView: () => void;
+  isSplitView: boolean;
 };
 
 export function ThreadReaderPane({
@@ -72,7 +74,9 @@ export function ThreadReaderPane({
   onAnchorMouseLeave,
   isArticlePaneVisible,
   onToggleArticlePane,
-  onShowArticleBrowser
+  onShowArticleBrowser,
+  onShowSplitView,
+  isSplitView
 }: ThreadReaderPaneProps) {
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
@@ -101,6 +105,9 @@ export function ThreadReaderPane({
               <div className="original-title">元記事: {selectedThread.originalTitle}</div>
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <button className="deep-dive-button" disabled={isSplitView} onClick={onShowSplitView} type="button">
+                半々
+              </button>
               <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
                 元記事
               </button>

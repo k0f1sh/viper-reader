@@ -10,6 +10,8 @@ type ArticleBrowserPaneProps = {
   isActive: boolean;
   isSuspended: boolean;
   onShowReplies: () => void;
+  onShowSplitView: () => void;
+  isSplitView: boolean;
 };
 
 const initialState: ArticleBrowserState = {
@@ -27,7 +29,9 @@ export function ArticleBrowserPane({
   selectedThread,
   isActive,
   isSuspended,
-  onShowReplies
+  onShowReplies,
+  onShowSplitView,
+  isSplitView
 }: ArticleBrowserPaneProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [browserState, setBrowserState] = useState<ArticleBrowserState>(initialState);
@@ -100,6 +104,7 @@ export function ArticleBrowserPane({
     <section className="article-browser-pane" aria-label="元記事ブラウザ">
       <div className="article-browser-toolbar">
         <button onClick={onShowReplies} type="button">レス表示</button>
+        <button disabled={isSplitView} onClick={onShowSplitView} type="button">半々</button>
         <span className="article-browser-separator" aria-hidden="true" />
         <button
           disabled={!browserState.canGoBack}

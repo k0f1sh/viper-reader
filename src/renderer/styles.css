@@ -257,6 +257,20 @@ body.is-article-pane-resizing * {
   grid-template-columns: minmax(0, 1fr) 6px clamp(260px, var(--article-pane-width, 360px), calc(100% - 420px));
 }
 
+.thread-split-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.thread-split-divider {
+  border-right: 1px solid #808080;
+  border-left: 1px solid #ffffff;
+  background: #c0c0c0;
+}
+
 .article-browser-pane {
   display: flex;
   flex-direction: column;
