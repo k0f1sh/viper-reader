@@ -131,12 +131,6 @@ export function App() {
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
   const visibleThreads = showUnreadOnly ? threadList.filter((thread) => !thread.isRead) : threadList;
 
-  useEffect(() => window.viperReader?.onCycleArticleBrowserViewMode(() => {
-    setThreadViewMode((current) =>
-      current === "replies" ? "split" : current === "split" ? "browser" : "replies"
-    );
-  }), []);
-
   useEffect(() => {
     void reloadFeeds();
     void loadSettings();

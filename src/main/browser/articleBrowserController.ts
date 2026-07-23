@@ -238,7 +238,9 @@ export class ArticleBrowserController {
         && !input.shift
       ) {
         event.preventDefault();
-        this.owner.webContents.send("article-browser:cycle-view-mode");
+        this.owner.webContents.focus();
+        this.owner.webContents.sendInputEvent({ type: "keyDown", keyCode: "O" });
+        this.owner.webContents.sendInputEvent({ type: "keyUp", keyCode: "O" });
       }
     });
     contents.setWindowOpenHandler((details) => {
