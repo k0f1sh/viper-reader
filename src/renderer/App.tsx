@@ -419,6 +419,12 @@ export function App() {
         const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
         const next = visibleThreads[nextIndex];
         if (next) { event.preventDefault(); selectThread(next, selectedFeedId === allFeedsId ? allFeedsId : undefined); }
+      } else if (event.key === "i") {
+        const first = visibleThreads[0];
+        if (first) {
+          event.preventDefault();
+          selectThread(first, selectedFeedId === allFeedsId ? allFeedsId : undefined);
+        }
       } else if (event.key === "h" || event.key === "l") {
         const feedIds = [allFeedsId, ...feedList.map((feed) => feed.id)];
         const currentIndex = feedIds.indexOf(selectedFeedId);
@@ -1539,6 +1545,7 @@ export function App() {
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
         <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd>・<kbd>P</kbd>/<kbd>N</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
+        <span><kbd>I</kbd> 先頭スレ</span>
         <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
         <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
         <span><kbd>W</kbd> 書き込み</span>
