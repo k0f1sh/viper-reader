@@ -1,4 +1,4 @@
-import type { ThreadDetail } from "../../shared/types.js";
+import type { ThreadDetail, ThreadGenerationProgress } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
@@ -22,7 +22,8 @@ export function openThread(threadId: string): ThreadDetail | null {
 export function startThreadResponseGeneration(
   threadId: string,
   force: boolean,
-  onComplete: (status: "done" | "skipped" | "error") => void
+  onComplete: (status: "done" | "skipped" | "error") => void,
+  onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void = () => undefined
 ): void {
   const thread = getThread(threadId);
   if (!thread) {
@@ -40,11 +41,12 @@ export function startThreadResponseGeneration(
 
   void (async () => {
     try {
-      const scrapedBody = await getOrScrapeArticleBody(thread);
+      onProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
+      const scrapedBody = await getOrScrapeArticleBody(thread, onProgress);
 
-      // 3. レスの生成・保存
+      onProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
       const articleSummary = getArticleSummary(threadId);
-      const status = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary);
+      const status = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, onProgress);
       onComplete(status);
     } catch (error) {
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
@@ -55,12 +57,16 @@ export function startThreadResponseGeneration(
   })();
 }
 
-async function getOrScrapeArticleBody(thread: ThreadDetail): Promise<string | null> {
+async function getOrScrapeArticleBody(
+  thread: ThreadDetail,
+  onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void
+): Promise<string | null> {
   let scrapedBody = getArticleBody(thread.id);
   if (scrapedBody) {
     return scrapedBody;
   }
 
+  onProgress({ stage: "fetching-article", message: "元記事を取得・本文抽出中..." });
   const scrapeResult = await scrapeArticle(thread.url);
   recordArticleFetchLog({
     feedItemId: thread.id,
@@ -85,10 +91,12 @@ async function getOrScrapeArticleBody(thread: ThreadDetail): Promise<string | nu
 async function generateAndSaveThreadResponses(
   thread: ThreadDetail,
   scrapedBody: string | null,
-  articleSummary: string | null = null
+  articleSummary: string | null,
+  onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void
 ): Promise<"done" | "skipped" | "error"> {
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
   const promptHash = buildVipThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
+  onProgress({ stage: "generating-posts", message: "AI住民が >>2 以降のレスを生成中..." });
   const generated = await generateThreadResponses(thread, {
     residentPrompt: residentPrompt?.prompt ?? null,
     promptHash,
@@ -107,6 +115,7 @@ async function generateAndSaveThreadResponses(
   }
 
   if (generated.posts.length > 0) {
+    onProgress({ stage: "saving-posts", message: "生成したレスを保存中..." });
     saveThreadResponsePosts(
       {
         feedItemId: thread.id,

@@ -15,6 +15,7 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationStatus,
+  ThreadGenerationProgress,
   ThreadListItem,
   ThreadListPage,
   ShowArticleBrowserRequest
@@ -52,6 +53,7 @@ export type ViperReaderApi = {
   refreshFeed: (feedId: string) => Promise<RefreshFeedResult>;
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
+  onThreadGenerationProgress: (callback: (progress: ThreadGenerationProgress) => void) => () => void;
   onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error" }) => void) => () => void;
   listLogs: () => Promise<AppLogEntry[]>;
   copyLogs: (text: string) => Promise<void>;
@@ -122,6 +124,13 @@ const api: ViperReaderApi = {
     ipcRenderer.on("threads:generation-complete", listener);
     return () => {
       ipcRenderer.removeListener("threads:generation-complete", listener);
+    };
+  },
+  onThreadGenerationProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: ThreadGenerationProgress) => callback(progress);
+    ipcRenderer.on("threads:generation-progress", listener);
+    return () => {
+      ipcRenderer.removeListener("threads:generation-progress", listener);
     };
   },
   onPostStatus: (callback) => {

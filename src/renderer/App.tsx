@@ -49,6 +49,7 @@ export function App() {
   selectedThreadIdRef.current = selectedThreadId;
   const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
   const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
+  const [threadGenerationProgress, setThreadGenerationProgress] = useState<Map<string, string>>(() => new Map());
   const [completedGenerationThreadIds, setCompletedGenerationThreadIds] = useState<Set<string>>(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
@@ -270,7 +271,26 @@ export function App() {
       return;
     }
 
+    return window.viperReader.onThreadGenerationProgress((progress) => {
+      setThreadGenerationProgress((current) => {
+        const next = new Map(current);
+        next.set(progress.threadId, progress.message);
+        return next;
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!window.viperReader) {
+      return;
+    }
+
     return window.viperReader.onThreadGenerationComplete((status) => {
+      setThreadGenerationProgress((current) => {
+        const next = new Map(current);
+        next.delete(status.threadId);
+        return next;
+      });
       setGeneratingThreadIds((currentIds) => {
         const nextIds = new Set(currentIds);
         nextIds.delete(status.threadId);
@@ -990,6 +1010,11 @@ export function App() {
       nextIds.add(selectedThread.id);
       return nextIds;
     });
+    setThreadGenerationProgress((current) => {
+      const next = new Map(current);
+      next.set(selectedThread.id, "レス生成を準備中...");
+      return next;
+    });
 
     try {
       await window.viperReader.generateThreadResponses(selectedThread.id, force);
@@ -998,6 +1023,11 @@ export function App() {
         const nextIds = new Set(currentIds);
         nextIds.delete(selectedThread.id);
         return nextIds;
+      });
+      setThreadGenerationProgress((current) => {
+        const next = new Map(current);
+        next.delete(selectedThread.id);
+        return next;
       });
     }
   }
@@ -1550,6 +1580,7 @@ export function App() {
                 <ThreadReaderPane
                   selectedThread={selectedThread}
                   isSelectedThreadGenerating={isSelectedThreadGenerating}
+                  generationProgressMessage={selectedThread ? threadGenerationProgress.get(selectedThread.id) ?? "" : ""}
                   isRegeneratingTitle={isRegeneratingSelectedTitle}
                   isPosting={isPosting}
                   postStatus={postStatus}

@@ -6,6 +6,7 @@ import { PostBody } from "./PostBody";
 type ThreadReaderPaneProps = {
   selectedThread: ThreadDetail | null;
   isSelectedThreadGenerating: boolean;
+  generationProgressMessage: string;
   isRegeneratingTitle: boolean;
   isPosting: boolean;
   postStatus: "idle" | "writing" | "generating" | "done" | "error";
@@ -42,6 +43,7 @@ type ThreadReaderPaneProps = {
 export function ThreadReaderPane({
   selectedThread,
   isSelectedThreadGenerating,
+  generationProgressMessage,
   isRegeneratingTitle,
   isPosting,
   postStatus,
@@ -207,8 +209,8 @@ export function ThreadReaderPane({
               </div>
             ) : null}
             {isSelectedThreadGenerating ? (
-              <div className="thread-response-loading">
-                <span>レス生成中...</span>
+              <div className="thread-response-loading" role="status" aria-live="polite">
+                <span>{generationProgressMessage || "レス生成を準備中..."}</span>
                 <span className="progress-blocks" aria-hidden="true" />
               </div>
             ) : null}

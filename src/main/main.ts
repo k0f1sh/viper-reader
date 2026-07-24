@@ -163,6 +163,8 @@ ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserControll
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
   startThreadResponseGeneration(threadId, force, (status) => {
     event.sender.send("threads:generation-complete", { threadId, status });
+  }, (progress) => {
+    event.sender.send("threads:generation-progress", { threadId, ...progress });
   });
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));

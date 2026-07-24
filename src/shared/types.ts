@@ -132,6 +132,12 @@ export type ThreadGenerationStatus = {
   status: "done" | "skipped" | "error";
 };
 
+export type ThreadGenerationProgress = {
+  threadId: string;
+  stage: "checking-cache" | "fetching-article" | "preparing-context" | "generating-posts" | "saving-posts";
+  message: string;
+};
+
 export type AppLogEntry = {
   id: string;
   level: "log" | "info" | "warn" | "error";
