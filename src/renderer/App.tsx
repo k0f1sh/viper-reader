@@ -427,7 +427,11 @@ export function App() {
         void window.viperReader?.scrollArticleBrowser(event.shiftKey ? -1 : 1);
       } else if (event.key === "p" || event.key === "n") {
         event.preventDefault();
-        scrollPosts(event.key === "n" ? 1 : -1);
+        if (threadViewMode === "browser") {
+          void window.viperReader?.scrollArticleBrowser(event.key === "n" ? 1 : -1);
+        } else {
+          scrollPosts(event.key === "n" ? 1 : -1);
+        }
       } else if (event.key === "j" || event.key === "k") {
         const delta = event.key === "j" ? 1 : -1;
         const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
@@ -1570,7 +1574,8 @@ export function App() {
       </div>
 
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
-        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd>・<kbd>P</kbd>/<kbd>N</kbd> レススクロール</span>
+        <span><kbd>P</kbd>/<kbd>N</kbd> レス／元記事スクロール</span>
+        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
         <span><kbd>I</kbd> 先頭スレ</span>
         <span><kbd>O</kbd> レス／元記事</span>
