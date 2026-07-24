@@ -16,7 +16,7 @@
 
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRules.js";
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v11";
+export const vipThreadResponsePromptHash = "vip-thread-response-v12";
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {
@@ -79,12 +79,13 @@ URL: ${input.url}
    - 専門家を自称したり、記事にない背景を知ったかぶりしたりせず、記事から確認できる技術的な中心点と、エンジニアにとっての実用上の影響を短く伝えてください。
    - 事実と感想を混同せず、記事だけでは断言できない点は「そこはまだ分からん」「ソースだけでは判断できん」などと明示してください。
    - 書式は記事に合わせ、次の形式から自然なものを選んでください。毎回同じ構成にはしないでください：
-     - 「今北産業」のように2〜3行で要点を圧縮する。
+     - 記事の要点を2〜3行に圧縮する短文整理。
      - 何が起きたか、技術的なポイント、実用上の影響を短い段落で順に話す。
      - 最重要点を最初に出し、その理由や注意点を補足する速報整理。
      - 実装・運用・保守への影響を中心に整理する現場目線。
      - 記事の主張と、まだ判断できない点を分ける検証目線。
    - 箇条書き、短い段落、1〜3行の改行を記事に合わせて使い分けてください。固定の見出しや定型文を毎回繰り返さないでください。
+   - スレッド開始直後のレスなので、「今北産業」「今来た」など途中参加を示す表現は使わないでください。
    - 口調は事情通であっても堅い解説調にせず、VIP住民らしい軽さを保ってください。
    - **>>3を煽る文言は入れないでください。**
 2. **レス番3 (no: 3) 以降の役割**:
