@@ -239,13 +239,23 @@ export class ArticleBrowserController {
     const contents = view.webContents;
     contents.on("before-input-event", (event, input) => {
       const key = input.key.toLowerCase();
-      const isPlainKeyDown =
-        input.type === "keyDown"
-        && !input.isAutoRepeat
-        && !input.control
+      const hasNoModifiers =
+        !input.control
         && !input.meta
         && !input.alt
         && !input.shift;
+      const isPlainKeyDown =
+        input.type === "keyDown"
+        && !input.isAutoRepeat
+        && hasNoModifiers;
+      if (input.type === "keyDown" && hasNoModifiers && (key === "j" || key === "k")) {
+        event.preventDefault();
+        this.owner.webContents.focus();
+        const keyCode = key === "j" ? "J" : "K";
+        this.owner.webContents.sendInputEvent({ type: "keyDown", keyCode });
+        this.owner.webContents.sendInputEvent({ type: "keyUp", keyCode });
+        return;
+      }
       if (isPlainKeyDown && (key === "n" || key === "p")) {
         event.preventDefault();
         this.scroll(key === "n" ? 1 : -1);
