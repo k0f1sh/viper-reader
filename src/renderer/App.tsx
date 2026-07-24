@@ -112,7 +112,7 @@ export function App() {
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser" | "split">("replies");
+  const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全板共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
@@ -463,9 +463,7 @@ export function App() {
         event.preventDefault(); void toggleFavorite();
       } else if (event.key === "o") {
         event.preventDefault();
-        setThreadViewMode((current) =>
-          current === "replies" ? "split" : current === "split" ? "browser" : "replies"
-        );
+        setThreadViewMode((current) => current === "replies" ? "browser" : "replies");
       } else if (event.key === "U") {
         event.preventDefault(); void toggleSelectedThreadRead();
       }
@@ -1506,58 +1504,7 @@ export function App() {
                 isActive
                 isSuspended={isArticleBrowserSuspended}
                 onShowReplies={() => setThreadViewMode("replies")}
-                onShowSplitView={() => setThreadViewMode("split")}
-                isSplitView={false}
               />
-            ) : threadViewMode === "split" ? (
-              <section className="thread-split-view">
-                <ThreadReaderPane
-                  selectedThread={selectedThread}
-                  isSelectedThreadGenerating={isSelectedThreadGenerating}
-                  isRegeneratingTitle={isRegeneratingSelectedTitle}
-                  isPosting={isPosting}
-                  postStatus={postStatus}
-                  postError={postError}
-                  replyName={replyName}
-                  replyMail={replyMail}
-                  replyBody={replyBody}
-                  readMarkerNo={readMarkerNo}
-                  extractedPostId={extractedPostId}
-                  replyBodyRef={replyBodyRef}
-                  onToggleFavorite={() => void toggleFavorite()}
-                  onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
-                  onGenerateResponses={(force) => void generateResponses(force)}
-                  onGenerateReplies={() => void handleGenerateReplies()}
-                  onPostMessage={handlePostMessage}
-                  onReplyNameChange={setReplyName}
-                  onReplyMailChange={setReplyMail}
-                  onReplyBodyChange={setReplyBody}
-                  onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
-                  onReplyToPost={replyToPost}
-                  onScrollToPost={scrollToPost}
-                  onPostNoMouseEnter={handlePostNoMouseEnter}
-                  onPostNoMouseLeave={handlePostNoMouseLeave}
-                  onPostIdClick={handleExtractPostId}
-                  onPostIdMouseEnter={handlePostIdMouseEnter}
-                  onPostIdMouseLeave={handleMouseLeaveWithDelay}
-                  onAnchorMouseEnter={handleAnchorMouseEnter}
-                  onAnchorMouseLeave={handleAnchorMouseLeave}
-                  isArticlePaneVisible={false}
-                  onToggleArticlePane={toggleArticlePane}
-                  onShowArticleBrowser={() => setThreadViewMode("browser")}
-                  onShowSplitView={() => setThreadViewMode("split")}
-                  isSplitView
-                />
-                <div className="thread-split-divider" aria-hidden="true" />
-                <ArticleBrowserPane
-                  selectedThread={selectedThread}
-                  isActive
-                  isSuspended={isArticleBrowserSuspended}
-                  onShowReplies={() => setThreadViewMode("replies")}
-                  onShowSplitView={() => setThreadViewMode("split")}
-                  isSplitView
-                />
-              </section>
             ) : (
               <section
                 className={`thread-content ${shouldShowArticlePane ? "has-article-pane" : ""}`}
@@ -1598,8 +1545,6 @@ export function App() {
                   isArticlePaneVisible={shouldShowArticlePane}
                   onToggleArticlePane={toggleArticlePane}
                   onShowArticleBrowser={() => setThreadViewMode("browser")}
-                  onShowSplitView={() => setThreadViewMode("split")}
-                  isSplitView={false}
                 />
                 {shouldShowArticlePane ? (
                   <>
@@ -1628,7 +1573,7 @@ export function App() {
         <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd>・<kbd>P</kbd>/<kbd>N</kbd> レススクロール</span>
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
         <span><kbd>I</kbd> 先頭スレ</span>
-        <span><kbd>O</kbd> レス／半々／元記事</span>
+        <span><kbd>O</kbd> レス／元記事</span>
         <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
         <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
         <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>

@@ -135,7 +135,7 @@ export class ArticleBrowserController {
     }
     const multiplier = direction < 0 ? -1 : 1;
     void this.view.webContents.executeJavaScript(
-      `window.scrollBy({ top: ${multiplier} * Math.max(80, Math.round(window.innerHeight * 0.85)), behavior: "smooth" });`
+      `window.scrollBy({ top: ${multiplier} * Math.max(80, Math.round(window.innerHeight / 3)), behavior: "smooth" });`
     );
   }
 
