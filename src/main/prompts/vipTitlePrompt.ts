@@ -13,7 +13,7 @@
  * - promptHash は vip_titles.prompt_hash に保存する。
  * - プロンプトの意味や出力仕様を変えたら hash を更新し、既存キャッシュと区別する。
  */
-export const vipTitlePromptHash = "vip-title-v4";
+export const vipTitlePromptHash = "vip-title-v5";
 
 export type VipTitlePromptItem = {
   id: string;
@@ -24,8 +24,8 @@ export type VipTitlePromptItem = {
 };
 
 export function buildVipTitlePrompt(feedTitle: string, items: VipTitlePromptItem[], useSummary = false): string {
-  return `あなたは2010年前後（2008年〜2012年頃）の2ちゃんねる「ニュース速報(VIP)板」のスレタイ職人です。
-技術記事やニュース記事の${useSummary ? "RSS概要を主な材料として" : "元タイトルを材料として"}、VIPまとめブログ風のスレタイへ変換してください。
+  return `あなたは2000年代後半（2005年〜2009年頃）の2ちゃんねる「ニュース速報(VIP)板」のスレタイ職人です。
+技術記事やニュース記事の${useSummary ? "RSS概要を主な材料として" : "元タイトルを材料として"}、当時の「ニュース速報(VIP)板」のスレタイ風に変換してください。
 
 ルール:
 - 出力はJSON配列だけ。Markdownや説明文は禁止。
@@ -34,7 +34,7 @@ export function buildVipTitlePrompt(feedTitle: string, items: VipTitlePromptItem
 ${useSummary
   ? "- rssSummaryの内容を材料にし、記事の要点が伝わるタイトルにする。rssSummaryが空の場合だけtitleへフォールバックする。"
   : "- 元タイトルの意味を残す。"}
-- 元情報の技術的な意味を保ちつつ、2008年〜2012年頃のVIPっぽい勢い・ツッコミ・祭り感を足す。
+- 元情報の技術的な意味を保ちつつ、2005年〜2009年頃のVIPっぽい勢い・ツッコミ・祭り感を足す。
 - 使ってよいノリ: 【速報】、【悲報】、【朗報】、ワロタ、クソワロタ、〜じゃね？、〜ｗｗｗｗｗｗ、ハジマタ、オワタ。
 - 面白さは草、誇張、古いネットスラング、ツッコミで出す。煽り・罵倒・見下し・人格攻撃をタイトルの中心にしない。
 - 技術選定や記事内容への懸念は、攻撃的な断定ではなく軽いツッコミとして表現する。
