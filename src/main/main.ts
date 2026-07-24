@@ -138,6 +138,12 @@ ipcMain.handle("article-browser:set-bounds", (event, bounds: ArticleBrowserBound
 ipcMain.handle("article-browser:back", (event) => getArticleBrowserController(event).goBack());
 ipcMain.handle("article-browser:forward", (event) => getArticleBrowserController(event).goForward());
 ipcMain.handle("article-browser:reload", (event) => getArticleBrowserController(event).reload());
+ipcMain.handle("article-browser:scroll", (event, direction: number) => {
+  if (direction !== -1 && direction !== 1) {
+    throw new Error("Invalid article browser scroll direction.");
+  }
+  getArticleBrowserController(event).scroll(direction);
+});
 ipcMain.handle("article-browser:open-external", (event) => getArticleBrowserController(event).openExternal());
 ipcMain.handle("article-browser:set-blocking-enabled", (event, enabled: boolean) => {
   if (typeof enabled !== "boolean") {

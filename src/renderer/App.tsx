@@ -422,7 +422,10 @@ export function App() {
 
       if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
-      if (event.key === "p" || event.key === "n") {
+      if (event.key === " " && threadViewMode !== "replies") {
+        event.preventDefault();
+        void window.viperReader?.scrollArticleBrowser(event.shiftKey ? -1 : 1);
+      } else if (event.key === "p" || event.key === "n") {
         event.preventDefault();
         scrollPosts(event.key === "n" ? 1 : -1);
       } else if (event.key === "j" || event.key === "k") {
@@ -469,7 +472,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId]);
+  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId, threadViewMode]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -1626,6 +1629,7 @@ export function App() {
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
         <span><kbd>I</kbd> 先頭スレ</span>
         <span><kbd>O</kbd> レス／半々／元記事</span>
+        <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
         <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
         <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
         <span><kbd>W</kbd> 書き込み</span>

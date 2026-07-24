@@ -129,6 +129,16 @@ export class ArticleBrowserController {
     this.view?.webContents.reload();
   }
 
+  scroll(direction: -1 | 1): void {
+    if (!this.view || !this.isVisible) {
+      return;
+    }
+    const multiplier = direction < 0 ? -1 : 1;
+    void this.view.webContents.executeJavaScript(
+      `window.scrollBy({ top: ${multiplier} * Math.max(80, Math.round(window.innerHeight * 0.85)), behavior: "smooth" });`
+    );
+  }
+
   async openExternal(): Promise<void> {
     const safeUrl = parseExternalWebUrl(this.state.url);
     if (!safeUrl) {
