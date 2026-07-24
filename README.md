@@ -50,7 +50,7 @@ npm install
 npm run dev:app
 ```
 
-起動後、上部メニューの「設定」から Gemini API キーを登録してください。キーはローカルの SQLite 設定に保存され、保存済みの値が Renderer に返されることはありません。
+起動後、上部メニューの「設定」から Gemini API キーを登録してください。macOS・Windows では Electron の `safeStorage` を使って暗号化してからローカルの SQLite 設定に保存します。Linux では環境差による資格情報ストアの利用不能を避けるため、SQLite に平文で保存します。共有端末や他のユーザーがデータベースを読める環境では、アプリ内保存ではなく環境変数の使用を推奨します。保存済みの値が Renderer に返されることはありません。
 
 環境変数 `GEMINI_API_KEY` または `GOOGLE_API_KEY` もフォールバックとして利用できますが、アプリ内設定が優先されます。
 

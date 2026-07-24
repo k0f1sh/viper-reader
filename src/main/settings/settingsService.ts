@@ -1,3 +1,4 @@
+import { safeStorage } from "electron";
 import { getDatabase } from "../db/database.js";
 import type { GeminiApiKeyStatus } from "../../shared/types.js";
 
@@ -8,6 +9,8 @@ const defaultTitleModel = "gemini-3.5-flash-lite";
 const optimizerModelSettingKey = "optimizerModel";
 const defaultOptimizerModel = "gemini-3.6-flash";
 const geminiApiKeySettingKey = "geminiApiKey";
+const encryptedSettingPrefix = "safe-storage:v1:";
+const plainTextSettingPrefix = "plain-text:v1:";
 const rendererSettingKeys = new Set([
   "replyModel",
   "titleModel",
@@ -55,16 +58,18 @@ export function saveRendererUserSetting(key: string, value: string): void {
 }
 
 export function getGeminiApiKey(): string | null {
-  const storedKey = getUserSetting(geminiApiKeySettingKey)?.trim();
-  if (storedKey) {
-    return storedKey;
+  const storedValue = getUserSetting(geminiApiKeySettingKey)?.trim();
+  if (storedValue) {
+    return readStoredGeminiApiKey(storedValue);
   }
 
   return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || null;
 }
 
 export function getGeminiApiKeyStatus(): GeminiApiKeyStatus {
-  if (getUserSetting(geminiApiKeySettingKey)?.trim()) {
+  const storedValue = getUserSetting(geminiApiKeySettingKey)?.trim();
+  if (storedValue) {
+    readStoredGeminiApiKey(storedValue);
     return { configured: true, source: "settings" };
   }
 
@@ -81,7 +86,7 @@ export function saveGeminiApiKey(apiKey: string): GeminiApiKeyStatus {
     throw new Error("Gemini API キーを入力してください。");
   }
 
-  saveUserSetting(geminiApiKeySettingKey, normalizedKey);
+  saveUserSetting(geminiApiKeySettingKey, encodeGeminiApiKeyForStorage(normalizedKey));
   return { configured: true, source: "settings" };
 }
 
@@ -100,6 +105,41 @@ export function getTitleGenerationModel(): string {
 
 export function getPromptOptimizerModel(): string {
   return getUserSetting(optimizerModelSettingKey) || defaultOptimizerModel;
+}
+
+function readStoredGeminiApiKey(storedValue: string): string {
+  if (storedValue.startsWith(plainTextSettingPrefix)) {
+    return storedValue.slice(plainTextSettingPrefix.length);
+  }
+
+  if (!storedValue.startsWith(encryptedSettingPrefix)) {
+    saveUserSetting(geminiApiKeySettingKey, encodeGeminiApiKeyForStorage(storedValue));
+    return storedValue;
+  }
+
+  const encodedValue = storedValue.slice(encryptedSettingPrefix.length);
+  try {
+    return safeStorage.decryptString(Buffer.from(encodedValue, "base64"));
+  } catch {
+    throw new Error(
+      "保存済みの Gemini API キーを復号できません。保存済みキーを削除して、もう一度登録してください。"
+    );
+  }
+}
+
+function encodeGeminiApiKeyForStorage(apiKey: string): string {
+  if (process.platform === "linux") {
+    return `${plainTextSettingPrefix}${apiKey}`;
+  }
+
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error(
+      "この環境では OS の安全な資格情報ストアを利用できないため、Gemini API キーを保存できません。"
+    );
+  }
+
+  const encrypted = safeStorage.encryptString(apiKey);
+  return `${encryptedSettingPrefix}${encrypted.toString("base64")}`;
 }
 
 function assertRendererSettingKey(key: string): void {

@@ -60,7 +60,8 @@ export function SettingsModal({
               value={apiKey}
             />
             <p className="settings-help">
-              キーはこの端末の SQLite 設定に保存します。保存済みの値は画面へ再表示しません。
+              macOS・Windows では暗号化して保存します。Linux ではローカルの SQLite に平文で保存します。
+              共有端末では環境変数の使用を推奨します。保存済みの値は画面へ再表示しません。
             </p>
           </fieldset>
 
