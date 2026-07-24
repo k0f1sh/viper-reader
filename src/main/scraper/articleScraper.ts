@@ -1,6 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
+import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { checkRobotsTxt } from "./robotsTxtChecker.js";
 
 export type ScrapingResult = {
@@ -11,6 +12,8 @@ export type ScrapingResult = {
   contentSize: number; // 取得したHTMLのサイズ（バイト数）
   robotsResult: "allowed" | "disallowed" | "fetch_error" | "fetch_timeout";
 };
+
+const maxArticleBytes = 10 * 1024 * 1024;
 
 /**
  * 指定されたURLから記事の本文をスクレイピングして抽出します。
@@ -38,11 +41,11 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
   // 2. HTMLの取得
   let html = "";
   try {
-    const response = await fetch(targetUrl, {
+    const response = await safeFetch(targetUrl, {
       headers: {
         "User-Agent": CHROME_USER_AGENT
       },
-      signal: AbortSignal.timeout(10000) // 10秒タイムアウト
+      timeoutMs: 10_000
     });
 
     if (!response.ok) {
@@ -55,8 +58,9 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
         robotsResult: robotsCheck.reason
       };
     }
-    html = await response.text();
-    contentSize = Buffer.byteLength(html, "utf8"); // HTMLのバイトサイズ
+    const articleResponse = await readResponseText(response, maxArticleBytes);
+    html = articleResponse.text;
+    contentSize = articleResponse.byteLength;
   } catch (error) {
     console.error(`HTMLのフェッチに失敗しました: ${targetUrl}`, error);
     return {

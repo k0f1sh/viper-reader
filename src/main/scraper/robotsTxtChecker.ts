@@ -1,5 +1,6 @@
 import _robotsParser from "robots-parser";
 import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
+import { readResponseText, safeFetch } from "../network/safeFetch.js";
 
 // CommonJSのデフォルトエクスポート型定義を補正
 const robotsParser = _robotsParser as unknown as (url: string, robotstxt: string) => {
@@ -8,6 +9,7 @@ const robotsParser = _robotsParser as unknown as (url: string, robotstxt: string
 };
 
 const BOT_NAME = "*";
+const maxRobotsTxtBytes = 1024 * 1024;
 
 export type RobotsCheckResult = {
   allowed: boolean;
@@ -25,11 +27,11 @@ export async function checkRobotsTxt(targetUrl: string): Promise<RobotsCheckResu
 
     let response: Response;
     try {
-      response = await fetch(robotsUrl, {
+      response = await safeFetch(robotsUrl, {
         headers: {
           "User-Agent": CHROME_USER_AGENT
         },
-        signal: AbortSignal.timeout(5000) // 5秒タイムアウト
+        timeoutMs: 5_000
       });
     } catch (err) {
       const isTimeout = err instanceof Error && err.name === "TimeoutError";
@@ -46,7 +48,7 @@ export async function checkRobotsTxt(targetUrl: string): Promise<RobotsCheckResu
       };
     }
 
-    const robotsTxtContent = await response.text();
+    const { text: robotsTxtContent } = await readResponseText(response, maxRobotsTxtBytes);
     const robots = robotsParser(robotsUrl, robotsTxtContent);
     const allowed = robots.isAllowed(targetUrl, BOT_NAME) ?? true;
 

@@ -17,7 +17,7 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 - レス表示と、広告・追跡通信を遮断する元記事ブラウザの切り替え
 - スレッドのお気に入り（ブックマーク）登録
 - 板（フィード）ごとの住民設定（カスタムプロンプト）
-- レス生成 AI モデル（3.5 flash / 3.1 flash lite）切り替え
+- 用途別のレス生成 AI モデル切り替え
 - アプリ内設定による Gemini API キー管理
 - SQLite キャッシュによるデータローカル保存
 - robots.txt 判定によるアクセス制限
@@ -28,7 +28,7 @@ ViperReader は、手動で登録した技術系 RSS フィードを、2010年�
 
 - Electron, TypeScript
 - React, CSS, Vite
-- @google/genai (gemini-3.1-flash-lite, gemini-3.5-flash)
+- @google/genai (gemini-3.6-flash, gemini-3.5-flash-lite)
 - @ghostery/adblocker-electron
 - SQLite
 - rss-parser, cheerio

@@ -15,6 +15,7 @@ import {
 } from "../db/repository.js";
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
+import { readResponseText, safeFetch } from "../network/safeFetch.js";
 
 type ParsedItem = {
   id: string;
@@ -28,6 +29,7 @@ type ParsedItem = {
 
 const parser = new Parser();
 const maxTitleConversionsPerRefresh = 30;
+const maxFeedBytes = 5 * 1024 * 1024;
 
 export async function refreshFeed(
   feedId: string,
@@ -41,7 +43,12 @@ export async function refreshFeed(
 
   try {
     onProgress("RSS取得中...");
-    const parsed = await parser.parseURL(feed.url);
+    const response = await safeFetch(feed.url, { timeoutMs: 15_000 });
+    if (!response.ok) {
+      throw new Error(`RSSの取得に失敗しました: HTTP ${response.status}`);
+    }
+    const { text: feedXml } = await readResponseText(response, maxFeedBytes);
+    const parsed = await parser.parseString(feedXml);
     const items = parsed.items
       .map((item): ParsedItem | null => {
         const url = item.link?.trim();

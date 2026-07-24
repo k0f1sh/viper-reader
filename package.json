@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "VIP-style technical RSS reader desktop app",
+  "license": "MIT",
+  "author": "k0f1sh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/k0f1sh/viper-reader.git"
+  },
+  "homepage": "https://github.com/k0f1sh/viper-reader#readme",
   "main": "dist/main/main.js",
   "type": "module",
   "scripts": {
