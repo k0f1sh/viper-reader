@@ -650,6 +650,7 @@ export function listUnconvertedFeedItems(
         AND vt.model = ?
         AND vt.prompt_hash = ?
       WHERE fi.feed_id = ?
+        AND fi.read_at IS NULL
         AND vt.id IS NULL
       ORDER BY COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
       `
