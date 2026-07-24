@@ -17,6 +17,7 @@ export type ThreadResponseGenerationResult = {
  * これを超える場合は先頭から切り詰め、その旨をプロンプト内で明示する。
  */
 const MAX_BODY_CHARS = 6000;
+const MAX_BODY_EXCERPT_CHARS = 4000;
 
 export async function generateThreadResponses(
   thread: ThreadDetail,
@@ -30,14 +31,13 @@ export async function generateThreadResponses(
   const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
 
-  // 本文コンテキストの優先順位:
-  //   1. 記事要約（article_bodies.summary_text から取得済みのもの）
-  //   2. スクレイピング本文（最大 MAX_BODY_CHARS 文字に切り詰め）
-  //   3. null（スクレイピング失敗）
+  // 要約がある場合も本文抜粋を併用し、短い要約だけでは落ちやすい
+  // 技術的な詳細や実装上の注意点をレス生成へ渡す。
   const articleContext = buildArticleContext({
     summary: options.articleSummary,
     scrapedBody: options.scrapedBody,
-    maxBodyChars: MAX_BODY_CHARS
+    maxBodyChars: MAX_BODY_CHARS,
+    maxExcerptChars: MAX_BODY_EXCERPT_CHARS
   });
 
   const prompt = buildVipThreadResponsePrompt({
@@ -107,18 +107,27 @@ export async function generateThreadResponses(
 
 /**
  * 記事コンテキスト文字列を組み立てる。
- * - summary があればそれを返す。
- * - なければ scrapedBody を最大 maxBodyChars 文字に切り詰めて返す。
+ * - summary と scrapedBody があれば、要約と本文抜粋を併せて返す。
+ * - summary がなければ scrapedBody を最大 maxBodyChars 文字に切り詰めて返す。
  * - 切り詰めた場合は「切り詰めた」ことをプロンプト内に明示する。
- * - scrapedBody も null なら null を返す（スクレイピング失敗扱い）。
+ * - summary と scrapedBody がどちらもなければ null を返す。
  */
 function buildArticleContext(params: {
   summary: string | null;
   scrapedBody: string | null;
   maxBodyChars: number;
+  maxExcerptChars: number;
 }): string | null {
+  if (params.summary && params.scrapedBody) {
+    const excerpt = params.scrapedBody.slice(0, params.maxExcerptChars);
+    const truncationNote = params.scrapedBody.length > params.maxExcerptChars
+      ? `\n\n[※ 本文抜粋は先頭 ${params.maxExcerptChars} 文字で切り詰めています。抜粋より後の内容は断言しないでください。]`
+      : "";
+    return `【記事要約】\n${params.summary}\n\n【記事本文の抜粋】\n${excerpt}${truncationNote}`;
+  }
+
   if (params.summary) {
-    return params.summary;
+    return `【記事要約】\n${params.summary}`;
   }
 
   if (!params.scrapedBody) {
