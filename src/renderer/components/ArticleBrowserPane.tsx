@@ -94,6 +94,7 @@ export function ArticleBrowserPane({
   const isUnavailable = browserState.blockerStatus === "unavailable";
   const isInitializing = browserState.blockerStatus === "initializing";
   const isBlockingDisabled = browserState.blockerStatus === "disabled-for-site";
+  const isGloballyDisabled = browserState.blockerStatus === "disabled-globally";
   const showProtectionGate = isUnavailable && !allowUnprotected && selectedThread?.url.startsWith("https:");
 
   return (
@@ -134,11 +135,15 @@ export function ArticleBrowserPane({
         />
         <button
           className={`article-browser-shield blocker-${browserState.blockerStatus}`}
-          disabled={isInitializing || isUnavailable}
+          disabled={isInitializing || isUnavailable || isGloballyDisabled}
           onClick={() => void window.viperReader
             ?.setArticleBrowserBlockingEnabled(isBlockingDisabled)
             .then(setBrowserState)}
-          title={isBlockingDisabled ? "このサイトの広告・追跡ブロックを有効にする" : "このサイトでは一時的にブロックを解除する"}
+          title={isGloballyDisabled
+            ? "ブラウザ設定で広告ブロックが無効になっています"
+            : isBlockingDisabled
+              ? "このサイトの広告・追跡ブロックを有効にする"
+              : "このサイトでは一時的にブロックを解除する"}
           type="button"
         >
           {blockerLabel(browserState.blockerStatus)}
@@ -223,6 +228,8 @@ function blockerLabel(status: ArticleBrowserState["blockerStatus"]): string {
       return "🛡 遮断中";
     case "disabled-for-site":
       return "⚠ 解除中";
+    case "disabled-globally":
+      return "⚠ 全体解除";
     case "unavailable":
       return "⚠ 保護なし";
     default:

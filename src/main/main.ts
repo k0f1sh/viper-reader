@@ -151,6 +151,13 @@ ipcMain.handle("article-browser:set-blocking-enabled", (event, enabled: boolean)
   }
   return getArticleBrowserController(event).setBlockingEnabled(enabled);
 });
+ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: boolean) => {
+  if (typeof enabled !== "boolean") {
+    throw new Error("Invalid global blocker state.");
+  }
+  saveRendererUserSetting("articleBrowserBlockingEnabled", String(enabled));
+  return getArticleBrowserController(event).setGlobalBlockingEnabled(enabled);
+});
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
@@ -228,6 +235,9 @@ void app.whenReady().then(() => {
   articleSession.setPermissionCheckHandler(() => false);
   articleSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   articleBlocker = new ArticleBlocker(articleSession);
+  articleBlocker.setGloballyEnabled(
+    getRendererUserSetting("articleBrowserBlockingEnabled") !== "false"
+  );
   void articleBlocker.initialize();
   createMainWindow();
 

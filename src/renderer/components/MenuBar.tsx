@@ -1,5 +1,6 @@
 type MenuBarProps = {
   onOpenSettings: () => void;
+  onOpenBrowserSettings: () => void;
   onOpenModelSettings: () => void;
   onOpenStatistics: () => void;
   onOpenResidentPrompts: () => void;
@@ -8,6 +9,7 @@ type MenuBarProps = {
 
 export function MenuBar({
   onOpenSettings,
+  onOpenBrowserSettings,
   onOpenModelSettings,
   onOpenStatistics,
   onOpenResidentPrompts,
@@ -17,6 +19,9 @@ export function MenuBar({
     <nav className="menu-bar" aria-label="メニュー">
       <button className="menu-item" onClick={onOpenSettings} type="button">
         設定
+      </button>
+      <button className="menu-item" onClick={onOpenBrowserSettings} type="button">
+        ブラウザ設定
       </button>
       <button className="menu-item" onClick={onOpenModelSettings} type="button">
         モデル設定

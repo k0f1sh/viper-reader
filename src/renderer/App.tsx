@@ -4,6 +4,7 @@ import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, R
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
+import { BrowserSettingsModal } from "./components/BrowserSettingsModal";
 import { FeedPane } from "./components/FeedPane";
 import { FeedSettingsModal } from "./components/FeedSettingsModal";
 import { MenuBar } from "./components/MenuBar";
@@ -56,6 +57,10 @@ export function App() {
   const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
   const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isBrowserSettingsOpen, setIsBrowserSettingsOpen] = useState(false);
+  const [articleBrowserBlockingEnabled, setArticleBrowserBlockingEnabled] = useState(true);
+  const [isBrowserSettingsSaving, setIsBrowserSettingsSaving] = useState(false);
+  const [browserSettingsStatusMessage, setBrowserSettingsStatusMessage] = useState("");
   const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const [isModelSettingsSaving, setIsModelSettingsSaving] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -123,6 +128,7 @@ export function App() {
   const isArticleBrowserSuspended =
     isStatisticsOpen
     || isSettingsOpen
+    || isBrowserSettingsOpen
     || isModelSettingsOpen
     || isResidentPromptsOpen
     || isAddFeedOpen
@@ -482,7 +488,7 @@ export function App() {
     }
 
     try {
-      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible] = await Promise.all([
+      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
@@ -490,7 +496,8 @@ export function App() {
         window.viperReader.getUserSetting("optimizerModel"),
         window.viperReader.getUserSetting("feedPaneWidth"),
         window.viperReader.getUserSetting("articlePaneWidth"),
-        window.viperReader.getUserSetting("articlePaneVisible")
+        window.viperReader.getUserSetting("articlePaneVisible"),
+        window.viperReader.getUserSetting("articleBrowserBlockingEnabled")
       ]);
 
       if (height) {
@@ -528,6 +535,7 @@ export function App() {
         }
       }
       setIsArticlePaneVisible(savedArticlePaneVisible === "true");
+      setArticleBrowserBlockingEnabled(savedArticleBrowserBlockingEnabled !== "false");
 
     } catch (err) {
       console.error("ユーザー設定の読込に失敗しました:", err);
@@ -551,6 +559,26 @@ export function App() {
       console.error("モデル設定の保存に失敗しました:", err);
     } finally {
       setIsModelSettingsSaving(false);
+    }
+  }
+
+  async function changeArticleBrowserBlockingEnabled(enabled: boolean) {
+    if (!window.viperReader) {
+      return;
+    }
+
+    setIsBrowserSettingsSaving(true);
+    setBrowserSettingsStatusMessage("");
+    try {
+      await window.viperReader.setArticleBrowserGlobalBlockingEnabled(enabled);
+      setArticleBrowserBlockingEnabled(enabled);
+      setBrowserSettingsStatusMessage(enabled
+        ? "広告・追跡ブロックを有効にしました。"
+        : "広告・追跡ブロックを無効にしました。");
+    } catch (err) {
+      setBrowserSettingsStatusMessage(err instanceof Error ? err.message : "ブラウザ設定の保存に失敗しました。");
+    } finally {
+      setIsBrowserSettingsSaving(false);
     }
   }
 
@@ -1426,6 +1454,10 @@ export function App() {
     <main className="app-frame">
       <MenuBar
         onOpenSettings={() => void openSettings()}
+        onOpenBrowserSettings={() => {
+          setBrowserSettingsStatusMessage("");
+          setIsBrowserSettingsOpen(true);
+        }}
         onOpenModelSettings={() => setIsModelSettingsOpen(true)}
         onOpenStatistics={openStatistics}
         onOpenResidentPrompts={openResidentPrompts}
@@ -1606,6 +1638,16 @@ export function App() {
           onSave={() => void saveApiKey()}
           onClear={() => void clearApiKey()}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      ) : null}
+
+      {isBrowserSettingsOpen ? (
+        <BrowserSettingsModal
+          blockingEnabled={articleBrowserBlockingEnabled}
+          isSaving={isBrowserSettingsSaving}
+          statusMessage={browserSettingsStatusMessage}
+          onBlockingEnabledChange={(enabled) => void changeArticleBrowserBlockingEnabled(enabled)}
+          onClose={() => setIsBrowserSettingsOpen(false)}
         />
       ) : null}
 

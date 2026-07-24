@@ -1561,6 +1561,17 @@ body.is-article-pane-resizing * {
   font-weight: 700;
 }
 
+.settings-content .browser-settings-checkbox {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.browser-settings-checkbox input {
+  margin: 0;
+}
+
 .api-key-status,
 .settings-help {
   grid-column: 1 / -1;

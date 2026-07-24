@@ -5,7 +5,7 @@ import { EventEmitter } from "node:events";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-export type ArticleBlockerStatus = "initializing" | "active" | "disabled-for-site" | "unavailable";
+export type ArticleBlockerStatus = "initializing" | "active" | "disabled-for-site" | "disabled-globally" | "unavailable";
 
 const filterUrls = [
   "https://easylist.to/easylist/easylist.txt",
@@ -20,6 +20,7 @@ export class ArticleBlocker extends EventEmitter {
   private initialization: Promise<void> | null = null;
   private status: ArticleBlockerStatus = "initializing";
   private readonly disabledOrigins = new Set<string>();
+  private globallyEnabled = true;
 
   constructor(private readonly articleSession: Session) {
     super();
@@ -51,6 +52,15 @@ export class ArticleBlocker extends EventEmitter {
     return this.blocker !== null;
   }
 
+  isGloballyEnabled(): boolean {
+    return this.globallyEnabled;
+  }
+
+  setGloballyEnabled(enabled: boolean, currentUrl = ""): ArticleBlockerStatus {
+    this.globallyEnabled = enabled;
+    return this.syncForUrl(currentUrl);
+  }
+
   isDisabledFor(url: string): boolean {
     const origin = getHttpsOrigin(url);
     return origin !== null && this.disabledOrigins.has(origin);
@@ -74,7 +84,7 @@ export class ArticleBlocker extends EventEmitter {
       return this.status;
     }
 
-    const shouldDisable = this.isDisabledFor(url);
+    const shouldDisable = !this.globallyEnabled || this.isDisabledFor(url);
     const isEnabled = this.blocker.isBlockingEnabled(this.articleSession);
     if (shouldDisable && isEnabled) {
       this.blocker.disableBlockingInSession(this.articleSession);
@@ -82,7 +92,11 @@ export class ArticleBlocker extends EventEmitter {
       this.blocker.enableBlockingInSession(this.articleSession);
     }
 
-    const nextStatus = shouldDisable ? "disabled-for-site" : "active";
+    const nextStatus = !this.globallyEnabled
+      ? "disabled-globally"
+      : shouldDisable
+        ? "disabled-for-site"
+        : "active";
     this.setStatus(nextStatus);
     return nextStatus;
   }
@@ -109,8 +123,7 @@ export class ArticleBlocker extends EventEmitter {
       this.blocker.disableBlockingInSession(this.articleSession);
     }
     this.blocker = blocker;
-    blocker.enableBlockingInSession(this.articleSession);
-    this.setStatus("active");
+    this.syncForUrl("");
   }
 
   private async readCache(): Promise<{ blocker: ElectronBlocker; modifiedAt: number } | null> {

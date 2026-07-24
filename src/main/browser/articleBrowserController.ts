@@ -148,10 +148,18 @@ export class ArticleBrowserController {
   }
 
   setBlockingEnabled(enabled: boolean): ArticleBrowserState {
-    if (!this.state.url || !this.blocker.isReady()) {
+    if (!this.state.url || !this.blocker.isReady() || !this.blocker.isGloballyEnabled()) {
       return this.state;
     }
     this.blocker.setDisabledFor(this.state.url, !enabled);
+    this.state = { ...this.state, blockerStatus: this.resolveBlockerStatus(this.state.url) };
+    this.view?.webContents.reload();
+    this.sendState();
+    return this.state;
+  }
+
+  setGlobalBlockingEnabled(enabled: boolean): ArticleBrowserState {
+    this.blocker.setGloballyEnabled(enabled, this.state.url);
     this.state = { ...this.state, blockerStatus: this.resolveBlockerStatus(this.state.url) };
     this.view?.webContents.reload();
     this.sendState();
@@ -384,6 +392,9 @@ export class ArticleBrowserController {
   }
 
   private resolveBlockerStatus(url: string): ArticleBrowserState["blockerStatus"] {
+    if (!this.blocker.isGloballyEnabled()) {
+      return "disabled-globally";
+    }
     if (!this.blocker.isReady()) {
       return this.blocker.getStatus();
     }

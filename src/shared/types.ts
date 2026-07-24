@@ -58,6 +58,7 @@ export type ArticleBrowserBlockerStatus =
   | "initializing"
   | "active"
   | "disabled-for-site"
+  | "disabled-globally"
   | "unavailable";
 
 export type ArticleBrowserState = {

@@ -36,6 +36,7 @@ export type ViperReaderApi = {
   scrollArticleBrowser: (direction: -1 | 1) => Promise<void>;
   openArticleBrowserExternally: () => Promise<void>;
   setArticleBrowserBlockingEnabled: (enabled: boolean) => Promise<ArticleBrowserState>;
+  setArticleBrowserGlobalBlockingEnabled: (enabled: boolean) => Promise<ArticleBrowserState>;
   retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
   getArticleBrowserState: () => Promise<ArticleBrowserState>;
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
@@ -91,6 +92,7 @@ const api: ViperReaderApi = {
   scrollArticleBrowser: (direction) => ipcRenderer.invoke("article-browser:scroll", direction),
   openArticleBrowserExternally: () => ipcRenderer.invoke("article-browser:open-external"),
   setArticleBrowserBlockingEnabled: (enabled) => ipcRenderer.invoke("article-browser:set-blocking-enabled", enabled),
+  setArticleBrowserGlobalBlockingEnabled: (enabled) => ipcRenderer.invoke("article-browser:set-global-blocking-enabled", enabled),
   retryArticleBrowserBlocker: () => ipcRenderer.invoke("article-browser:retry-blocker"),
   getArticleBrowserState: () => ipcRenderer.invoke("article-browser:get-state"),
   onArticleBrowserState: (callback) => {

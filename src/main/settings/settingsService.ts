@@ -21,7 +21,8 @@ const rendererSettingKeys = new Set([
   "threadTabs",
   "feedPaneWidth",
   "articlePaneWidth",
-  "articlePaneVisible"
+  "articlePaneVisible",
+  "articleBrowserBlockingEnabled"
 ]);
 
 export function getUserSetting(key: string): string | null {
