@@ -16,6 +16,7 @@ import {
 import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
+import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
 
 type ParsedItem = {
   id: string;
@@ -49,7 +50,7 @@ export async function refreshFeed(
     }
     const { text: feedXml } = await readResponseText(response, maxFeedBytes);
     const parsed = await parser.parseString(feedXml);
-    const items = parsed.items
+    const parsedItems = parsed.items
       .map((item): ParsedItem | null => {
         const url = item.link?.trim();
         const title = item.title?.trim();
@@ -70,6 +71,7 @@ export async function refreshFeed(
         };
       })
       .filter((item): item is ParsedItem => item !== null);
+    const items = selectRecentFeedItems(parsedItems);
 
     const result = upsertFeedItems(feed.id, items);
     const modelToUse = getActiveModel();
