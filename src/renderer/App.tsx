@@ -663,6 +663,19 @@ export function App() {
     setRefreshMessage("");
   }
 
+  async function reorderFeeds(feedIds: string[]) {
+    if (!window.viperReader) return;
+    const previousFeeds = feedList;
+    const feedsById = new Map(previousFeeds.map((feed) => [feed.id, feed]));
+    setFeedList(feedIds.map((feedId) => feedsById.get(feedId)).filter((feed): feed is FeedSource => Boolean(feed)));
+    try {
+      await window.viperReader.reorderFeedSources(feedIds);
+    } catch {
+      setFeedList(previousFeeds);
+      alert("板一覧の並び替えに失敗しました。");
+    }
+  }
+
   async function addFeed() {
     if (!window.viperReader || !addFeedTitle.trim() || !addFeedUrl.trim()) {
       return;
@@ -1511,6 +1524,7 @@ export function App() {
           onAddFeed={() => setIsAddFeedOpen(true)}
           onDeleteSelectedFeed={() => void deleteSelectedFeed()}
           onOpenFeedSettings={openFeedSettings}
+          onReorderFeeds={(feedIds) => void reorderFeeds(feedIds)}
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}

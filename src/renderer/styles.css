@@ -631,6 +631,18 @@ body.is-article-pane-resizing * {
   background: #0a246a;
 }
 
+.feed-row.is-dragging {
+  opacity: 0.45;
+}
+
+.feed-row.is-drop-before {
+  border-top-color: #000080;
+}
+
+.feed-row.is-drop-after {
+  border-bottom-color: #000080;
+}
+
 .feed-name,
 .thread-title,
 .thread-original-title,

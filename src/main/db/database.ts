@@ -36,6 +36,8 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "thread_posts", "generation_run_id", "TEXT");
   addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   addColumnIfMissing(db, "feed_sources", "generate_title_from_summary", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "sort_order", "INTEGER");
+  backfillFeedSortOrder(db);
   backfillCanonicalUrls(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
   db.prepare(
@@ -44,6 +46,23 @@ function migrate(db: DatabaseSync): void {
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(2, new Date().toISOString());
+}
+
+function backfillFeedSortOrder(db: DatabaseSync): void {
+  const rows = db.prepare(
+    "SELECT id FROM feed_sources WHERE sort_order IS NULL ORDER BY created_at ASC, id ASC"
+  ).all() as Array<{ id: string }>;
+  if (rows.length === 0) return;
+
+  const currentMax = db.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) AS max_sort_order FROM feed_sources"
+  ).get() as { max_sort_order: number };
+  const update = db.prepare("UPDATE feed_sources SET sort_order = ? WHERE id = ?");
+  let nextSortOrder = Number(currentMax.max_sort_order) + 1;
+  for (const row of rows) {
+    update.run(nextSortOrder, row.id);
+    nextSortOrder += 1;
+  }
 }
 
 function backfillCanonicalUrls(db: DatabaseSync): void {

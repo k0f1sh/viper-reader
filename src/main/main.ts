@@ -16,6 +16,7 @@ import {
   countAllUnreadArticles,
   listResidentPromptVersions,
   reviewResidentPromptVersion,
+  reorderFeedSources,
   rollbackResidentPromptVersion,
   saveReplyFeedback,
   saveFeedResidentPrompt,
@@ -217,6 +218,12 @@ ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFr
   addFeedSource(title, url, generateTitleFromSummary)
 );
 ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
+ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
+  if (!Array.isArray(feedIds) || feedIds.some((feedId) => typeof feedId !== "string")) {
+    throw new Error("Invalid feed order.");
+  }
+  reorderFeedSources(feedIds);
+});
 ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) =>
   updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary)
 );

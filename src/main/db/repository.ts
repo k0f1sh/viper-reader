@@ -218,7 +218,7 @@ export function listFeeds(): FeedSource[] {
       FROM feed_sources fs
       LEFT JOIN feed_items fi ON fi.feed_id = fs.id
       GROUP BY fs.id
-      ORDER BY fs.created_at ASC
+      ORDER BY fs.sort_order ASC, fs.created_at ASC
       `
     )
     .all() as FeedRow[];
@@ -1806,8 +1806,8 @@ function seedDatabase(db: DatabaseSync): void {
 
   const insertFeed = db.prepare(
     `
-    INSERT INTO feed_sources (id, title, url, created_at, updated_at, last_fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at, last_fetched_at, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       url = excluded.url,
@@ -1819,8 +1819,8 @@ function seedDatabase(db: DatabaseSync): void {
 
   db.exec("BEGIN");
   try {
-    for (const feed of seedFeeds) {
-      insertFeed.run(feed.id, feed.title, feed.url, now, now, feed.lastFetchedAt);
+    for (const [index, feed] of seedFeeds.entries()) {
+      insertFeed.run(feed.id, feed.title, feed.url, now, now, feed.lastFetchedAt, index);
     }
 
     for (const threadId of legacySeedThreadIds) {
@@ -1906,12 +1906,16 @@ export function addFeedSource(title: string, url: string, generateTitleFromSumma
     .slice(0, 16);
   const id = `feed:${hash}`;
 
+  const nextSortOrder = db.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort_order FROM feed_sources"
+  ).get() as { next_sort_order: number };
+
   db.prepare(
     `
-    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     `
-  ).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0);
+  ).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0, nextSortOrder.next_sort_order);
 
   return {
     id,
@@ -1921,6 +1925,30 @@ export function addFeedSource(title: string, url: string, generateTitleFromSumma
     lastFetchedAt: null,
     generateTitleFromSummary
   };
+}
+
+export function reorderFeedSources(feedIds: string[]): void {
+  const db = getDatabase();
+  const existingRows = db.prepare("SELECT id FROM feed_sources").all() as Array<{ id: string }>;
+  const existingIds = new Set(existingRows.map((row) => row.id));
+  if (
+    feedIds.length !== existingIds.size
+    || new Set(feedIds).size !== feedIds.length
+    || feedIds.some((id) => !existingIds.has(id))
+  ) {
+    throw new Error("板一覧の並び順が不正です。");
+  }
+
+  const update = db.prepare("UPDATE feed_sources SET sort_order = ?, updated_at = ? WHERE id = ?");
+  const updatedAt = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    feedIds.forEach((feedId, index) => update.run(index, updatedAt, feedId));
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function deleteFeedSource(feedId: string): void {

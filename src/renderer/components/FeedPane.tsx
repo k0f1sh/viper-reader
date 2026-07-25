@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import type { AppLogEntry, FeedSource, ThreadListItem } from "../../shared/types";
 import { LogPane } from "./LogPane";
 
@@ -14,6 +15,7 @@ type FeedPaneProps = {
   onAddFeed: () => void;
   onDeleteSelectedFeed: () => void;
   onOpenFeedSettings: (feed: FeedSource) => void;
+  onReorderFeeds: (feedIds: string[]) => void;
   onToggleFavoriteCollapsed: () => void;
   onSelectFavoriteThread: (thread: ThreadListItem) => void;
   allFeedsId: string;
@@ -32,13 +34,39 @@ export function FeedPane({
   onAddFeed,
   onDeleteSelectedFeed,
   onOpenFeedSettings,
+  onReorderFeeds,
   onToggleFavoriteCollapsed,
   onSelectFavoriteThread,
   allFeedsId,
   allUnreadCount
 }: FeedPaneProps) {
   const [contextMenu, setContextMenu] = useState<{ feed: FeedSource; x: number; y: number } | null>(null);
+  const [draggedFeedId, setDraggedFeedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ feedId: string; position: "before" | "after" } | null>(null);
   const feedTreeRef = useRef<HTMLDivElement>(null);
+
+  function updateDropTarget(event: ReactDragEvent<HTMLButtonElement>, feedId: string) {
+    if (!draggedFeedId || draggedFeedId === feedId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setDropTarget({
+      feedId,
+      position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after"
+    });
+  }
+
+  function dropFeed(event: ReactDragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    if (!draggedFeedId || !dropTarget || draggedFeedId === dropTarget.feedId) return;
+    const nextFeeds = feeds.filter((feed) => feed.id !== draggedFeedId);
+    const targetIndex = nextFeeds.findIndex((feed) => feed.id === dropTarget.feedId);
+    const insertIndex = targetIndex + (dropTarget.position === "after" ? 1 : 0);
+    nextFeeds.splice(insertIndex, 0, feeds.find((feed) => feed.id === draggedFeedId)!);
+    onReorderFeeds(nextFeeds.map((feed) => feed.id));
+    setDraggedFeedId(null);
+    setDropTarget(null);
+  }
 
   useEffect(() => {
     const selectedRow = feedTreeRef.current?.querySelector<HTMLElement>(".feed-row.is-selected");
@@ -78,8 +106,25 @@ export function FeedPane({
         </button>
         {feeds.map((feed) => (
           <button
-            className={`feed-row ${feed.id === selectedFeedId ? "is-selected" : ""}`}
+            className={[
+              "feed-row",
+              feed.id === selectedFeedId ? "is-selected" : "",
+              feed.id === draggedFeedId ? "is-dragging" : "",
+              dropTarget?.feedId === feed.id ? `is-drop-${dropTarget.position}` : ""
+            ].filter(Boolean).join(" ")}
+            draggable
             key={feed.id}
+            onDragStart={(event) => {
+              setDraggedFeedId(feed.id);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", feed.id);
+            }}
+            onDragOver={(event) => updateDropTarget(event, feed.id)}
+            onDrop={dropFeed}
+            onDragEnd={() => {
+              setDraggedFeedId(null);
+              setDropTarget(null);
+            }}
             onClick={() => onSelectFeed(feed.id)}
             onDoubleClick={() => onRefreshFeed(feed.id)}
             onContextMenu={(event) => {
@@ -87,7 +132,7 @@ export function FeedPane({
               onSelectFeed(feed.id);
               setContextMenu({ feed, x: event.clientX, y: event.clientY });
             }}
-            title="ダブルクリックでこの板を更新"
+            title="ドラッグで並べ替え・ダブルクリックでこの板を更新"
             type="button"
           >
             <span className="feed-name">{feed.title}</span>

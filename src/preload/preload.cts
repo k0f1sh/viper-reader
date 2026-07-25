@@ -75,6 +75,7 @@ export type ViperReaderApi = {
   clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
   addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
+  reorderFeedSources: (feedIds: string[]) => Promise<void>;
   updateFeedTitleGenerationSetting: (feedId: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
 };
 
@@ -170,6 +171,7 @@ const api: ViperReaderApi = {
   clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),
   addFeedSource: (title, url, generateTitleFromSummary) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
+  reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
   updateFeedTitleGenerationSetting: (feedId, generateTitleFromSummary) =>
     ipcRenderer.invoke("feeds:update-title-generation-setting", feedId, generateTitleFromSummary)
 };
