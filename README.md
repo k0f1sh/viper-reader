@@ -10,7 +10,7 @@
 - 記事本文をもとに、技術的な要点を保ったVIP風レスを生成
 - AI住民への書き込みと、続きのレス生成
 - レス・IDポップアップ、お気に入り、キーボード操作
-- 広告・追跡通信を遮断できる内蔵記事ブラウザ
+- アプリ内で元記事を閲覧できる内蔵ブラウザ
 - RSS、記事本文、生成結果をSQLiteへキャッシュ
 
 ## 技術スタック
@@ -18,7 +18,6 @@
 - Electron / TypeScript / React / Vite
 - Gemini API (`@google/genai`)
 - SQLite / `rss-parser` / `cheerio`
-- `@ghostery/adblocker-electron`
 
 ## 開発
 
@@ -50,14 +49,6 @@ viper-reader
 - APIキーはmacOS・WindowsではElectronの `safeStorage` で暗号化します。LinuxではSQLiteへ平文保存するため、共有端末では環境変数を利用してください。
 - 記事本文の取得前にキャッシュを確認し、`robots.txt` による制限を尊重します。
 - 本アプリは個人利用を想定したパロディツールです。
-
-## 広告フィルター
-
-元記事ブラウザでは、以下のソフトウェアとフィルターリストを利用します。フィルターは初回利用時に取得し、ローカルへキャッシュします。
-
-- [@ghostery/adblocker-electron](https://github.com/ghostery/adblocker) — MPL-2.0
-- [EasyList / EasyPrivacy](https://easylist.to/) — GPL または CC BY-SA
-- [AdGuard Japanese filter](https://github.com/AdguardTeam/AdguardFilters) — GPL-3.0
 
 ## License
 
