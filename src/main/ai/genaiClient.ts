@@ -7,7 +7,7 @@
 
 import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
-import type { ContentUnion, SchemaUnion } from "@google/genai";
+import type { ContentUnion, GenerateContentParameters, SchemaUnion } from "@google/genai";
 import { getGeminiApiKey } from "../settings/settingsService.js";
 
 export type LlmPurpose =
@@ -43,6 +43,14 @@ export type GenaiJsonResult<T> = {
   errorMessage: string | null;
 };
 
+export type GenaiTransport = {
+  apiKey: string;
+  generateContent: (params: GenerateContentParameters) => Promise<{
+    text?: string;
+    usageMetadata?: UsageMetadata;
+  }>;
+};
+
 export const missingApiKeyMessage =
   "Gemini API キーが設定されていません。アプリの「設定」から登録してください。";
 
@@ -56,9 +64,10 @@ export function resolveApiKey(): string | null {
  * API キー未設定時や timeout/parse エラー時も例外を投げず errorMessage で返す。
  */
 export async function generateJson<T>(
-  request: GenaiJsonRequest<T>
+  request: GenaiJsonRequest<T>,
+  transport?: GenaiTransport
 ): Promise<GenaiJsonResult<T>> {
-  const apiKey = resolveApiKey();
+  const apiKey = transport?.apiKey ?? resolveApiKey();
   const contentsStr =
     typeof request.contents === "string" ? request.contents : JSON.stringify(request.contents);
   const promptChars = contentsStr.length;
@@ -72,7 +81,9 @@ export async function generateJson<T>(
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = transport ? null : new GoogleGenAI({ apiKey });
+  const generateContent = transport?.generateContent
+    ?? ai!.models.generateContent.bind(ai!.models);
   const timeoutMs = request.timeoutMs ?? 30000;
 
   let responseText = "";
@@ -83,7 +94,7 @@ export async function generateJson<T>(
 
   try {
     const response = await raceWithTimeout(
-      ai.models.generateContent({
+      generateContent({
         model: request.model,
         contents: request.contents,
         config: {
@@ -127,14 +138,14 @@ export async function generateText(params: {
   systemInstruction?: string;
   contents: string;
   timeoutMs?: number;
-}): Promise<{
+}, transport?: GenaiTransport): Promise<{
   text: string | null;
   responseText: string;
   usageMetadata?: UsageMetadata;
   promptChars: number;
   errorMessage: string | null;
 }> {
-  const apiKey = resolveApiKey();
+  const apiKey = transport?.apiKey ?? resolveApiKey();
   const promptChars = params.contents.length;
 
   if (!apiKey) {
@@ -146,7 +157,9 @@ export async function generateText(params: {
     };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = transport ? null : new GoogleGenAI({ apiKey });
+  const generateContent = transport?.generateContent
+    ?? ai!.models.generateContent.bind(ai!.models);
   const timeoutMs = params.timeoutMs ?? 30000;
 
   console.log(
@@ -157,7 +170,7 @@ export async function generateText(params: {
 
   try {
     const response = await raceWithTimeout(
-      ai.models.generateContent({
+      generateContent({
         model: params.model,
         contents: params.contents,
         config: params.systemInstruction
@@ -192,7 +205,7 @@ export async function generateText(params: {
  * Markdown コードフェンスは除去する。
  * parse が例外を投げた場合は null を返す。
  */
-export function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T | null {
+function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T | null {
   try {
     const trimmed = responseText.trim();
     const withoutFence = trimmed
@@ -205,7 +218,7 @@ export function parseJsonResponse<T>(responseText: string, parse: (text: string)
   }
 }
 
-export async function raceWithTimeout<T>(
+async function raceWithTimeout<T>(
   operation: Promise<T>,
   timeoutMs: number,
   purpose: LlmPurpose

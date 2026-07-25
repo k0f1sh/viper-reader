@@ -12,9 +12,7 @@ delete process.env.GOOGLE_API_KEY;
 const { getDatabase } = await import("../dist/main/db/database.js");
 const {
   generateJson,
-  missingApiKeyMessage,
-  parseJsonResponse,
-  raceWithTimeout
+  missingApiKeyMessage
 } = await import("../dist/main/ai/genaiClient.js");
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
 
@@ -38,25 +36,52 @@ test("APIキー未設定時は外部呼び出しを行わずエラー結果を�
   assert.equal(result.errorMessage, missingApiKeyMessage);
 });
 
-test("Geminiの不正JSONは安全にnullへ変換する", () => {
-  assert.equal(parseJsonResponse("これはJSONではない", JSON.parse), null);
-  assert.equal(
-    parseJsonResponse('```json\n{"ok":true}\n```', JSON.parse).ok,
-    true
-  );
-  assert.equal(
-    parseJsonResponse('{"ok":true}', () => {
-      throw new Error("schema mismatch");
-    }),
-    null
-  );
+const fakeTransport = (generateContent) => ({
+  apiKey: "test-api-key",
+  generateContent
 });
 
-test("Gemini呼び出しが制限時間を超えたら用途付きのエラーにする", async () => {
-  const neverCompletes = new Promise(() => undefined);
+test("Geminiの不正JSONはgenerateJson全体で安全にエラー結果へ変換する", async () => {
+  const invalid = await generateJson(
+    {
+      model: "test-model",
+      purpose: "thread_response",
+      contents: "test",
+      parse: JSON.parse
+    },
+    fakeTransport(async () => ({ text: "これはJSONではない" }))
+  );
+  assert.equal(invalid.value, null);
+  assert.equal(invalid.errorMessage, "JSON パースに失敗しました");
 
-  await assert.rejects(
-    raceWithTimeout(neverCompletes, 5, "thread_response"),
+  const fenced = await generateJson(
+    {
+      model: "test-model",
+      purpose: "thread_response",
+      contents: "test",
+      parse: JSON.parse
+    },
+    fakeTransport(async () => ({ text: '```json\n{"ok":true}\n```' }))
+  );
+  assert.equal(fenced.value.ok, true);
+  assert.equal(fenced.errorMessage, null);
+});
+
+test("Gemini呼び出し全体が制限時間を超えたら用途付きのエラー結果を返す", async () => {
+  const result = await generateJson(
+    {
+      model: "test-model",
+      purpose: "thread_response",
+      contents: "test",
+      timeoutMs: 5,
+      parse: JSON.parse
+    },
+    fakeTransport(() => new Promise(() => undefined))
+  );
+
+  assert.equal(result.value, null);
+  assert.match(
+    result.errorMessage,
     /Gemini API 呼び出しがタイムアウトしました \(0.005秒\) \[thread_response\]/
   );
 });
