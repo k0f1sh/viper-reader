@@ -240,7 +240,7 @@ function createLlmLog(params: {
 }
 
 function createFallbackDate(): string {
-  return "2010/01/01(金) 00:00:00.00";
+  return "2009/01/02(金) 00:00:00.00";
 }
 
 function createFallbackId(): string {

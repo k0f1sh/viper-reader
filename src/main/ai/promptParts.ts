@@ -16,7 +16,7 @@ import { VIP_NG_RULES, VIP_STYLE_RULES } from "../prompts/vipCommonRules.js";
  * ユーザーの住民設定プロンプトはこの制約を上書きできない。
  */
 export const VIP_SYSTEM_INSTRUCTION = `\
-あなたは技術記事を2010年前後の日本語VIP/まとめブログ風に変換・要約するアシスタントです。
+あなたは技術記事を2000年代後半（2005年〜2009年頃）の日本語VIP/まとめブログ風に変換・要約するアシスタントです。
 
 【絶対に守るルール】
 - 技術的な意味は保つ。事実を捏造しない。

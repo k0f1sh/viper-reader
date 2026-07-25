@@ -16,7 +16,7 @@
 
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRules.js";
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v12";
+export const vipThreadResponsePromptHash = "vip-thread-response-v13";
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {
@@ -36,7 +36,7 @@ export function buildVipThreadResponsePromptHash(residentPromptHash: string | nu
 export function buildVipThreadResponsePrompt(input: VipThreadResponsePromptInput): string {
   if (input.scrapedBody === null) {
     return `# 目的
-2010年前後（2008年〜2012年頃）の2ちゃんねる「ニュース速報(VIP)板」における、元記事の本文取得（スクレイピング）に失敗した際のお祭り騒ぎ（または解散ムード）のスレッドの流れを再現してください。
+2000年代後半（2005年〜2009年頃）の2ちゃんねる「ニュース速報(VIP)板」における、元記事の本文取得（スクレイピング）に失敗した際のお祭り騒ぎ（または解散ムード）のスレッドの流れを再現してください。
 
 # 必須要件（レスの役割分担と構成）
 1. **レス番2 (no: 2) の役割**:
@@ -53,7 +53,7 @@ ${VIP_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2009/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
 - mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください。
 - no: 2 は必ず本文取得不可の報告レスとし、no: 3以降はその反応レスとしてください。
@@ -71,7 +71,7 @@ URL: ${input.url}
   const bodyText = input.scrapedBody;
 
   return `# 目的
-2010年前後（2008年〜2012年頃）の2ちゃんねる「ニュース速報(VIP)板」の、一般ユーザー（VIPPER）によるレスの文体や雰囲気を再現してください。
+2000年代後半（2005年〜2009年頃）の2ちゃんねる「ニュース速報(VIP)板」の、一般ユーザー（VIPPER）によるレスの文体や雰囲気を再現してください。
 
 # 必須要件（レスの役割分担と構成）
 1. **レス番2 (no: 2) の役割**:
@@ -99,7 +99,7 @@ ${VIP_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2010/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"以下、名無しにかわりましてVIPがお送りします","mail":"sage","date":"2009/xx/xx(x) hh:mm:ss.xx","id":"${VIP_ID_FORMAT_DESC}","body":"..."} の形にしてください。
 - mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください（例: 2, 3, 4, 5...）。
 - no: 2 は必ず事情通の情報整理レスとし、no: 3以降はその議論レスとしてください。
@@ -107,7 +107,7 @@ ${VIP_NG_RULES}
 - body は短く、改行を自然に含めてください。
 
 # 板ごとの住民設定
-${input.residentPrompt?.trim() ? input.residentPrompt.trim() : "追加設定なし。標準的な2010年前後のVIPPERとして振る舞ってください。"}
+${input.residentPrompt?.trim() ? input.residentPrompt.trim() : "追加設定なし。標準的な2000年代後半（2005年〜2009年頃）のVIPPERとして振る舞ってください。"}
 
 # スレ情報
 スレタイ: ${input.vipTitle}

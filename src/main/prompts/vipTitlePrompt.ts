@@ -1,5 +1,5 @@
 /**
- * RSS記事タイトルを「2010年代前半の2chニュー速VIP板」風のスレタイに変換するプロンプト。
+ * RSS記事タイトルを「2000年代後半（2005年〜2009年頃）の2chニュー速VIP板」風のスレタイに変換するプロンプト。
  *
  * 入力:
  * - RSSソース名
@@ -13,7 +13,7 @@
  * - promptHash は vip_titles.prompt_hash に保存する。
  * - プロンプトの意味や出力仕様を変えたら hash を更新し、既存キャッシュと区別する。
  */
-export const vipTitlePromptHash = "vip-title-v5";
+export const vipTitlePromptHash = "vip-title-v6";
 
 export type VipTitlePromptItem = {
   id: string;
