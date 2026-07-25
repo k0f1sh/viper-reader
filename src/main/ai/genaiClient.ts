@@ -82,7 +82,7 @@ export async function generateJson<T>(
   );
 
   try {
-    const response = await Promise.race([
+    const response = await raceWithTimeout(
       ai.models.generateContent({
         model: request.model,
         contents: request.contents,
@@ -94,18 +94,9 @@ export async function generateJson<T>(
           ...(request.responseSchema ? { responseSchema: request.responseSchema } : {})
         }
       }),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                `Gemini API 呼び出しがタイムアウトしました (${timeoutMs / 1000}秒) [${request.purpose}]`
-              )
-            ),
-          timeoutMs
-        )
-      )
-    ]);
+      timeoutMs,
+      request.purpose
+    );
 
     responseText = response.text ?? "";
     const value = parseJsonResponse(responseText, request.parse);
@@ -165,7 +156,7 @@ export async function generateText(params: {
   let responseText = "";
 
   try {
-    const response = await Promise.race([
+    const response = await raceWithTimeout(
       ai.models.generateContent({
         model: params.model,
         contents: params.contents,
@@ -173,18 +164,9 @@ export async function generateText(params: {
           ? { systemInstruction: params.systemInstruction }
           : undefined
       }),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                `Gemini API 呼び出しがタイムアウトしました (${timeoutMs / 1000}秒) [${params.purpose}]`
-              )
-            ),
-          timeoutMs
-        )
-      )
-    ]);
+      timeoutMs,
+      params.purpose
+    );
 
     responseText = response.text ?? "";
 
@@ -210,7 +192,7 @@ export async function generateText(params: {
  * Markdown コードフェンスは除去する。
  * parse が例外を投げた場合は null を返す。
  */
-function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T | null {
+export function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T | null {
   try {
     const trimmed = responseText.trim();
     const withoutFence = trimmed
@@ -220,6 +202,31 @@ function parseJsonResponse<T>(responseText: string, parse: (text: string) => T):
     return parse(withoutFence);
   } catch {
     return null;
+  }
+}
+
+export async function raceWithTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  purpose: LlmPurpose
+): Promise<T> {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(
+            `Gemini API 呼び出しがタイムアウトしました (${timeoutMs / 1000}秒) [${purpose}]`
+          )),
+          timeoutMs
+        );
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
