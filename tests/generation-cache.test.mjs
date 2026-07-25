@@ -126,6 +126,22 @@ test("本文取得失敗時のプロンプトは推測による補完を禁止�
   assert.doesNotMatch(prompt, /RSSの概要/);
 });
 
+test("本文取得成功時のプロンプトは不要な不明点の付記を避ける", () => {
+  const prompt = buildVipThreadResponsePrompt({
+    vipTitle: "テストスレ",
+    originalTitle: "テスト記事",
+    url: "https://example.com/article",
+    rssBody: "RSSの概要",
+    scrapedBody: "取得できた記事本文",
+    publishedAt: now,
+    residentPrompt: null
+  });
+
+  assert.match(prompt, /記事にない詳細へわざわざ言及したり/);
+  assert.match(prompt, /「まだ分からない」と定型的に付け足したりしない/);
+  assert.match(prompt, /記事の結論や読者の判断を左右する場合に限り/);
+});
+
 test("広告ブロック設定をSQLiteへ保存して再読込できる", () => {
   saveRendererUserSetting("articleBrowserBlockingEnabled", "false");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "false");
