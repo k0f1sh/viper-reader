@@ -1,4 +1,4 @@
-import { app } from "electron";
+import * as electron from "electron";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { schemaSql } from "./schema.js";
@@ -18,7 +18,7 @@ export function getDatabase(): DatabaseSync {
     ? path.resolve(customDbPath)
     : (process.env.VIPER_READER_DB_PATH
       ? path.resolve(process.env.VIPER_READER_DB_PATH)
-      : path.join(app.getPath("userData"), "viper-reader.db"));
+      : path.join(electron.app.getPath("userData"), "viper-reader.db"));
   database = new DatabaseSync(dbPath);
   database.exec("PRAGMA foreign_keys = ON;");
   database.exec("PRAGMA journal_mode = WAL;");

@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import * as electron from "electron";
 import { getDatabase } from "../db/database.js";
 import type { GeminiApiKeyStatus } from "../../shared/types.js";
 
@@ -120,7 +120,7 @@ function readStoredGeminiApiKey(storedValue: string): string {
 
   const encodedValue = storedValue.slice(encryptedSettingPrefix.length);
   try {
-    return safeStorage.decryptString(Buffer.from(encodedValue, "base64"));
+    return electron.safeStorage.decryptString(Buffer.from(encodedValue, "base64"));
   } catch {
     throw new Error(
       "保存済みの Gemini API キーを復号できません。保存済みキーを削除して、もう一度登録してください。"
@@ -133,13 +133,13 @@ function encodeGeminiApiKeyForStorage(apiKey: string): string {
     return `${plainTextSettingPrefix}${apiKey}`;
   }
 
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!electron.safeStorage.isEncryptionAvailable()) {
     throw new Error(
       "この環境では OS の安全な資格情報ストアを利用できないため、Gemini API キーを保存できません。"
     );
   }
 
-  const encrypted = safeStorage.encryptString(apiKey);
+  const encrypted = electron.safeStorage.encryptString(apiKey);
   return `${encryptedSettingPrefix}${encrypted.toString("base64")}`;
 }
 
