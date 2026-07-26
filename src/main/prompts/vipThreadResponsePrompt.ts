@@ -16,7 +16,7 @@
 
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRules.js";
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v14";
+export const vipThreadResponsePromptHash = "vip-thread-response-v15";
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {

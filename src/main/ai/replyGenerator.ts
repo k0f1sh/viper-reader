@@ -14,6 +14,8 @@ import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
 
+const vipReplyPromptVersion = "vip-reply-v2";
+
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
   log: LlmRequestLogWrite | null;
@@ -72,7 +74,11 @@ export async function generateReplyPosts(
     mode
   });
 
-  const promptHash = crypto.createHash("sha1").update(contents).digest("hex").slice(0, 16);
+  const promptHash = crypto
+    .createHash("sha1")
+    .update(`${vipReplyPromptVersion}\n${VIP_SYSTEM_INSTRUCTION}\n${contents}`)
+    .digest("hex")
+    .slice(0, 16);
 
   // API キー未設定チェック（generateJson 内でも行うが、スキップログを作るため先に確認）
   if (!resolveApiKey()) {
@@ -209,6 +215,10 @@ ${generationInstruction}
 ${latestReplyRule}
 4. 技術的な正確性を保ってください。
 5. 生成する住民レスの mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
+6. 最新のユーザー書き込みが記事内容の深掘りや技術的な質問なら、優秀なエンジニアである住民のうち1人以上が、アンカーを付けて質問へ直接かつ十分に回答してください。雑談だけで流したり、複数人が同じ答えを言い換えて水増ししたりしないでください。
+7. 技術回答は、最初に結論を示し、必要に応じて仕組み、理由、具体例、実装・運用上の注意点の順で説明してください。専門用語は質問者が理解できる言葉へかみ砕き、コードや数値は正確な説明に役立つ場合だけ使ってください。
+8. 元記事に書かれた事実と、回答のために補う確立した一般的な技術知識を区別してください。記事や履歴だけでは断定できない環境依存の事項は、何が分かれば判断できるかを短く伝えてください。知ったかぶりや架空の仕様による補完は禁止です。
+9. 質問者を「そんなことも知らないのか」と扱わず、勘違いがあれば責めずに訂正してください。当時のVIPらしい軽いツッコミや草を混ぜつつ、「聞けば誰かがちゃんと教えてくれる」ヌクモリティのある雰囲気にしてください。回答の正確さを損なうほどふざけないでください。
 
 【出力 JSON スキーマ例】
 [
