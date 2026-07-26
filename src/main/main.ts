@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, shell, Menu, session } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +56,18 @@ const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
+
+const ipcMain = {
+  handle(
+    channel: string,
+    listener: Parameters<typeof electronIpcMain.handle>[1]
+  ): void {
+    electronIpcMain.handle(channel, (event, ...args) => {
+      assertTrustedIpcSender(event);
+      return listener(event, ...args);
+    });
+  }
+};
 
 function getAppIconPath(): string {
   return app.isPackaged
@@ -263,6 +275,12 @@ function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserC
     throw new Error("Unauthorized article browser request.");
   }
   return controller;
+}
+
+function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
+  if (event.sender.isDestroyed() || !articleBrowserControllers.has(event.sender.id)) {
+    throw new Error("Unauthorized IPC request.");
+  }
 }
 
 function assertShowArticleBrowserRequest(value: ShowArticleBrowserRequest): void {

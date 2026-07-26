@@ -22,6 +22,20 @@ export async function postThreadMessage(
   body: string,
   onStatus?: (status: "writing" | "generating" | "done" | "error") => void
 ): Promise<ThreadDetail | null> {
+  if (
+    typeof threadId !== "string"
+    || !threadId
+    || typeof name !== "string"
+    || typeof mail !== "string"
+    || typeof body !== "string"
+    || !body.trim()
+  ) {
+    throw new Error("書き込み内容が不正です。");
+  }
+  if (threadId.length > 512 || name.length > 80 || mail.length > 20 || body.length > 10_000) {
+    throw new Error("書き込み内容が長すぎます。");
+  }
+
   if (!acquireThreadLock(threadId)) {
     onStatus?.("error");
     throw new Error("このスレッドは現在処理中です。完了してからもう一度試してください。");

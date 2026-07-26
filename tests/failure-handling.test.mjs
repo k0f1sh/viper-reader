@@ -15,6 +15,7 @@ const {
   missingApiKeyMessage
 } = await import("../dist/main/ai/genaiClient.js");
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
+const { assertSafeNetworkUrl } = await import("../dist/main/network/safeFetch.js");
 
 const db = getDatabase();
 
@@ -93,4 +94,19 @@ test("HTTP以外の記事URLは取得せずfetch_failedとして扱う", async (
   assert.equal(result.reason, "fetch_failed");
   assert.equal(result.contentText, "");
   assert.equal(result.contentSize, 0);
+});
+
+test("localhostとループバックアドレスへの取得を拒否する", async () => {
+  await assert.rejects(
+    assertSafeNetworkUrl(new URL("http://localhost:3000/feed")),
+    /ローカルホストへのアクセスを拒否/
+  );
+  await assert.rejects(
+    assertSafeNetworkUrl(new URL("http://127.0.0.1:3000/feed")),
+    /ローカルネットワークまたは予約済みアドレスへのアクセスを拒否/
+  );
+  await assert.rejects(
+    assertSafeNetworkUrl(new URL("http://[::1]:3000/feed")),
+    /ローカルネットワークまたは予約済みアドレスへのアクセスを拒否/
+  );
 });

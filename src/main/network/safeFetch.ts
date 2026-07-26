@@ -9,6 +9,7 @@ for (const [network, prefix] of [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
   ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
   ["169.254.0.0", 16],
   ["172.16.0.0", 12],
   ["192.0.0.0", 24],
@@ -25,6 +26,7 @@ for (const [network, prefix] of [
 
 for (const [network, prefix] of [
   ["::", 128],
+  ["::1", 128],
   ["::ffff:0:0", 96],
   ["fc00::", 7],
   ["fe80::", 10],
@@ -130,7 +132,7 @@ export async function assertSafeNetworkUrl(url: URL): Promise<void> {
 
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-    return;
+    throw new Error(`ローカルホストへのアクセスを拒否しました: ${hostname}`);
   }
 
   const addressType = isIP(hostname);
@@ -149,24 +151,12 @@ export async function assertSafeNetworkUrl(url: URL): Promise<void> {
 }
 
 function assertAllowedAddress(address: string, family: number): void {
-  if (isLoopbackAddress(address, family)) {
-    return;
-  }
-
   const isBlocked = family === 6
     ? blockedIpv6Addresses.check(address, "ipv6")
     : blockedIpv4Addresses.check(address, "ipv4");
   if (isBlocked) {
     throw new Error(`ローカルネットワークまたは予約済みアドレスへのアクセスを拒否しました: ${address}`);
   }
-}
-
-function isLoopbackAddress(address: string, family: number): boolean {
-  if (family === 4) {
-    const firstOctet = Number(address.split(".", 1)[0]);
-    return firstOctet === 127;
-  }
-  return address === "::1";
 }
 
 function isRedirect(status: number): boolean {

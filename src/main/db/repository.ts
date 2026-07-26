@@ -296,9 +296,15 @@ export function getFeedResidentPrompt(feedId: string): FeedResidentPrompt | null
 
 export function saveFeedResidentPrompt(feedId: string, promptText: string): void {
   const db = getDatabase();
+  if (typeof feedId !== "string" || !feedId || feedId.length > 512 || typeof promptText !== "string") {
+    throw new Error("Prompt input is invalid.");
+  }
   const prompt = promptText.trim();
   if (!prompt) {
     throw new Error("Prompt text is empty.");
+  }
+  if (prompt.length > 20_000) {
+    throw new Error("Prompt text is too long.");
   }
 
   const promptHash = crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 12);
@@ -1533,6 +1539,9 @@ const allowedFeedbackTags = new Set(["off_topic", "repetitive", "shallow", "weak
 
 export function saveReplyFeedback(runId: string, rating: ReplyRating, tags: string[]): string {
   if (rating !== "good" && rating !== "poor") throw new Error("評価が不正です。");
+  if (typeof runId !== "string" || !runId || runId.length > 512 || !Array.isArray(tags)) {
+    throw new Error("評価内容が不正です。");
+  }
   const cleanTags = tags.filter((tag) => allowedFeedbackTags.has(tag));
   const db = getDatabase();
   const run = db.prepare("SELECT feed_id FROM reply_generation_runs WHERE id = ?").get(runId) as { feed_id: string } | undefined;
@@ -1890,6 +1899,26 @@ function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts
 }
 
 export function addFeedSource(title: string, url: string, generateTitleFromSummary = false): FeedSource {
+  if (typeof title !== "string" || !title.trim() || title.length > 200 || typeof url !== "string" || url.length > 2048) {
+    throw new Error("RSSフィードの入力が不正です。");
+  }
+  if (typeof generateTitleFromSummary !== "boolean") {
+    throw new Error("タイトル生成設定が不正です。");
+  }
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new Error("RSSフィードのURLが不正です。");
+  }
+  if (
+    (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")
+    || parsedUrl.username
+    || parsedUrl.password
+  ) {
+    throw new Error("RSSフィードには認証情報を含まないHTTPまたはHTTPS URLを指定してください。");
+  }
+
   const db = getDatabase();
   const createdAt = new Date().toISOString();
 
