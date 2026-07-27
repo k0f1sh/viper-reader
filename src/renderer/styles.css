@@ -1079,59 +1079,42 @@ body.is-article-pane-resizing * {
 }
 
 .thread-status-lamp {
-  position: relative;
   display: block;
-  width: 18px;
-  height: 14px;
-  border-top: 2px solid #4b4b4b;
-  border-right: 2px solid #ffffff;
-  border-bottom: 2px solid #ffffff;
-  border-left: 2px solid #4b4b4b;
-  outline: 1px solid #202020;
-  background: #969696;
-  box-shadow: inset 1px 1px #4f4f4f, inset -1px -1px #cfcfcf;
-}
-
-.thread-status-lamp::after {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  width: 7px;
-  height: 3px;
-  background: rgb(255 255 255 / 58%);
-  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1px solid #777777;
+  border-radius: 50%;
+  background: #c8c8c8;
 }
 
 .thread-status-lamp.is-generated {
-  background: #20c83a;
-  box-shadow: inset 1px 1px #075d16, inset -1px -1px #73f486;
+  border-color: #086c18;
+  background: #24c83f;
 }
 
 .thread-status-lamp.is-queued {
-  background: #ffd02f;
-  box-shadow: inset 1px 1px #806000, inset -1px -1px #fff097;
+  border-color: #8c6d00;
+  background: #f1c52c;
 }
 
 .thread-status-lamp.is-generating {
-  background: #ffe23c;
-  box-shadow: inset 1px 1px #8c6c00, inset -1px -1px #fff5a9;
+  border-color: #8c6d00;
+  background: #ffe03b;
   animation: generation-lamp-blink 900ms steps(1, end) infinite;
 }
 
 .thread-status-lamp.is-failed {
-  background: #f13b3b;
-  box-shadow: inset 1px 1px #781010, inset -1px -1px #ff9a9a;
+  border-color: #8e1717;
+  background: #e63b3b;
 }
 
 .thread-row.is-selected .thread-status-lamp {
-  outline-color: #ffffff;
-  border-right-color: #d9e5ff;
-  border-bottom-color: #d9e5ff;
+  box-shadow: 0 0 0 1px #ffffff;
 }
 
 @keyframes generation-lamp-blink {
   50% {
-    background: #75651e;
+    opacity: 0.35;
   }
 }
 
