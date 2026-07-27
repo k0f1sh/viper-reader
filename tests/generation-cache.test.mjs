@@ -167,6 +167,22 @@ test("本文取得成功時のプロンプトは不要な不明点の付記を�
   assert.match(prompt, /記事の結論や読者の判断を左右する場合に限り/);
 });
 
+test("記事のプロンプトは主題と無関係な分野の語彙や視点を禁止する", () => {
+  const prompt = buildVipThreadResponsePrompt({
+    vipTitle: "商店街の夏祭り開催決定ｗｗｗ",
+    originalTitle: "商店街で夏祭りを開催",
+    url: "https://example.com/festival",
+    rssBody: "",
+    scrapedBody: "商店街は8月に夏祭りを開催すると発表した。",
+    publishedAt: "2026-07-27",
+    residentPrompt: null
+  });
+
+  assert.match(prompt, /記事の分野に詳しく/);
+  assert.match(prompt, /元記事と無関係な分野の用語、比喩、専門家視点/);
+  assert.doesNotMatch(prompt, /エンジニアにとっての実用上の影響/);
+});
+
 test("広告ブロック設定をSQLiteへ保存して再読込できる", () => {
   saveRendererUserSetting("articleBrowserBlockingEnabled", "false");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "false");

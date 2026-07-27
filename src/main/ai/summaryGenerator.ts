@@ -16,7 +16,7 @@ export type ArticleSummaryGenerationResult = {
 };
 
 /**
- * 指定された記事本文を、技術的な要点を維持したまま300文字程度でシンプルに要約します。
+ * 指定された記事本文の要点を維持したまま300文字程度でシンプルに要約します。
  * 本文が MAX_BODY_CHARS を超える場合は先頭から切り詰めて渡します。
  */
 export async function generateArticleSummary(
@@ -35,7 +35,7 @@ export async function generateArticleSummary(
     truncationNote = `\n\n[※ 本文が長いため先頭 ${MAX_BODY_CHARS} 文字のみ渡しています。後半の内容は要約に含めないでください。]`;
   }
 
-  const contents = `以下の文章を、技術的な要点を残したまま、300文字程度でシンプルに要約してください。余計な挨拶や前置きは省き、要約内容のみを出力してください。\n\n${bodyToUse}${truncationNote}`;
+  const contents = `以下の文章の主題と重要な要点を残し、記事の分野に合う観点と語彙で、300文字程度に要約してください。元記事と無関係な分野の用語、比喩、専門家視点を持ち込まないでください。余計な挨拶や前置きは省き、要約内容のみを出力してください。\n\n${bodyToUse}${truncationNote}`;
   const promptHash = crypto.createHash("sha1").update(contents).digest("hex").slice(0, 16);
 
   if (!resolveApiKey()) {

@@ -13,7 +13,7 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
   return [
     {
       no: 1,
-      name: "以下、名無しにかわりましてVIPが技術記事をお送りします",
+      name: "以下、名無しにかわりましてVIPが記事をお送りします",
       date: formatVipDate(fetchedAt),
       id: "RssFetch00",
       body: createFirstPostBody(item.title, item.url, item.rawSummary)
