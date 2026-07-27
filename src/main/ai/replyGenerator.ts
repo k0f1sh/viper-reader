@@ -252,7 +252,7 @@ function validateGeneratedReplyPosts(
       continue;
     }
 
-    const body = normalizeString(item.body, "").slice(0, 500);
+    const body = normalizeString(item.body, "").slice(0, 2000);
     if (!body.trim()) {
       continue;
     }
