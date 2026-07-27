@@ -1079,46 +1079,59 @@ body.is-article-pane-resizing * {
 }
 
 .thread-status-lamp {
+  position: relative;
   display: block;
-  width: 16px;
+  width: 18px;
   height: 14px;
-  border-top: 2px solid #6f6f6f;
+  border-top: 2px solid #4b4b4b;
   border-right: 2px solid #ffffff;
   border-bottom: 2px solid #ffffff;
-  border-left: 2px solid #6f6f6f;
-  background: #b8b8b8;
-  box-shadow: inset 1px 1px #3f3f3f;
+  border-left: 2px solid #4b4b4b;
+  outline: 1px solid #202020;
+  background: #969696;
+  box-shadow: inset 1px 1px #4f4f4f, inset -1px -1px #cfcfcf;
+}
+
+.thread-status-lamp::after {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 7px;
+  height: 3px;
+  background: rgb(255 255 255 / 58%);
+  content: "";
 }
 
 .thread-status-lamp.is-generated {
-  background: #168316;
-  box-shadow: inset 1px 1px #075307, inset -1px -1px #47c447;
+  background: #20c83a;
+  box-shadow: inset 1px 1px #075d16, inset -1px -1px #73f486;
 }
 
 .thread-status-lamp.is-queued {
-  background: #c49a13;
-  box-shadow: inset 1px 1px #715700, inset -1px -1px #f2d35d;
+  background: #ffd02f;
+  box-shadow: inset 1px 1px #806000, inset -1px -1px #fff097;
 }
 
 .thread-status-lamp.is-generating {
-  background: #f0c62c;
-  box-shadow: inset 1px 1px #806400, inset -1px -1px #fff19a;
+  background: #ffe23c;
+  box-shadow: inset 1px 1px #8c6c00, inset -1px -1px #fff5a9;
   animation: generation-lamp-blink 900ms steps(1, end) infinite;
 }
 
 .thread-status-lamp.is-failed {
-  background: #b32121;
-  box-shadow: inset 1px 1px #681010, inset -1px -1px #e35d5d;
+  background: #f13b3b;
+  box-shadow: inset 1px 1px #781010, inset -1px -1px #ff9a9a;
 }
 
 .thread-row.is-selected .thread-status-lamp {
+  outline-color: #ffffff;
   border-right-color: #d9e5ff;
   border-bottom-color: #d9e5ff;
 }
 
 @keyframes generation-lamp-blink {
   50% {
-    background: #766928;
+    background: #75651e;
   }
 }
 
