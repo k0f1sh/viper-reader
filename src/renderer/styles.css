@@ -1072,17 +1072,60 @@ body.is-article-pane-resizing * {
   color: #a00000;
 }
 
-.thread-generated-check {
+.thread-generation-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: transparent;
-  font-size: 15px;
-  font-weight: 700;
 }
 
-.thread-generated-check.is-generated {
-  color: #176b17;
+.thread-status-lamp {
+  display: block;
+  width: 16px;
+  height: 14px;
+  border-top: 2px solid #6f6f6f;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid #6f6f6f;
+  background: #b8b8b8;
+  box-shadow: inset 1px 1px #3f3f3f;
+}
+
+.thread-status-lamp.is-generated {
+  background: #168316;
+  box-shadow: inset 1px 1px #075307, inset -1px -1px #47c447;
+}
+
+.thread-status-lamp.is-queued {
+  background: #c49a13;
+  box-shadow: inset 1px 1px #715700, inset -1px -1px #f2d35d;
+}
+
+.thread-status-lamp.is-generating {
+  background: #f0c62c;
+  box-shadow: inset 1px 1px #806400, inset -1px -1px #fff19a;
+  animation: generation-lamp-blink 900ms steps(1, end) infinite;
+}
+
+.thread-status-lamp.is-failed {
+  background: #b32121;
+  box-shadow: inset 1px 1px #681010, inset -1px -1px #e35d5d;
+}
+
+.thread-row.is-selected .thread-status-lamp {
+  border-right-color: #d9e5ff;
+  border-bottom-color: #d9e5ff;
+}
+
+@keyframes generation-lamp-blink {
+  50% {
+    background: #766928;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-status-lamp.is-generating {
+    animation: none;
+  }
 }
 
 .queue-complete-banner {

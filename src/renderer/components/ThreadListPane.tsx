@@ -145,6 +145,22 @@ export function ThreadListPane({
           const isQueued = thread.generationStatus === "queued";
           const isFailed = thread.generationStatus === "failed";
           const isGenerated = thread.generationStatus === "completed" || thread.responseCount > 1;
+          const lampStatus = isFailed
+            ? "failed"
+            : isGenerating
+              ? "generating"
+              : isQueued
+                ? "queued"
+                : isGenerated
+                  ? "generated"
+                  : "empty";
+          const lampLabel = {
+            empty: "未生成",
+            queued: "生成待ち",
+            generating: "生成中",
+            generated: "生成済み",
+            failed: "生成失敗"
+          }[lampStatus];
           return (
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
@@ -155,11 +171,11 @@ export function ThreadListPane({
               type="button"
             >
               <span
-                aria-label={isGenerated ? "生成済み" : "未生成"}
-                className={`thread-generated-check ${isGenerated ? "is-generated" : ""}`}
-                title={isGenerated ? "生成済み" : ""}
+                aria-label={lampLabel}
+                className="thread-generation-cell"
+                title={lampLabel}
               >
-                {isGenerated ? "✓" : ""}
+                <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
               </span>
               <span className="thread-title">
                 {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}

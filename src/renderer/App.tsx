@@ -16,9 +16,9 @@ import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
 
-const threadColumnLabels = ["済", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
-const defaultThreadColumnWidths = [38, 360, 170, 300, 54, 126, 260];
-const minThreadColumnWidths = [32, 220, 100, 180, 44, 96, 140];
+const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
+const defaultThreadColumnWidths = [44, 360, 170, 300, 54, 126, 260];
+const minThreadColumnWidths = [44, 220, 100, 180, 44, 96, 140];
 const maxRendererLogs = 300;
 const maxConcurrentFeedRefreshes = 5;
 const allFeedsId = "__all_feeds__";
