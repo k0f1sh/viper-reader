@@ -27,7 +27,7 @@ type ThreadListPaneProps = {
   totalCount: number;
   onPreviousPage: () => void;
   onNextPage: () => void;
-  smartView: "unread" | "generated" | null;
+  smartView: "unread" | "generated" | "reviewed" | null;
   queueSummary: ReadingQueueSummary;
   onOpenGeneratedQueue: () => void;
 };
@@ -81,7 +81,13 @@ export function ThreadListPane({
       <div className="toolbar">
         <div>
           <div className="pane-title">
-            {smartView === "unread" ? "未読チェック" : smartView === "generated" ? "生成済み・未確認" : "スレタイ一覧"}
+            {smartView === "unread"
+              ? "未読チェック"
+              : smartView === "generated"
+                ? "生成済み・未確認"
+                : smartView === "reviewed"
+                  ? "生成済み・確認済み"
+                  : "スレタイ一覧"}
           </div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
         </div>

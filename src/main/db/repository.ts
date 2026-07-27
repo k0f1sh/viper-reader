@@ -1161,12 +1161,15 @@ function listAllThreads(
   page: number,
   pageSize: number,
   filterUnread: number,
-  generationQueueOnly = false
+  generationQueueMode: "none" | "unreviewed" | "reviewed" = "none"
 ): ThreadListPage {
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
-  const generationCondition = generationQueueOnly
-    ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL"
-    : "";
+  const generationCondition =
+    generationQueueMode === "unreviewed"
+      ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL"
+      : generationQueueMode === "reviewed"
+        ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NOT NULL"
+        : "";
   const countRow = db.prepare(`
     SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
     FROM feed_items fi
@@ -1230,7 +1233,8 @@ function listAllThreads(
       AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
     WHERE fi.article_rank = 1
     ORDER BY
-      ${generationQueueOnly ? "fi.generation_completed_at ASC," : ""}
+      ${generationQueueMode === "unreviewed" ? "fi.generation_completed_at ASC," : ""}
+      ${generationQueueMode === "reviewed" ? "fi.generation_reviewed_at DESC," : ""}
       CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
       COALESCE(fi.published_at, fi.created_at) DESC,
       fi.created_at DESC,
@@ -1254,7 +1258,7 @@ function listAllThreads(
   return { items: rows.map(rowToThreadListItem), totalCount: Number(countRow.total_count), page, pageSize };
 }
 
-export function listGeneratedQueue(page = 0, pageSize = 100): ThreadListPage {
+export function listGeneratedQueue(page = 0, pageSize = 100, reviewed = false): ThreadListPage {
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   return listAllThreads(
@@ -1264,7 +1268,7 @@ export function listGeneratedQueue(page = 0, pageSize = 100): ThreadListPage {
     safePage,
     safePageSize,
     0,
-    true
+    reviewed ? "reviewed" : "unreviewed"
   );
 }
 
@@ -1279,11 +1283,17 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
     GROUP BY generation_status
   `).all() as Array<{ status: string; count: number }>;
   const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
+  const reviewedRow = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM feed_items
+    WHERE generation_status = 'completed' AND generation_reviewed_at IS NOT NULL
+  `).get() as { count: number };
   return {
     unreadCount,
     queuedCount: counts.get("queued") ?? 0,
     generatingCount: counts.get("generating") ?? 0,
     completedCount: counts.get("completed") ?? 0,
+    reviewedCount: Number(reviewedRow.count),
     failedCount: counts.get("failed") ?? 0
   };
 }

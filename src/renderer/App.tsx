@@ -119,12 +119,13 @@ export function App() {
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [smartView, setSmartView] = useState<"unread" | "generated" | null>(null);
+  const [smartView, setSmartView] = useState<"unread" | "generated" | "reviewed" | null>(null);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>({
     unreadCount: 0,
     queuedCount: 0,
     generatingCount: 0,
     completedCount: 0,
+    reviewedCount: 0,
     failedCount: 0
   });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
@@ -180,6 +181,8 @@ export function App() {
     setThreadListPage(0);
     if (smartView === "generated") {
       void reloadGeneratedQueue(0);
+    } else if (smartView === "reviewed") {
+      void reloadReviewedGenerationQueue(0);
     } else {
       void reloadThreads(selectedFeedId, undefined, 0);
     }
@@ -391,6 +394,14 @@ export function App() {
     setThreadListTotalCount(result.totalCount);
   }
 
+  async function reloadReviewedGenerationQueue(page = threadListPage) {
+    if (!window.viperReader) return;
+    const result = await window.viperReader.listReviewedGenerationQueue(page);
+    setThreadList(result.items);
+    setThreadListPage(result.page);
+    setThreadListTotalCount(result.totalCount);
+  }
+
   async function reloadQueueSummary() {
     if (!window.viperReader) return;
     setQueueSummary(await window.viperReader.getReadingQueueSummary());
@@ -399,6 +410,7 @@ export function App() {
   function changeThreadListPage(nextPage: number) {
     if (!selectedFeedId || nextPage < 0) return;
     if (smartView === "generated") void reloadGeneratedQueue(nextPage);
+    else if (smartView === "reviewed") void reloadReviewedGenerationQueue(nextPage);
     else void reloadThreads(selectedFeedId, undefined, nextPage);
   }
 
@@ -516,14 +528,28 @@ export function App() {
           selectThread(first, selectedFeedId === allFeedsId ? allFeedsId : undefined);
         }
       } else if (event.key === "h" || event.key === "l") {
-        const feedIds = [allFeedsId, ...feedList.map((feed) => feed.id)];
-        const currentIndex = feedIds.indexOf(selectedFeedId);
+        const navigationTargets = [
+          { id: "__unread_queue__", select: () => selectSmartView("unread") },
+          { id: "__generated_queue__", select: () => selectSmartView("generated") },
+          { id: "__reviewed_queue__", select: () => selectSmartView("reviewed") },
+          { id: allFeedsId, select: () => selectFeed(allFeedsId) },
+          ...feedList.map((feed) => ({ id: feed.id, select: () => selectFeed(feed.id) }))
+        ];
+        const currentTargetId =
+          smartView === "unread"
+            ? "__unread_queue__"
+            : smartView === "generated"
+              ? "__generated_queue__"
+              : smartView === "reviewed"
+                ? "__reviewed_queue__"
+              : selectedFeedId;
+        const currentIndex = navigationTargets.findIndex((targetItem) => targetItem.id === currentTargetId);
         const delta = event.key === "l" ? 1 : -1;
-        const nextIndex = currentIndex < 0 ? (delta > 0 ? 0 : feedIds.length - 1) : currentIndex + delta;
-        const nextFeedId = feedIds[nextIndex];
-        if (nextFeedId) {
+        const nextIndex = currentIndex < 0 ? (delta > 0 ? 0 : navigationTargets.length - 1) : currentIndex + delta;
+        const nextTarget = navigationTargets[nextIndex];
+        if (nextTarget) {
           event.preventDefault();
-          selectFeed(nextFeedId);
+          nextTarget.select();
         }
       } else if (event.key === "r" || event.key === "y") {
         event.preventDefault(); void refreshSelectedFeed();
@@ -546,7 +572,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId, threadViewMode]);
+  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, smartView, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId, threadViewMode]);
 
   async function loadSettings() {
     if (!window.viperReader) {
@@ -717,14 +743,24 @@ export function App() {
     setRefreshMessage("");
   }
 
-  function selectSmartView(view: "unread" | "generated") {
-    if (view !== smartView) reviewCurrentGeneratedThread();
-    setSmartView(view);
-    setShowUnreadOnly(view === "unread");
-    setSelectedFeedId(allFeedsId);
-    setSelectedThreadId(undefined);
-    setSelectedThread(null);
-    setRefreshMessage("");
+  function selectSmartView(view: "unread" | "generated" | "reviewed") {
+    function activateView() {
+      setSmartView(view);
+      setShowUnreadOnly(view === "unread");
+      setSelectedFeedId(allFeedsId);
+      setSelectedThreadId(undefined);
+      setSelectedThread(null);
+      setRefreshMessage("");
+    }
+
+    if (view !== smartView && smartView === "generated" && selectedThreadId && window.viperReader) {
+      void window.viperReader.markThreadGenerationReviewed(selectedThreadId)
+        .then(reloadQueueSummary)
+        .catch(() => undefined)
+        .finally(activateView);
+      return;
+    }
+    activateView();
   }
 
   function reviewCurrentGeneratedThread() {

@@ -93,7 +93,9 @@ test("生成完了した記事は確認するまで生成済みキューに残�
 
   markThreadGenerationReviewed("queued-item");
   assert.equal(getReadingQueueSummary().completedCount, 0);
+  assert.equal(getReadingQueueSummary().reviewedCount, 1);
   assert.deepEqual(listGeneratedQueue().items, []);
+  assert.deepEqual(listGeneratedQueue(0, 100, true).items.map((item) => item.id), ["queued-item"]);
 });
 
 test("本文キャッシュがあれば再取得せず、実際の生成工程だけを通知する", async () => {

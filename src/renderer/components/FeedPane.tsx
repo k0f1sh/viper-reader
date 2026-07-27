@@ -21,8 +21,8 @@ type FeedPaneProps = {
   allFeedsId: string;
   allUnreadCount: number;
   queueSummary: ReadingQueueSummary;
-  activeSmartView: "unread" | "generated" | null;
-  onSelectSmartView: (view: "unread" | "generated") => void;
+  activeSmartView: "unread" | "generated" | "reviewed" | null;
+  onSelectSmartView: (view: "unread" | "generated" | "reviewed") => void;
   feedTreeHeight: number;
   onStartFeedTreeResize: (event: ReactMouseEvent<HTMLDivElement>) => void;
 };
@@ -124,6 +124,14 @@ export function FeedPane({
         >
           <span className="feed-name">生成済み・未確認</span>
           <span className="feed-count">{queueSummary.completedCount}</span>
+        </button>
+        <button
+          className={`feed-row smart-feed-row ${activeSmartView === "reviewed" ? "is-selected" : ""}`}
+          onClick={() => onSelectSmartView("reviewed")}
+          type="button"
+        >
+          <span className="feed-name">生成済み・確認済み</span>
+          <span className="feed-count">{queueSummary.reviewedCount}</span>
         </button>
         {queueSummary.failedCount > 0 ? (
           <div className="queue-failure-row">生成失敗 <span>{queueSummary.failedCount}</span></div>

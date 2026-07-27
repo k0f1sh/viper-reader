@@ -135,6 +135,7 @@ ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unr
   listThreads(feedId, page, 100, unreadOnly)
 );
 ipcMain.handle("threads:list-generated-queue", (_event, page: number) => listGeneratedQueue(page, 100));
+ipcMain.handle("threads:list-reviewed-generation-queue", (_event, page: number) => listGeneratedQueue(page, 100, true));
 ipcMain.handle("threads:get-queue-summary", () => getReadingQueueSummary());
 ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => markThreadGenerationReviewed(threadId));
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());

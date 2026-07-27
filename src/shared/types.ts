@@ -43,6 +43,7 @@ export type ReadingQueueSummary = {
   queuedCount: number;
   generatingCount: number;
   completedCount: number;
+  reviewedCount: number;
   failedCount: number;
 };
 
