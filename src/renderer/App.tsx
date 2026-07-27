@@ -23,6 +23,39 @@ const maxRendererLogs = 300;
 const maxConcurrentFeedRefreshes = 5;
 const allFeedsId = "__all_feeds__";
 
+function parseThreadColumnWidths(v3Json: string | null, v2Json: string | null): number[] | null {
+  function parse(json: string | null): unknown {
+    if (!json) return null;
+    try {
+      return JSON.parse(json) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  const v3 = parse(v3Json);
+  if (Array.isArray(v3) && v3.length === defaultThreadColumnWidths.length) {
+    return v3.map((width, index) =>
+      typeof width === "number" && Number.isFinite(width)
+        ? Math.max(minThreadColumnWidths[index], width)
+        : defaultThreadColumnWidths[index]
+    );
+  }
+
+  const v2 = parse(v2Json);
+  if (Array.isArray(v2)) {
+    const migrated = v2.length === defaultThreadColumnWidths.length - 1 ? [defaultThreadColumnWidths[0], ...v2] : v2;
+    if (migrated.length === defaultThreadColumnWidths.length) {
+      return migrated.map((width, index) =>
+        typeof width === "number" && Number.isFinite(width)
+          ? Math.max(minThreadColumnWidths[index], width)
+          : defaultThreadColumnWidths[index]
+      );
+    }
+  }
+  return null;
+}
+
 function scrollReadMarkerToTop() {
   setTimeout(() => {
     const postsContainer = document.querySelector<HTMLElement>(".posts");
@@ -580,8 +613,9 @@ export function App() {
     }
 
     try {
-      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
+      const [height, widthsV3Json, widthsV2Json, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
+        window.viperReader.getUserSetting("threadColumnWidthsV3"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
         window.viperReader.getUserSetting("titleModel"),
@@ -595,13 +629,6 @@ export function App() {
 
       if (height) {
         setThreadListHeight(parseFloat(height));
-      }
-
-      if (widthsJson) {
-        const widths = JSON.parse(widthsJson) as unknown;
-        if (Array.isArray(widths) && widths.length === defaultThreadColumnWidths.length) {
-          setThreadColumnWidths(widths as number[]);
-        }
       }
 
       if (model) {
@@ -623,6 +650,14 @@ export function App() {
       if (savedFeedTreeHeight) {
         const height = Number.parseFloat(savedFeedTreeHeight);
         if (Number.isFinite(height)) setFeedTreeHeight(Math.max(100, height));
+      }
+
+      const savedWidths = parseThreadColumnWidths(widthsV3Json, widthsV2Json);
+      if (savedWidths) {
+        setThreadColumnWidths(savedWidths);
+        if (!widthsV3Json) {
+          void window.viperReader.saveUserSetting("threadColumnWidthsV3", JSON.stringify(savedWidths));
+        }
       }
 
       if (savedArticlePaneWidth) {
@@ -1586,7 +1621,7 @@ export function App() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", stopResize);
       document.body.classList.remove("is-column-resizing");
-      void window.viperReader?.saveUserSetting("threadColumnWidthsV2", JSON.stringify(currentWidths));
+      void window.viperReader?.saveUserSetting("threadColumnWidthsV3", JSON.stringify(currentWidths));
     }
 
     document.body.classList.add("is-column-resizing");

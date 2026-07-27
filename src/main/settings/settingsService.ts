@@ -17,9 +17,11 @@ const rendererSettingKeys = new Set([
   "optimizerModel",
   "threadColumnWidths",
   "threadColumnWidthsV2",
+  "threadColumnWidthsV3",
   "threadListHeight",
   "threadTabs",
   "feedPaneWidth",
+  "feedTreeHeight",
   "articlePaneWidth",
   "articlePaneVisible",
   "articleBrowserBlockingEnabled"

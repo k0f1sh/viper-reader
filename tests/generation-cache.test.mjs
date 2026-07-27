@@ -174,3 +174,16 @@ test("広告ブロック設定をSQLiteへ保存して再読込できる", () =>
   saveRendererUserSetting("articleBrowserBlockingEnabled", "true");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "true");
 });
+
+test("ペインとカラムのレイアウト設定を保存できる", () => {
+  saveRendererUserSetting("feedPaneWidth", "420");
+  saveRendererUserSetting("feedTreeHeight", "280");
+  saveRendererUserSetting("threadColumnWidthsV3", "[38,500,170,300,54,126,260]");
+
+  assert.equal(getRendererUserSetting("feedPaneWidth"), "420");
+  assert.equal(getRendererUserSetting("feedTreeHeight"), "280");
+  assert.equal(
+    getRendererUserSetting("threadColumnWidthsV3"),
+    "[38,500,170,300,54,126,260]"
+  );
+});
