@@ -96,7 +96,7 @@ export function ThreadListPane({
             <span>未読 {queueSummary.unreadCount}</span>
             <span>待ち {queueSummary.queuedCount}</span>
             <span>生成中 {queueSummary.generatingCount}</span>
-            <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>完成 {queueSummary.completedCount}</span>
+            <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>生成済 {queueSummary.completedCount}</span>
           </div>
           <div className="thread-toolbar-actions">
             <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
@@ -164,7 +164,7 @@ export function ThreadListPane({
               <span className="thread-title">
                 {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
                 {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
-                {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
+                {isCompleted ? <span className="status-badge completed">[生成完了] </span> : null}
                 {isFailed ? <span className="status-badge failed">[失敗] </span> : null}
                 {thread.vipTitle}
               </span>
