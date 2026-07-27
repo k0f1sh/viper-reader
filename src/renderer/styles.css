@@ -1059,6 +1059,11 @@ body.is-article-pane-resizing * {
   color: #a00000;
 }
 
+.status-badge.generated {
+  color: #176b17;
+  font-weight: 700;
+}
+
 .queue-complete-banner {
   display: flex;
   align-items: center;

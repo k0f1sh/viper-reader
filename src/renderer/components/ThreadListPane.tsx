@@ -142,6 +142,7 @@ export function ThreadListPane({
           const isCompleted = completedThreadIds.has(thread.id);
           const isQueued = thread.generationStatus === "queued";
           const isFailed = thread.generationStatus === "failed";
+          const isGenerated = thread.generationStatus === "completed" || thread.responseCount > 1;
           return (
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
@@ -156,6 +157,9 @@ export function ThreadListPane({
                 {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
                 {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
                 {isFailed ? <span className="status-badge failed">[失敗] </span> : null}
+                {!isGenerating && !isCompleted && isGenerated ? (
+                  <span className="status-badge generated">[生成済] </span>
+                ) : null}
                 {thread.vipTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
