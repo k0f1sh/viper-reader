@@ -115,7 +115,7 @@ export function FeedPane({
           type="button"
         >
           <span className="feed-name">未読</span>
-          <span className="feed-count">{queueSummary.unreadCount}</span>
+          {queueSummary.unreadCount > 0 ? <span className="feed-count">{queueSummary.unreadCount}</span> : null}
         </button>
         <button
           className={`feed-row smart-feed-row ${activeSmartView === "generated" ? "is-selected" : ""}`}
@@ -123,7 +123,6 @@ export function FeedPane({
           type="button"
         >
           <span className="feed-name">生成済み・未確認</span>
-          <span className="feed-count">{queueSummary.completedCount}</span>
         </button>
         <button
           className={`feed-row smart-feed-row ${activeSmartView === "reviewed" ? "is-selected" : ""}`}
@@ -131,7 +130,6 @@ export function FeedPane({
           type="button"
         >
           <span className="feed-name">生成済み・確認済み</span>
-          <span className="feed-count">{queueSummary.reviewedCount}</span>
         </button>
         {queueSummary.failedCount > 0 ? (
           <div className="queue-failure-row">生成失敗 <span>{queueSummary.failedCount}</span></div>
@@ -144,7 +142,7 @@ export function FeedPane({
           type="button"
         >
           <span className="feed-name">全板共通</span>
-          <span className="feed-count">{allUnreadCount}</span>
+          {allUnreadCount > 0 ? <span className="feed-count">{allUnreadCount}</span> : null}
         </button>
         {feeds.map((feed) => (
           <button
@@ -178,7 +176,7 @@ export function FeedPane({
             type="button"
           >
             <span className="feed-name">{feed.title}</span>
-            <span className="feed-count">{feed.unreadCount}</span>
+            {feed.unreadCount > 0 ? <span className="feed-count">{feed.unreadCount}</span> : null}
           </button>
         ))}
       </div>
