@@ -945,7 +945,19 @@ body.is-article-pane-resizing * {
   color: #555555;
 }
 
-.thread-toolbar-actions { display: flex; gap: 4px; align-items: center; }
+.thread-toolbar-right {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.thread-toolbar-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
 .refresh-button.is-active { color: #ffffff; background: #0a246a; }
 .thread-row:not(.is-read) .thread-title::before { content: "● "; color: #cc0000; font-size: 9px; }
 .thread-row.is-selected .thread-title { color: #ffffff; }
@@ -1035,8 +1047,9 @@ body.is-article-pane-resizing * {
 
 .queue-status {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 3px;
+  margin-top: 8px;
   margin-left: auto;
   font-size: 11px;
   white-space: nowrap;
@@ -1059,9 +1072,17 @@ body.is-article-pane-resizing * {
   color: #a00000;
 }
 
-.status-badge.generated {
-  color: #176b17;
+.thread-generated-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 15px;
   font-weight: 700;
+}
+
+.thread-generated-check.is-generated {
+  color: #176b17;
 }
 
 .queue-complete-banner {

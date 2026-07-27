@@ -91,27 +91,29 @@ export function ThreadListPane({
           </div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
         </div>
-        <div className="queue-status" role="status">
-          <span>未読 {queueSummary.unreadCount}</span>
-          <span>待ち {queueSummary.queuedCount}</span>
-          <span>生成中 {queueSummary.generatingCount}</span>
-          <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>完成 {queueSummary.completedCount}</span>
-        </div>
-        <div className="thread-toolbar-actions">
-        <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
-          {showUnreadOnly ? "未読のみ ✓" : "未読のみ"}
-        </button>
-        <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">
-          すべて既読
-        </button>
-        <button
-          className="refresh-button"
-          disabled={isRefreshing || !selectedFeed || !canRefresh}
-          onClick={onRefresh}
-          type="button"
-        >
-          {isRefreshing ? "取得中" : refreshLabel}
-        </button>
+        <div className="thread-toolbar-right">
+          <div className="queue-status" role="status">
+            <span>未読 {queueSummary.unreadCount}</span>
+            <span>待ち {queueSummary.queuedCount}</span>
+            <span>生成中 {queueSummary.generatingCount}</span>
+            <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>完成 {queueSummary.completedCount}</span>
+          </div>
+          <div className="thread-toolbar-actions">
+            <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
+              {showUnreadOnly ? "未読のみ ✓" : "未読のみ"}
+            </button>
+            <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">
+              すべて既読
+            </button>
+            <button
+              className="refresh-button"
+              disabled={isRefreshing || !selectedFeed || !canRefresh}
+              onClick={onRefresh}
+              type="button"
+            >
+              {isRefreshing ? "取得中" : refreshLabel}
+            </button>
+          </div>
         </div>
       </div>
       {refreshMessage ? (
@@ -152,14 +154,18 @@ export function ThreadListPane({
               onClick={() => onSelectThread(thread.id)}
               type="button"
             >
+              <span
+                aria-label={isGenerated ? "生成済み" : "未生成"}
+                className={`thread-generated-check ${isGenerated ? "is-generated" : ""}`}
+                title={isGenerated ? "生成済み" : ""}
+              >
+                {isGenerated ? "✓" : ""}
+              </span>
               <span className="thread-title">
                 {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
                 {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
                 {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
                 {isFailed ? <span className="status-badge failed">[失敗] </span> : null}
-                {!isGenerating && !isCompleted && isGenerated ? (
-                  <span className="status-badge generated">[生成済] </span>
-                ) : null}
                 {thread.vipTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
