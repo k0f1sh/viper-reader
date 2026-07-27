@@ -28,6 +28,7 @@ export type ThreadListItem = {
   responseCount: number;
   isRead: boolean;
   isFavorite: boolean;
+  generationStatus: "queued" | "generating" | "completed" | "failed" | null;
 };
 
 export type ThreadListPage = {
@@ -35,6 +36,14 @@ export type ThreadListPage = {
   totalCount: number;
   page: number;
   pageSize: number;
+};
+
+export type ReadingQueueSummary = {
+  unreadCount: number;
+  queuedCount: number;
+  generatingCount: number;
+  completedCount: number;
+  failedCount: number;
 };
 
 export type ThreadDetail = ThreadListItem & {

@@ -11,6 +11,10 @@ delete process.env.GEMINI_API_KEY;
 const { getDatabase } = await import("../dist/main/db/database.js");
 const {
   listUnconvertedFeedItems,
+  getReadingQueueSummary,
+  listGeneratedQueue,
+  markThreadGenerationReviewed,
+  setThreadGenerationState,
   saveArticleBody,
   saveRawVipTitleFallbacks,
   saveRssThreadSummaries
@@ -71,6 +75,25 @@ test("スレタイ自動変換は未読かつ未変換の記事だけを対象�
   const items = listUnconvertedFeedItems("selection", titleModel, "test-prompt");
 
   assert.deepEqual(items.map((item) => item.id), ["unread"]);
+});
+
+test("生成完了した記事は確認するまで生成済みキューに残る", () => {
+  insertFeed("queue");
+  insertItem({ id: "queued-item", feedId: "queue", readAt: now });
+
+  setThreadGenerationState("queued-item", "queued");
+  assert.equal(getReadingQueueSummary().queuedCount, 1);
+
+  setThreadGenerationState("queued-item", "generating");
+  assert.equal(getReadingQueueSummary().generatingCount, 1);
+
+  setThreadGenerationState("queued-item", "completed");
+  assert.equal(getReadingQueueSummary().completedCount, 1);
+  assert.deepEqual(listGeneratedQueue().items.map((item) => item.id), ["queued-item"]);
+
+  markThreadGenerationReviewed("queued-item");
+  assert.equal(getReadingQueueSummary().completedCount, 0);
+  assert.deepEqual(listGeneratedQueue().items, []);
 });
 
 test("本文キャッシュがあれば再取得せず、実際の生成工程だけを通知する", async () => {

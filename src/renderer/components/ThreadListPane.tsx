@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { FeedSource, ThreadListItem } from "../../shared/types";
+import type { FeedSource, ReadingQueueSummary, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
 
 type ThreadListPaneProps = {
@@ -27,6 +27,9 @@ type ThreadListPaneProps = {
   totalCount: number;
   onPreviousPage: () => void;
   onNextPage: () => void;
+  smartView: "unread" | "generated" | null;
+  queueSummary: ReadingQueueSummary;
+  onOpenGeneratedQueue: () => void;
 };
 
 export function ThreadListPane({
@@ -52,7 +55,10 @@ export function ThreadListPane({
   pageSize,
   totalCount,
   onPreviousPage,
-  onNextPage
+  onNextPage,
+  smartView,
+  queueSummary,
+  onOpenGeneratedQueue
 }: ThreadListPaneProps) {
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -74,8 +80,16 @@ export function ThreadListPane({
     >
       <div className="toolbar">
         <div>
-          <div className="pane-title">スレタイ一覧</div>
+          <div className="pane-title">
+            {smartView === "unread" ? "未読チェック" : smartView === "generated" ? "生成済み・未確認" : "スレタイ一覧"}
+          </div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
+        </div>
+        <div className="queue-status" role="status">
+          <span>未読 {queueSummary.unreadCount}</span>
+          <span>待ち {queueSummary.queuedCount}</span>
+          <span>生成中 {queueSummary.generatingCount}</span>
+          <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>完成 {queueSummary.completedCount}</span>
         </div>
         <div className="thread-toolbar-actions">
         <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
@@ -120,6 +134,8 @@ export function ThreadListPane({
         {threads.map((thread) => {
           const isGenerating = generatingThreadIds.has(thread.id);
           const isCompleted = completedThreadIds.has(thread.id);
+          const isQueued = thread.generationStatus === "queued";
+          const isFailed = thread.generationStatus === "failed";
           return (
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
@@ -131,7 +147,9 @@ export function ThreadListPane({
             >
               <span className="thread-title">
                 {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
+                {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
                 {isCompleted ? <span className="status-badge completed">[完了] </span> : null}
+                {isFailed ? <span className="status-badge failed">[失敗] </span> : null}
                 {thread.vipTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
@@ -143,6 +161,21 @@ export function ThreadListPane({
           );
         })}
       </div>
+      {smartView === "unread"
+        && threads.length > 0
+        && totalCount <= threads.length
+        && threads.every((thread) => thread.isRead) ? (
+        <div className="queue-complete-banner">
+          <span>未読チェック完了</span>
+          {queueSummary.completedCount > 0 ? (
+            <button onClick={onOpenGeneratedQueue} type="button">
+              生成済みを読む（{queueSummary.completedCount}件）
+            </button>
+          ) : queueSummary.generatingCount > 0 || queueSummary.queuedCount > 0 ? (
+            <span>生成完了を待っています</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="thread-list-pagination">
         <button disabled={page === 0} onClick={onPreviousPage} type="button">◀ 前の100件</button>
         <span>{totalCount === 0 ? "0件" : `${page * pageSize + 1}〜${Math.min((page + 1) * pageSize, totalCount)} / ${totalCount}件`}</span>

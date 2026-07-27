@@ -13,6 +13,8 @@ import {
   initializeRepository,
   listFeeds,
   listThreads,
+  listGeneratedQueue,
+  getReadingQueueSummary,
   countAllUnreadArticles,
   listResidentPromptVersions,
   reviewResidentPromptVersion,
@@ -25,6 +27,8 @@ import {
   markFeedRead,
   markAllFeedsRead,
   setThreadRead,
+  setThreadGenerationState,
+  markThreadGenerationReviewed,
   updateFeedTitleGenerationSetting
 } from "./db/repository.js";
 import { loadEnv } from "./env/loadEnv.js";
@@ -130,6 +134,9 @@ ipcMain.handle("feeds:list", () => listFeeds());
 ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) =>
   listThreads(feedId, page, 100, unreadOnly)
 );
+ipcMain.handle("threads:list-generated-queue", (_event, page: number) => listGeneratedQueue(page, 100));
+ipcMain.handle("threads:get-queue-summary", () => getReadingQueueSummary());
+ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => markThreadGenerationReviewed(threadId));
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   const thread = openThread(threadId);
@@ -174,9 +181,12 @@ ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: b
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
+  setThreadGenerationState(threadId, "queued");
   startThreadResponseGeneration(threadId, force, (status) => {
+    setThreadGenerationState(threadId, status === "done" || status === "skipped" ? "completed" : "failed");
     event.sender.send("threads:generation-complete", { threadId, status });
   }, (progress) => {
+    setThreadGenerationState(threadId, "generating");
     event.sender.send("threads:generation-progress", { threadId, ...progress });
   });
 });

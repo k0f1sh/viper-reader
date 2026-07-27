@@ -15,7 +15,8 @@ import type {
   ThreadDetail,
   ThreadListItem,
   ThreadListPage,
-  ThreadPost
+  ThreadPost,
+  ReadingQueueSummary
 } from "../../shared/types.js";
 import {
   defaultResidentPromptHash,
@@ -61,6 +62,7 @@ type ThreadRow = {
   raw_summary: string | null;
   response_count: number;
   is_favorite: number;
+  generation_status?: ThreadListItem["generationStatus"];
   posts_json?: string;
   response_posts_json?: string;
 };
@@ -1094,6 +1096,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
+        fi.generation_status,
         fi.raw_summary,
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
@@ -1157,13 +1160,18 @@ function listAllThreads(
   titleModel: string,
   page: number,
   pageSize: number,
-  filterUnread: number
+  filterUnread: number,
+  generationQueueOnly = false
 ): ThreadListPage {
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
+  const generationCondition = generationQueueOnly
+    ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL"
+    : "";
   const countRow = db.prepare(`
     SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
     FROM feed_items fi
     WHERE (? = 0 OR fi.read_at IS NULL)
+      ${generationCondition}
   `).get(filterUnread) as { total_count: number };
   const rows = db.prepare(`
     WITH ranked_items AS (
@@ -1180,6 +1188,7 @@ function listAllThreads(
         ) AS article_rank
       FROM feed_items fi
       WHERE (? = 0 OR fi.read_at IS NULL)
+        ${generationCondition}
     ),
     source_names AS (
       SELECT article_key, GROUP_CONCAT(title, ' / ') AS source
@@ -1203,6 +1212,7 @@ function listAllThreads(
       fi.published_at,
       fi.read_at,
       fi.is_favorite,
+      fi.generation_status,
       fi.raw_summary,
       COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
     FROM ranked_items fi
@@ -1220,6 +1230,7 @@ function listAllThreads(
       AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
     WHERE fi.article_rank = 1
     ORDER BY
+      ${generationQueueOnly ? "fi.generation_completed_at ASC," : ""}
       CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
       COALESCE(fi.published_at, fi.created_at) DESC,
       fi.created_at DESC,
@@ -1241,6 +1252,65 @@ function listAllThreads(
   ) as ThreadRow[];
 
   return { items: rows.map(rowToThreadListItem), totalCount: Number(countRow.total_count), page, pageSize };
+}
+
+export function listGeneratedQueue(page = 0, pageSize = 100): ThreadListPage {
+  const safePage = Math.max(0, Math.floor(page));
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  return listAllThreads(
+    getDatabase(),
+    getActiveModel(),
+    getTitleGenerationModel(),
+    safePage,
+    safePageSize,
+    0,
+    true
+  );
+}
+
+export function getReadingQueueSummary(): ReadingQueueSummary {
+  const db = getDatabase();
+  const unreadCount = countAllUnreadArticles();
+  const rows = db.prepare(`
+    SELECT generation_status AS status, COUNT(*) AS count
+    FROM feed_items
+    WHERE generation_status IS NOT NULL
+      AND (generation_status != 'completed' OR generation_reviewed_at IS NULL)
+    GROUP BY generation_status
+  `).all() as Array<{ status: string; count: number }>;
+  const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
+  return {
+    unreadCount,
+    queuedCount: counts.get("queued") ?? 0,
+    generatingCount: counts.get("generating") ?? 0,
+    completedCount: counts.get("completed") ?? 0,
+    failedCount: counts.get("failed") ?? 0
+  };
+}
+
+export function setThreadGenerationState(
+  threadId: string,
+  status: "queued" | "generating" | "completed" | "failed"
+): void {
+  const now = new Date().toISOString();
+  getDatabase().prepare(`
+    UPDATE feed_items SET
+      generation_status = ?,
+      generation_requested_at = CASE WHEN ? = 'queued' THEN ? ELSE generation_requested_at END,
+      generation_completed_at = CASE WHEN ? IN ('completed', 'failed') THEN ? ELSE NULL END,
+      generation_reviewed_at = CASE WHEN ? = 'queued' THEN NULL ELSE generation_reviewed_at END,
+      updated_at = ?
+    WHERE id = ?
+  `).run(status, status, now, status, now, status, now, threadId);
+}
+
+export function markThreadGenerationReviewed(threadId: string): void {
+  const now = new Date().toISOString();
+  getDatabase().prepare(`
+    UPDATE feed_items
+    SET generation_reviewed_at = COALESCE(generation_reviewed_at, ?), updated_at = ?
+    WHERE id = ? AND generation_status = 'completed'
+  `).run(now, now, threadId);
 }
 
 export function markAllFeedsRead(): void {
@@ -1367,6 +1437,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
+        fi.generation_status,
         fi.raw_summary
       FROM feed_items fi
       INNER JOIN source_names
@@ -1397,6 +1468,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       published_at: string | null;
       read_at: string | null;
       is_favorite: number;
+      generation_status: ThreadListItem["generationStatus"];
       raw_summary: string | null;
     } | undefined;
 
@@ -1414,6 +1486,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
     isFavorite: threadInfoRow.is_favorite === 1,
+    generationStatus: threadInfoRow.generation_status,
     responseCount: 0
   };
 
@@ -1479,6 +1552,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       read_at: threadInfoRow.read_at,
       raw_summary: threadInfoRow.raw_summary,
       is_favorite: threadInfoRow.is_favorite,
+      generation_status: threadInfoRow.generation_status,
       response_count: 0,
       posts_json: legacyRow?.posts_json ?? undefined,
       response_posts_json: legacyRow?.response_posts_json ?? undefined
@@ -1854,7 +1928,8 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     publishedAt: row.published_at ?? "",
     isRead: row.read_at !== null,
     isFavorite: row.is_favorite === 1,
-    responseCount: Number(row.response_count)
+    responseCount: Number(row.response_count),
+    generationStatus: row.generation_status ?? null
   };
 }
 

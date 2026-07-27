@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -77,6 +77,7 @@ export function App() {
   const [hasPromptProposal, setHasPromptProposal] = useState(false);
   const [threadListHeight, setThreadListHeight] = useState(42);
   const [feedPaneWidth, setFeedPaneWidth] = useState(248);
+  const [feedTreeHeight, setFeedTreeHeight] = useState(300);
   const [articlePaneWidth, setArticlePaneWidth] = useState(360);
   const [isArticlePaneVisible, setIsArticlePaneVisible] = useState(false);
   const [articleBody, setArticleBody] = useState<ArticleBodyContent | null>(null);
@@ -118,6 +119,14 @@ export function App() {
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [smartView, setSmartView] = useState<"unread" | "generated" | null>(null);
+  const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>({
+    unreadCount: 0,
+    queuedCount: 0,
+    generatingCount: 0,
+    completedCount: 0,
+    failedCount: 0
+  });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
 
   const selectedFeed = selectedFeedId === allFeedsId
@@ -136,12 +145,14 @@ export function App() {
     || settingsFeed !== null;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
-  const visibleThreads = showUnreadOnly ? threadList.filter((thread) => !thread.isRead) : threadList;
+  // 未読巡回中は、開いて既読になった行もセッション内に残して一覧の並びを安定させる。
+  const visibleThreads = threadList;
 
   useEffect(() => {
     void reloadFeeds();
     void loadSettings();
     void loadFavoriteThreads();
+    void reloadQueueSummary();
   }, []);
 
   useEffect(() => {
@@ -167,8 +178,12 @@ export function App() {
     }
 
     setThreadListPage(0);
-    void reloadThreads(selectedFeedId, undefined, 0);
-  }, [selectedFeedId, showUnreadOnly]);
+    if (smartView === "generated") {
+      void reloadGeneratedQueue(0);
+    } else {
+      void reloadThreads(selectedFeedId, undefined, 0);
+    }
+  }, [selectedFeedId, showUnreadOnly, smartView]);
 
   useEffect(() => {
     setReadMarkerNo(null);
@@ -209,12 +224,22 @@ export function App() {
           return;
         }
         setSelectedThread(thread);
+        void reloadQueueSummary();
       })
       .catch(() => {
         if (selectedThreadIdRef.current === selectedThreadId) {
           setSelectedThread(null);
         }
       });
+  }, [selectedThreadId]);
+
+  useEffect(() => {
+    // スレッド間で同じスクロール要素を再利用するため、選択変更時に前の記事の位置を引き継がない。
+    const frame = requestAnimationFrame(() => {
+      const postsContainer = document.querySelector<HTMLElement>(".posts");
+      if (postsContainer) postsContainer.scrollTop = 0;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [selectedThreadId]);
 
   useEffect(() => {
@@ -318,9 +343,11 @@ export function App() {
             }
           }
         });
+        if (smartView === "generated") void reloadGeneratedQueue(0);
       }
+      void reloadQueueSummary();
     });
-  }, [selectedThreadId]);
+  }, [selectedThreadId, smartView]);
 
   async function reloadFeeds() {
     if (!window.viperReader) {
@@ -335,6 +362,7 @@ export function App() {
     setAllUnreadCount(nextAllUnreadCount);
     const versionGroups = await Promise.all(nextFeeds.map((feed) => window.viperReader!.listResidentPromptVersions(feed.id)));
     setHasPromptProposal(versionGroups.some((versions) => versions.some((version) => version.status === "pending")));
+    void reloadQueueSummary();
 
     setSelectedFeedId((currentFeedId) =>
       currentFeedId === allFeedsId || nextFeeds.some((feed) => feed.id === currentFeedId) ? currentFeedId : allFeedsId
@@ -355,9 +383,23 @@ export function App() {
     }
   }
 
+  async function reloadGeneratedQueue(page = threadListPage) {
+    if (!window.viperReader) return;
+    const result = await window.viperReader.listGeneratedQueue(page);
+    setThreadList(result.items);
+    setThreadListPage(result.page);
+    setThreadListTotalCount(result.totalCount);
+  }
+
+  async function reloadQueueSummary() {
+    if (!window.viperReader) return;
+    setQueueSummary(await window.viperReader.getReadingQueueSummary());
+  }
+
   function changeThreadListPage(nextPage: number) {
     if (!selectedFeedId || nextPage < 0) return;
-    void reloadThreads(selectedFeedId, undefined, nextPage);
+    if (smartView === "generated") void reloadGeneratedQueue(nextPage);
+    else void reloadThreads(selectedFeedId, undefined, nextPage);
   }
 
   function selectThreadById(threadId: string) {
@@ -368,6 +410,9 @@ export function App() {
   }
 
   function selectThread(thread: ThreadListItem | ThreadDetail, feedSelection?: string) {
+    if (smartView === "generated" && selectedThreadId && selectedThreadId !== thread.id) {
+      void window.viperReader?.markThreadGenerationReviewed(selectedThreadId).then(reloadQueueSummary);
+    }
     if (selectedThreadId !== thread.id) {
       if (selectedThreadId) {
         replyDraftsRef.current.set(selectedThreadId, replyBody);
@@ -391,6 +436,7 @@ export function App() {
     setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
     if (showUnreadOnly) setThreadListTotalCount(0);
     await reloadFeeds();
+    await reloadQueueSummary();
   }
 
   async function toggleSelectedThreadRead() {
@@ -508,13 +554,14 @@ export function App() {
     }
 
     try {
-      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
+      const [height, widthsJson, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
         window.viperReader.getUserSetting("titleModel"),
         window.viperReader.getUserSetting("optimizerModel"),
         window.viperReader.getUserSetting("feedPaneWidth"),
+        window.viperReader.getUserSetting("feedTreeHeight"),
         window.viperReader.getUserSetting("articlePaneWidth"),
         window.viperReader.getUserSetting("articlePaneVisible"),
         window.viperReader.getUserSetting("articleBrowserBlockingEnabled")
@@ -546,6 +593,10 @@ export function App() {
         if (Number.isFinite(width)) {
           setFeedPaneWidth(Math.min(480, Math.max(180, width)));
         }
+      }
+      if (savedFeedTreeHeight) {
+        const height = Number.parseFloat(savedFeedTreeHeight);
+        if (Number.isFinite(height)) setFeedTreeHeight(Math.max(100, height));
       }
 
       if (savedArticlePaneWidth) {
@@ -659,8 +710,26 @@ export function App() {
   }
 
   function selectFeed(feedId: string) {
+    reviewCurrentGeneratedThread();
+    setSmartView(null);
+    setShowUnreadOnly(false);
     setSelectedFeedId(feedId);
     setRefreshMessage("");
+  }
+
+  function selectSmartView(view: "unread" | "generated") {
+    if (view !== smartView) reviewCurrentGeneratedThread();
+    setSmartView(view);
+    setShowUnreadOnly(view === "unread");
+    setSelectedFeedId(allFeedsId);
+    setSelectedThreadId(undefined);
+    setSelectedThread(null);
+    setRefreshMessage("");
+  }
+
+  function reviewCurrentGeneratedThread() {
+    if (smartView !== "generated" || !selectedThreadId || !window.viperReader) return;
+    void window.viperReader.markThreadGenerationReviewed(selectedThreadId).then(reloadQueueSummary);
   }
 
   async function reorderFeeds(feedIds: string[]) {
@@ -1031,6 +1100,7 @@ export function App() {
 
     try {
       await window.viperReader.generateThreadResponses(selectedThread.id, force);
+      await reloadQueueSummary();
     } catch (err) {
       setGeneratingThreadIds((currentIds) => {
         const nextIds = new Set(currentIds);
@@ -1428,6 +1498,38 @@ export function App() {
     window.addEventListener("mouseup", stopResize);
   }
 
+  function startFeedTreeResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const feedPane = appShellRef.current?.querySelector<HTMLElement>(".feed-pane");
+    const feedTree = feedPane?.querySelector<HTMLElement>(".feed-tree");
+    const favoritePane = feedPane?.querySelector<HTMLElement>(".favorite-pane");
+    if (!feedPane || !feedTree || !favoritePane) return;
+
+    const treeRect = feedTree.getBoundingClientRect();
+    const availableHeight = treeRect.height + favoritePane.getBoundingClientRect().height;
+    let currentHeight = feedTreeHeight;
+
+    function handleMouseMove(moveEvent: MouseEvent) {
+      currentHeight = Math.min(
+        Math.max(100, availableHeight - 100),
+        Math.max(100, moveEvent.clientY - treeRect.top)
+      );
+      setFeedTreeHeight(currentHeight);
+    }
+
+    function stopResize() {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+      document.body.classList.remove("is-feed-tree-resizing");
+      void window.viperReader?.saveUserSetting("feedTreeHeight", currentHeight.toString());
+    }
+
+    document.body.classList.add("is-feed-tree-resizing");
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+  }
+
   function startThreadColumnResize(columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -1529,6 +1631,11 @@ export function App() {
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}
           allUnreadCount={allUnreadCount}
+          queueSummary={queueSummary}
+          activeSmartView={smartView}
+          onSelectSmartView={selectSmartView}
+          feedTreeHeight={feedTreeHeight}
+          onStartFeedTreeResize={startFeedTreeResize}
         />
 
         <div
@@ -1568,6 +1675,9 @@ export function App() {
             totalCount={threadListTotalCount}
             onPreviousPage={() => changeThreadListPage(threadListPage - 1)}
             onNextPage={() => changeThreadListPage(threadListPage + 1)}
+            smartView={smartView}
+            queueSummary={queueSummary}
+            onOpenGeneratedQueue={() => selectSmartView("generated")}
           />
 
           <div

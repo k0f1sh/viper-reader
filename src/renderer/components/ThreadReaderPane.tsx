@@ -132,6 +132,17 @@ export function ThreadReaderPane({
               >
                 {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
               </button>
+              {selectedThread.posts.length <= 1 ? (
+                <button
+                  className="deep-dive-button"
+                  onClick={() => onGenerateResponses()}
+                  disabled={isSelectedThreadGenerating}
+                  type="button"
+                  title="生成を開始して、完了を待たずに別の記事へ移動できます"
+                >
+                  {isSelectedThreadGenerating ? "生成中..." : "生成"}
+                </button>
+              ) : null}
               {selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
                 <button
                   className="deep-dive-button"

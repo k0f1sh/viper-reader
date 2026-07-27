@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent as ReactDragEvent } from "react";
-import type { AppLogEntry, FeedSource, ThreadListItem } from "../../shared/types";
+import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
+import type { AppLogEntry, FeedSource, ReadingQueueSummary, ThreadListItem } from "../../shared/types";
 import { LogPane } from "./LogPane";
 
 type FeedPaneProps = {
@@ -20,6 +20,11 @@ type FeedPaneProps = {
   onSelectFavoriteThread: (thread: ThreadListItem) => void;
   allFeedsId: string;
   allUnreadCount: number;
+  queueSummary: ReadingQueueSummary;
+  activeSmartView: "unread" | "generated" | null;
+  onSelectSmartView: (view: "unread" | "generated") => void;
+  feedTreeHeight: number;
+  onStartFeedTreeResize: (event: ReactMouseEvent<HTMLDivElement>) => void;
 };
 
 export function FeedPane({
@@ -38,7 +43,12 @@ export function FeedPane({
   onToggleFavoriteCollapsed,
   onSelectFavoriteThread,
   allFeedsId,
-  allUnreadCount
+  allUnreadCount,
+  queueSummary,
+  activeSmartView,
+  onSelectSmartView,
+  feedTreeHeight,
+  onStartFeedTreeResize
 }: FeedPaneProps) {
   const [contextMenu, setContextMenu] = useState<{ feed: FeedSource; x: number; y: number } | null>(null);
   const [draggedFeedId, setDraggedFeedId] = useState<string | null>(null);
@@ -85,7 +95,11 @@ export function FeedPane({
   }, [contextMenu]);
 
   return (
-    <aside className="feed-pane" aria-label="RSS ソース">
+    <aside
+      className="feed-pane"
+      aria-label="RSS ソース"
+      style={{ "--feed-tree-height": `${feedTreeHeight}px` } as CSSProperties}
+    >
       <div className="pane-title">
         <span>板一覧</span>
         <div className="pane-title-actions">
@@ -94,6 +108,26 @@ export function FeedPane({
         </div>
       </div>
       <div className="feed-tree" ref={feedTreeRef}>
+        <div className="tree-heading">キュー</div>
+        <button
+          className={`feed-row smart-feed-row ${activeSmartView === "unread" ? "is-selected" : ""}`}
+          onClick={() => onSelectSmartView("unread")}
+          type="button"
+        >
+          <span className="feed-name">未読</span>
+          <span className="feed-count">{queueSummary.unreadCount}</span>
+        </button>
+        <button
+          className={`feed-row smart-feed-row ${activeSmartView === "generated" ? "is-selected" : ""}`}
+          onClick={() => onSelectSmartView("generated")}
+          type="button"
+        >
+          <span className="feed-name">生成済み・未確認</span>
+          <span className="feed-count">{queueSummary.completedCount}</span>
+        </button>
+        {queueSummary.failedCount > 0 ? (
+          <div className="queue-failure-row">生成失敗 <span>{queueSummary.failedCount}</span></div>
+        ) : null}
         <div className="tree-heading">RSS</div>
         <button
           className={`feed-row ${selectedFeedId === allFeedsId ? "is-selected" : ""}`}
@@ -141,7 +175,13 @@ export function FeedPane({
         ))}
       </div>
 
-      <div className="favorite-divider" />
+      <div
+        aria-label="板一覧とお気に入りの境界"
+        aria-orientation="horizontal"
+        className="favorite-divider"
+        onMouseDown={onStartFeedTreeResize}
+        role="separator"
+      />
 
       <div className="favorite-pane">
         <div className="pane-title favorite-title" onClick={onToggleFavoriteCollapsed} style={{ cursor: "pointer", userSelect: "none" }}>

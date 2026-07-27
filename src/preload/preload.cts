@@ -10,6 +10,7 @@ import type {
   GeminiApiKeyStatus,
   RefreshFeedResult,
   RefreshProgress,
+  ReadingQueueSummary,
   ReplyRating,
   ResidentPromptVersion,
   StatisticsSummary,
@@ -25,6 +26,9 @@ export type ViperReaderApi = {
   getAppInfo: () => Promise<typeof appInfo>;
   listFeeds: () => Promise<FeedSource[]>;
   listThreads: (feedId: string | null, page: number, unreadOnly: boolean) => Promise<ThreadListPage>;
+  listGeneratedQueue: (page: number) => Promise<ThreadListPage>;
+  getReadingQueueSummary: () => Promise<ReadingQueueSummary>;
+  markThreadGenerationReviewed: (threadId: string) => Promise<void>;
   countUnreadArticles: () => Promise<number>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
@@ -83,6 +87,9 @@ const api: ViperReaderApi = {
   getAppInfo: () => ipcRenderer.invoke("app:get-info"),
   listFeeds: () => ipcRenderer.invoke("feeds:list"),
   listThreads: (feedId, page, unreadOnly) => ipcRenderer.invoke("threads:list", feedId, page, unreadOnly),
+  listGeneratedQueue: (page) => ipcRenderer.invoke("threads:list-generated-queue", page),
+  getReadingQueueSummary: () => ipcRenderer.invoke("threads:get-queue-summary"),
+  markThreadGenerationReviewed: (threadId) => ipcRenderer.invoke("threads:mark-generation-reviewed", threadId),
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),

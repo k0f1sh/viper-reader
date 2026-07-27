@@ -224,6 +224,12 @@ body.is-feed-pane-resizing * {
   user-select: none;
 }
 
+body.is-feed-tree-resizing,
+body.is-feed-tree-resizing * {
+  cursor: row-resize !important;
+  user-select: none;
+}
+
 body.is-article-pane-resizing,
 body.is-article-pane-resizing * {
   cursor: col-resize !important;
@@ -592,8 +598,9 @@ body.is-article-pane-resizing * {
 }
 
 .feed-tree {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 var(--feed-tree-height, 300px);
+  min-height: 100px;
+  max-height: calc(100% - 250px);
   overflow-y: auto;
   padding: 5px 4px;
 }
@@ -1012,6 +1019,56 @@ body.is-article-pane-resizing * {
   flex: 1;
   overflow-y: auto;
   padding: 8px 10px 24px;
+}
+
+.smart-feed-row .feed-name {
+  font-weight: 700;
+}
+
+.queue-failure-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 8px 2px 18px;
+  color: #a00000;
+  font-size: 11px;
+}
+
+.queue-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-left: auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.queue-status span {
+  padding: 1px 5px;
+  border: 1px solid #aaa;
+  background: #eee;
+}
+
+.queue-status .has-completed {
+  border-color: #398439;
+  background: #e7f5e7;
+  color: #075b07;
+  font-weight: 700;
+}
+
+.status-badge.failed {
+  color: #a00000;
+}
+
+.queue-complete-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 5px 8px;
+  border-top: 1px solid #999;
+  background: #e7f5e7;
+  color: #075b07;
+  font-weight: 700;
 }
 
 .post {
@@ -1932,10 +1989,25 @@ body.is-article-pane-resizing * {
 
 /* お気に入り関連のスタイリング */
 .favorite-divider {
-  height: 2px;
+  position: relative;
+  flex: 0 0 6px;
   border-top: 1px solid #808080;
   border-bottom: 1px solid #ffffff;
-  margin: 4px 0;
+  margin: 1px 0;
+  background: #c0c0c0;
+  cursor: row-resize;
+}
+
+.favorite-divider::before {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 42px;
+  height: 1px;
+  background: #808080;
+  box-shadow: 0 1px #ffffff;
+  content: "";
+  transform: translateX(-50%);
 }
 
 .log-divider {
