@@ -77,6 +77,8 @@ export function App() {
   const [threadListTotalCount, setThreadListTotalCount] = useState(0);
   const [allUnreadCount, setAllUnreadCount] = useState(0);
   const [selectedFeedId, setSelectedFeedId] = useState("");
+  const selectedFeedIdRef = useRef("");
+  selectedFeedIdRef.current = selectedFeedId;
   const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
   selectedThreadIdRef.current = selectedThreadId;
@@ -153,6 +155,11 @@ export function App() {
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [smartView, setSmartView] = useState<"unread" | "generated" | "reviewed" | null>(null);
+  const showUnreadOnlyRef = useRef(false);
+  showUnreadOnlyRef.current = showUnreadOnly;
+  const smartViewRef = useRef<"unread" | "generated" | "reviewed" | null>(null);
+  smartViewRef.current = smartView;
+  const threadListRequestIdRef = useRef(0);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>({
     unreadCount: 0,
     queuedCount: 0,
@@ -410,7 +417,15 @@ export function App() {
       return;
     }
 
-    const result = await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId, page, showUnreadOnly);
+    const requestId = ++threadListRequestIdRef.current;
+    const result = await window.viperReader.listThreads(
+      feedId === allFeedsId ? null : feedId,
+      page,
+      showUnreadOnlyRef.current
+    );
+    if (requestId !== threadListRequestIdRef.current) {
+      return;
+    }
     setThreadList(result.items);
     setThreadListPage(result.page);
     setThreadListTotalCount(result.totalCount);
@@ -421,7 +436,9 @@ export function App() {
 
   async function reloadGeneratedQueue(page = threadListPage) {
     if (!window.viperReader) return;
+    const requestId = ++threadListRequestIdRef.current;
     const result = await window.viperReader.listGeneratedQueue(page);
+    if (requestId !== threadListRequestIdRef.current) return;
     setThreadList(result.items);
     setThreadListPage(result.page);
     setThreadListTotalCount(result.totalCount);
@@ -429,7 +446,9 @@ export function App() {
 
   async function reloadReviewedGenerationQueue(page = threadListPage) {
     if (!window.viperReader) return;
+    const requestId = ++threadListRequestIdRef.current;
     const result = await window.viperReader.listReviewedGenerationQueue(page);
+    if (requestId !== threadListRequestIdRef.current) return;
     setThreadList(result.items);
     setThreadListPage(result.page);
     setThreadListTotalCount(result.totalCount);
@@ -438,6 +457,16 @@ export function App() {
   async function reloadQueueSummary() {
     if (!window.viperReader) return;
     setQueueSummary(await window.viperReader.getReadingQueueSummary());
+  }
+
+  async function reloadCurrentThreadList(preferredThreadId?: string) {
+    if (smartViewRef.current === "generated") {
+      await reloadGeneratedQueue(0);
+    } else if (smartViewRef.current === "reviewed") {
+      await reloadReviewedGenerationQueue(0);
+    } else if (selectedFeedIdRef.current) {
+      await reloadThreads(selectedFeedIdRef.current, preferredThreadId, 0);
+    }
   }
 
   function changeThreadListPage(nextPage: number) {
@@ -1065,7 +1094,7 @@ export function App() {
     try {
       const result = await window.viperReader.refreshFeed(feedId);
       await reloadFeeds();
-      await reloadThreads(feedId, preferredThreadId);
+      await reloadCurrentThreadList(preferredThreadId);
       setRefreshMessage(
         `取得:${result.fetchedCount} 新規:${result.insertedCount} 更新:${result.updatedCount} 既存:${result.skippedCount} 変換:${result.convertedCount} 失敗:${result.conversionFailedCount} 未変換:${result.conversionSkippedCount}`
       );
@@ -1142,7 +1171,7 @@ export function App() {
       await Promise.all(Array.from({ length: workerCount }, () => refreshNextFeed()));
 
       await reloadFeeds();
-      await reloadThreads(allFeedsId, selectedThreadId);
+      await reloadCurrentThreadList(selectedThreadIdRef.current);
       const failureSummary = failedFeeds.length > 0 ? ` 更新失敗:${failedFeeds.length}板（${failedFeeds.join("、")}）` : "";
       setRefreshMessage(
         `全${feedsToRefresh.length}板完了 取得:${totals.fetchedCount} 新規:${totals.insertedCount} 更新:${totals.updatedCount} 既存:${totals.skippedCount} 変換:${totals.convertedCount} 失敗:${totals.conversionFailedCount} 未変換:${totals.conversionSkippedCount}${failureSummary}`
