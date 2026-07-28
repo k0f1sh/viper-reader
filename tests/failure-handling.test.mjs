@@ -16,6 +16,7 @@ const {
 } = await import("../dist/main/ai/genaiClient.js");
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
 const { assertSafeNetworkUrl } = await import("../dist/main/network/safeFetch.js");
+const { findUngroundedNumericClaims } = await import("../dist/main/ai/factualGrounding.js");
 
 const db = getDatabase();
 
@@ -108,5 +109,22 @@ test("localhostとループバックアドレスへの取得を拒否する", as
   await assert.rejects(
     assertSafeNetworkUrl(new URL("http://[::1]:3000/feed")),
     /ローカルネットワークまたは予約済みアドレスへのアクセスを拒否/
+  );
+});
+
+test("生成文中の根拠がない数値・バージョンを検出する", () => {
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      "v2.1では処理が50%高速化し、3件の問題を修正した",
+      ["v2.1では3件の問題を修正した"]
+    ),
+    ["50%"]
+  );
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      ">>2 の通り、v2.1で3件修正",
+      ["v2.1で3件修正"]
+    ),
+    []
   );
 });
