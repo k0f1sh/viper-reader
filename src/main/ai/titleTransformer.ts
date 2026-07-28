@@ -3,7 +3,6 @@ import { buildVipTitlePrompt, buildVipTitlePromptHash } from "../prompts/vipTitl
 import { getTitleGenerationModel } from "../settings/settingsService.js";
 import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
-import { findUngroundedNumericClaims } from "./factualGrounding.js";
 import { vipTitleArraySchema } from "./schemas.js";
 
 export type TitleTransformResult = {
@@ -141,13 +140,6 @@ function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: Uncon
 
     const title = normalizeVipTitle(item.vipTitle);
     if (!title) {
-      continue;
-    }
-    const sourceItem = sourceItems.find((source) => source.id === item.feedItemId);
-    if (
-      !sourceItem
-      || findUngroundedNumericClaims(title, [sourceItem.title, sourceItem.rawSummary]).length > 0
-    ) {
       continue;
     }
 

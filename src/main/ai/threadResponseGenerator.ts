@@ -6,7 +6,6 @@ import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt
 import { getActiveModel } from "../settings/settingsService.js";
 import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
-import { findUngroundedNumericClaims } from "./factualGrounding.js";
 import { threadPostArraySchema } from "./schemas.js";
 
 export type ThreadResponseGenerationResult = {
@@ -51,13 +50,6 @@ export async function generateThreadResponses(
     publishedAt: thread.publishedAt,
     residentPrompt: options.residentPrompt
   });
-  const groundingSources = [
-    thread.originalTitle,
-    thread.posts[0]?.body,
-    options.articleSummary,
-    options.scrapedBody
-  ];
-
   if (!resolveApiKey()) {
     const finishedAt = new Date().toISOString();
     return {
@@ -88,7 +80,7 @@ export async function generateThreadResponses(
     parse: (text) => {
       const parsed = JSON.parse(text) as unknown;
       if (!Array.isArray(parsed)) throw new Error("Gemini thread response is not an array");
-      return validateGeneratedPosts(parsed, groundingSources);
+      return validateGeneratedPosts(parsed);
     }
   });
 
@@ -152,10 +144,7 @@ function buildArticleContext(params: {
   );
 }
 
-function validateGeneratedPosts(
-  parsed: unknown[],
-  groundingSources: Array<string | null | undefined>
-): ThreadPost[] {
+function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
   const posts: ThreadPost[] = [];
 
   for (const item of parsed) {
@@ -167,13 +156,6 @@ function validateGeneratedPosts(
     if (!body.trim()) {
       continue;
     }
-    if (posts.length === 0) {
-      const ungroundedClaims = findUngroundedNumericClaims(body, groundingSources);
-      if (ungroundedClaims.length > 0) {
-        throw new Error(`記事に根拠のない数値表現があります: ${ungroundedClaims.join(", ")}`);
-      }
-    }
-
     posts.push({
       no: 2 + posts.length,
       name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
