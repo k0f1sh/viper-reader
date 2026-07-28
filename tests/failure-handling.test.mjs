@@ -18,6 +18,7 @@ const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js")
 const { assertSafeNetworkUrl, createPinnedLookup } = await import("../dist/main/network/safeFetch.js");
 const { findUngroundedNumericClaims } = await import("../dist/main/ai/factualGrounding.js");
 const { sendIfAvailable } = await import("../dist/main/ipc/safeSender.js");
+const { normalizePostBody } = await import("../dist/shared/postBody.js");
 
 const db = getDatabase();
 
@@ -158,4 +159,11 @@ test("検査済みIPをDNS再解決せず接続先へ固定する", async () => 
   });
 
   assert.deepEqual(resolved, { address: "203.0.113.10", family: 4 });
+});
+
+test("生成レスのbrタグを改行へ正規化する", () => {
+  assert.equal(
+    normalizePostBody("1行目<br>2行目<BR />3行目<br/>4行目\r\n5行目"),
+    "1行目\n2行目\n3行目\n4行目\n5行目"
+  );
 });

@@ -1,4 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { normalizePostBody } from "../../shared/postBody";
 
 type PostBodyProps = {
   body: string;
@@ -10,7 +11,7 @@ type PostBodyProps = {
 export function PostBody({ body, onAnchorClick, onAnchorMouseEnter, onAnchorMouseLeave }: PostBodyProps) {
   return (
     <>
-      {splitBody(body).map((part, index) => {
+      {splitBody(normalizePostBody(body)).map((part, index) => {
         if (part.type === "url") {
           return (
             <button className="post-link" key={`${part.value}-${index}`} onClick={() => openPostUrl(part.value)} type="button">

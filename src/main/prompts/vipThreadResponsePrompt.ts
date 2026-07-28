@@ -20,7 +20,7 @@ import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRu
 
 export const vipThreadResponsePromptHash = crypto
   .createHash("sha256")
-  .update(`vip-thread-response-v18\n${VIP_SYSTEM_INSTRUCTION}`)
+  .update(`vip-thread-response-v19\n${VIP_SYSTEM_INSTRUCTION}`)
   .digest("hex")
   .slice(0, 16);
 export const defaultResidentPromptHash = "default";
@@ -63,6 +63,7 @@ ${VIP_NG_RULES}
 - mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください。
 - no: 2 は必ず本文取得不可の報告レスとし、no: 3以降はその反応レスとしてください。
+- body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
 # 板ごとの住民設定
 ${input.residentPrompt?.trim() ? input.residentPrompt.trim() : "追加設定なし。"}
@@ -111,6 +112,7 @@ ${VIP_NG_RULES}
 - no: 2 は必ず事情通の情報整理レスとし、no: 3以降はその議論レスとしてください。
 - date は それっぽい日時にしてください。
 - no: 2 の body は要約に必要な長さを確保してください。no: 3以降の body は短くし、いずれも改行を自然に含めてください。
+- body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
 # 板ごとの住民設定
 ${input.residentPrompt?.trim() ? input.residentPrompt.trim() : "追加設定なし。標準的な2000年代後半（2005年〜2009年頃）のVIPPERとして振る舞ってください。"}

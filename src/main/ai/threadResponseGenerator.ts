@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
+import { normalizePostBody } from "../../shared/postBody.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
@@ -162,7 +163,7 @@ function validateGeneratedPosts(
       continue;
     }
 
-    const body = normalizeString(item.body, "").slice(0, 2000);
+    const body = normalizePostBody(normalizeString(item.body, "")).slice(0, 2000);
     if (!body.trim()) {
       continue;
     }

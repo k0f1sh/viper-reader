@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
+import { normalizePostBody } from "../../shared/postBody.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import {
   ensureFeedResidents,
@@ -219,6 +220,7 @@ ${latestReplyRule}
 7. 回答は最初に結論を示し、必要に応じて理由、背景、具体例、注意点の順で説明してください。専門用語は質問者が理解できる言葉へかみ砕き、コードや数値は正確な説明に役立つ場合だけ使ってください。
 8. 元記事に書かれた事実と、回答のために補う確立した一般知識を区別してください。記事や履歴だけでは断定できない状況依存の事項は、何が分かれば判断できるかを短く伝えてください。知ったかぶりや架空の情報による補完は禁止です。
 9. 質問者を「そんなことも知らないのか」と扱わず、勘違いがあれば責めずに訂正してください。当時のVIPらしい軽いツッコミや草を混ぜつつ、「聞けば誰かがちゃんと教えてくれる」ヌクモリティのある雰囲気にしてください。回答の正確さを損なうほどふざけないでください。
+10. body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
 【出力 JSON スキーマ例】
 [
@@ -252,7 +254,7 @@ function validateGeneratedReplyPosts(
       continue;
     }
 
-    const body = normalizeString(item.body, "").slice(0, 2000);
+    const body = normalizePostBody(normalizeString(item.body, "")).slice(0, 2000);
     if (!body.trim()) {
       continue;
     }
