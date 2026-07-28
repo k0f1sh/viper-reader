@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
   addFeedSource,
@@ -57,6 +57,9 @@ loadEnv();
 installConsoleLogForwarder();
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+const rendererEntryUrl = isDev
+  ? new URL(process.env.VITE_DEV_SERVER_URL as string).toString()
+  : pathToFileURL(path.join(__dirname, "../renderer/index.html")).toString();
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
@@ -120,13 +123,14 @@ function createMainWindow(): void {
       ]).popup({ window });
     }
   });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedRendererUrl(url)) {
+      event.preventDefault();
+    }
+  });
 
-  if (isDev) {
-    void window.loadURL(process.env.VITE_DEV_SERVER_URL as string);
-    return;
-  }
-
-  void window.loadFile(path.join(__dirname, "../renderer/index.html"));
+  void window.loadURL(rendererEntryUrl);
 }
 
 ipcMain.handle("app:get-info", () => appInfo);
@@ -289,8 +293,27 @@ function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserC
 }
 
 function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
-  if (event.sender.isDestroyed() || !articleBrowserControllers.has(event.sender.id)) {
+  if (
+    event.sender.isDestroyed()
+    || !articleBrowserControllers.has(event.sender.id)
+    || !event.senderFrame
+    || !isTrustedRendererUrl(event.senderFrame.url)
+  ) {
     throw new Error("Unauthorized IPC request.");
+  }
+}
+
+function isTrustedRendererUrl(value: string): boolean {
+  try {
+    const candidate = new URL(value);
+    const expected = new URL(rendererEntryUrl);
+    candidate.hash = "";
+    candidate.search = "";
+    expected.hash = "";
+    expected.search = "";
+    return candidate.toString() === expected.toString();
+  } catch {
+    return false;
   }
 }
 
