@@ -1,5 +1,7 @@
 import { promises as dns } from "node:dns";
 import { BlockList, isIP } from "node:net";
+import type { LookupFunction } from "node:net";
+import { Agent } from "undici";
 
 const blockedIpv4Addresses = new BlockList();
 const blockedIpv6Addresses = new BlockList();
@@ -49,12 +51,20 @@ export async function safeFetch(
   let currentUrl = new URL(input);
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-    await assertSafeNetworkUrl(currentUrl);
+    const safeAddress = await resolveSafeNetworkAddress(currentUrl);
+    const dispatcher = new Agent({
+      connections: 1,
+      pipelining: 0,
+      connect: {
+        lookup: createPinnedLookup(safeAddress)
+      }
+    });
     const response = await fetch(currentUrl, {
       headers: options.headers,
       redirect: "manual",
-      signal
-    });
+      signal,
+      dispatcher
+    } as RequestInit & { dispatcher: Agent });
 
     if (!isRedirect(response.status)) {
       return response;
@@ -123,6 +133,15 @@ export async function readResponseText(
 }
 
 export async function assertSafeNetworkUrl(url: URL): Promise<void> {
+  await resolveSafeNetworkAddress(url);
+}
+
+type SafeNetworkAddress = {
+  address: string;
+  family: 4 | 6;
+};
+
+async function resolveSafeNetworkAddress(url: URL): Promise<SafeNetworkAddress> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`HTTPまたはHTTPS以外のURLは取得できません: ${url.protocol}`);
   }
@@ -138,7 +157,7 @@ export async function assertSafeNetworkUrl(url: URL): Promise<void> {
   const addressType = isIP(hostname);
   if (addressType !== 0) {
     assertAllowedAddress(hostname, addressType);
-    return;
+    return { address: hostname, family: addressType === 6 ? 6 : 4 };
   }
 
   const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
@@ -148,6 +167,21 @@ export async function assertSafeNetworkUrl(url: URL): Promise<void> {
   for (const address of addresses) {
     assertAllowedAddress(address.address, address.family);
   }
+  const selected = addresses[0];
+  return {
+    address: selected.address,
+    family: selected.family === 6 ? 6 : 4
+  };
+}
+
+export function createPinnedLookup(address: SafeNetworkAddress): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [address]);
+      return;
+    }
+    callback(null, address.address, address.family);
+  };
 }
 
 function assertAllowedAddress(address: string, family: number): void {

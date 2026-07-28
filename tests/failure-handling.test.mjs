@@ -15,7 +15,7 @@ const {
   missingApiKeyMessage
 } = await import("../dist/main/ai/genaiClient.js");
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
-const { assertSafeNetworkUrl } = await import("../dist/main/network/safeFetch.js");
+const { assertSafeNetworkUrl, createPinnedLookup } = await import("../dist/main/network/safeFetch.js");
 const { findUngroundedNumericClaims } = await import("../dist/main/ai/factualGrounding.js");
 const { sendIfAvailable } = await import("../dist/main/ipc/safeSender.js");
 
@@ -146,4 +146,16 @@ test("破棄済みまたは送信失敗したIPC senderを安全に無視する"
       throw new Error("sender was destroyed");
     }
   }, "test"), false);
+});
+
+test("検査済みIPをDNS再解決せず接続先へ固定する", async () => {
+  const lookup = createPinnedLookup({ address: "203.0.113.10", family: 4 });
+  const resolved = await new Promise((resolve, reject) => {
+    lookup("attacker.example", { all: false }, (error, address, family) => {
+      if (error) reject(error);
+      else resolve({ address, family });
+    });
+  });
+
+  assert.deepEqual(resolved, { address: "203.0.113.10", family: 4 });
 });

@@ -35,7 +35,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "robots-parser": "^3.0.1",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.3",
