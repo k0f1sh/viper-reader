@@ -44,10 +44,9 @@ export type ReadingQueueSummary = {
   generatingCount: number;
   completedCount: number;
   reviewedCount: number;
-  failedCount: number;
 };
 
-export type SmartView = "unread" | "generated" | "reviewed" | "failed";
+export type SmartView = "unread" | "generated" | "reviewed";
 
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];

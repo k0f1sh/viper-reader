@@ -132,16 +132,6 @@ export function FeedPane({
         >
           <span className="feed-name">生成済み・確認済み</span>
         </button>
-        {queueSummary.failedCount > 0 ? (
-          <button
-            className={`feed-row smart-feed-row queue-failure-row ${activeSmartView === "failed" ? "is-selected" : ""}`}
-            onClick={() => onSelectSmartView("failed")}
-            type="button"
-          >
-            <span className="feed-name">生成失敗</span>
-            <span className="feed-count">{queueSummary.failedCount}</span>
-          </button>
-        ) : null}
         <div className="tree-heading">RSS</div>
         <button
           className={`feed-row ${selectedFeedId === allFeedsId ? "is-selected" : ""}`}

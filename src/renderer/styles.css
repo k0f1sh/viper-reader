@@ -1037,14 +1037,6 @@ body.is-article-pane-resizing * {
   font-weight: 700;
 }
 
-.queue-failure-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 2px 8px 2px 18px;
-  color: #a00000;
-  font-size: 11px;
-}
-
 .queue-status {
   display: flex;
   flex-wrap: nowrap;
@@ -1066,10 +1058,6 @@ body.is-article-pane-resizing * {
   background: #e7f5e7;
   color: #075b07;
   font-weight: 700;
-}
-
-.status-badge.failed {
-  color: #a00000;
 }
 
 .thread-generation-cell {

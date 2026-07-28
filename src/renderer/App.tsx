@@ -165,8 +165,7 @@ export function App() {
     queuedCount: 0,
     generatingCount: 0,
     completedCount: 0,
-    reviewedCount: 0,
-    failedCount: 0
+    reviewedCount: 0
   });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
 
@@ -223,8 +222,6 @@ export function App() {
       void reloadGeneratedQueue(0);
     } else if (smartView === "reviewed") {
       void reloadReviewedGenerationQueue(0);
-    } else if (smartView === "failed") {
-      void reloadFailedGenerationQueue(0);
     } else {
       void reloadThreads(selectedFeedId, undefined, 0);
     }
@@ -389,7 +386,6 @@ export function App() {
           }
         });
         if (smartView === "generated") void reloadGeneratedQueue(0);
-        if (smartView === "failed") void reloadFailedGenerationQueue(0);
       }
       void reloadQueueSummary();
     });
@@ -457,16 +453,6 @@ export function App() {
     setThreadListTotalCount(result.totalCount);
   }
 
-  async function reloadFailedGenerationQueue(page = threadListPage) {
-    if (!window.viperReader) return;
-    const requestId = ++threadListRequestIdRef.current;
-    const result = await window.viperReader.listFailedGenerationQueue(page);
-    if (requestId !== threadListRequestIdRef.current) return;
-    setThreadList(result.items);
-    setThreadListPage(result.page);
-    setThreadListTotalCount(result.totalCount);
-  }
-
   async function reloadQueueSummary() {
     if (!window.viperReader) return;
     setQueueSummary(await window.viperReader.getReadingQueueSummary());
@@ -477,8 +463,6 @@ export function App() {
       await reloadGeneratedQueue(0);
     } else if (smartViewRef.current === "reviewed") {
       await reloadReviewedGenerationQueue(0);
-    } else if (smartViewRef.current === "failed") {
-      await reloadFailedGenerationQueue(0);
     } else if (selectedFeedIdRef.current) {
       await reloadThreads(selectedFeedIdRef.current, preferredThreadId, 0);
     }
@@ -488,7 +472,6 @@ export function App() {
     if (!selectedFeedId || nextPage < 0) return;
     if (smartView === "generated") void reloadGeneratedQueue(nextPage);
     else if (smartView === "reviewed") void reloadReviewedGenerationQueue(nextPage);
-    else if (smartView === "failed") void reloadFailedGenerationQueue(nextPage);
     else void reloadThreads(selectedFeedId, undefined, nextPage);
   }
 
@@ -610,7 +593,6 @@ export function App() {
           { id: "__unread_queue__", select: () => selectSmartView("unread") },
           { id: "__generated_queue__", select: () => selectSmartView("generated") },
           { id: "__reviewed_queue__", select: () => selectSmartView("reviewed") },
-          { id: "__failed_queue__", select: () => selectSmartView("failed") },
           { id: allFeedsId, select: () => selectFeed(allFeedsId) },
           ...feedList.map((feed) => ({ id: feed.id, select: () => selectFeed(feed.id) }))
         ];
@@ -621,8 +603,6 @@ export function App() {
               ? "__generated_queue__"
               : smartView === "reviewed"
                 ? "__reviewed_queue__"
-                : smartView === "failed"
-                  ? "__failed_queue__"
                 : selectedFeedId;
         const currentIndex = navigationTargets.findIndex((targetItem) => targetItem.id === currentTargetId);
         const delta = event.key === "l" ? 1 : -1;

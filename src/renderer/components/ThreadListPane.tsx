@@ -87,8 +87,6 @@ export function ThreadListPane({
                 ? "生成済み・未確認"
                 : smartView === "reviewed"
                   ? "生成済み・確認済み"
-                  : smartView === "failed"
-                    ? "生成失敗"
                   : "スレタイ一覧"}
           </div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
@@ -183,7 +181,6 @@ export function ThreadListPane({
                 {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
                 {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
                 {isCompleted ? <span className="status-badge completed">[生成完了] </span> : null}
-                {isFailed ? <span className="status-badge failed">[失敗] </span> : null}
                 {thread.vipTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
