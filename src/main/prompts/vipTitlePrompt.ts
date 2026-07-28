@@ -1,3 +1,6 @@
+import crypto from "node:crypto";
+import { VIP_TITLE_SYSTEM_INSTRUCTION } from "../ai/promptParts.js";
+
 /**
  * RSS記事タイトルを「2000年代後半（2005年〜2009年頃）の2chニュー速VIP板」風のスレタイに変換するプロンプト。
  *
@@ -13,7 +16,13 @@
  * - promptHash は vip_titles.prompt_hash に保存する。
  * - プロンプトの意味や出力仕様を変えたら hash を更新し、既存キャッシュと区別する。
  */
-export const vipTitlePromptHash = "vip-title-v8";
+export function buildVipTitlePromptHash(useSummary: boolean): string {
+  return crypto
+    .createHash("sha256")
+    .update(`vip-title-v9\n${VIP_TITLE_SYSTEM_INSTRUCTION}\nsource:${useSummary ? "summary" : "title"}`)
+    .digest("hex")
+    .slice(0, 16);
+}
 
 export type VipTitlePromptItem = {
   id: string;

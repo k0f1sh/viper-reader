@@ -7,7 +7,7 @@ import {
   recordLlmRequestLog,
   replaceVipTitle
 } from "../db/repository.js";
-import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getTitleGenerationModel } from "../settings/settingsService.js";
 
 export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail | null> {
@@ -37,6 +37,10 @@ export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail
     throw new Error("スレタイ再生成に失敗しました。APIキーやログを確認してください。");
   }
 
-  replaceVipTitle(nextTitle, modelToUse, vipTitlePromptHash);
+  replaceVipTitle(
+    nextTitle,
+    modelToUse,
+    buildVipTitlePromptHash(feed?.generateTitleFromSummary ?? false)
+  );
   return getThread(threadId);
 }

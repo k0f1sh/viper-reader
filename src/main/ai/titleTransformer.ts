@@ -1,5 +1,5 @@
 import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
-import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildVipTitlePrompt, buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getTitleGenerationModel } from "../settings/settingsService.js";
 import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
@@ -35,6 +35,7 @@ export async function transformTitlesToVipStyle(
   }
 
   const modelToUse = getTitleGenerationModel();
+  const promptHash = buildVipTitlePromptHash(useSummary);
 
   if (!resolveApiKey()) {
     const now = new Date().toISOString();
@@ -48,7 +49,7 @@ export async function transformTitlesToVipStyle(
           feedId,
           purpose: "title_transform",
           model: modelToUse,
-          promptHash: vipTitlePromptHash,
+          promptHash,
           status: "skipped",
           requestCount: 0,
           itemCount: items.length,
@@ -103,7 +104,7 @@ export async function transformTitlesToVipStyle(
       feedId,
       purpose: "title_transform",
       model: modelToUse,
-      promptHash: vipTitlePromptHash,
+      promptHash,
       status: result.errorMessage ? "error" : "success",
       requestCount: 1,
       itemCount: chunk.length,

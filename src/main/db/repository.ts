@@ -22,7 +22,7 @@ import {
   defaultResidentPromptHash,
   vipThreadResponsePromptHash
 } from "../prompts/vipThreadResponsePrompt.js";
-import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 import {
@@ -1079,6 +1079,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
+  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
+  const plainTitlePromptHash = buildVipTitlePromptHash(false);
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const filterUnread = unreadOnly ? 1 : 0;
@@ -1112,7 +1114,10 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       LEFT JOIN vip_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
-        AND generated_vt.prompt_hash = ?
+        AND generated_vt.prompt_hash = CASE
+          WHEN fs.generate_title_from_summary = 1 THEN ?
+          ELSE ?
+        END
       LEFT JOIN vip_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -1139,7 +1144,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
     )
     .all(
       titleModel,
-      vipTitlePromptHash,
+      summaryTitlePromptHash,
+      plainTitlePromptHash,
       titleModel,
       rawTitlePromptHash,
       activeModel,
@@ -1171,6 +1177,8 @@ function listAllThreads(
   filterUnread: number,
   generationQueueMode: "none" | "unreviewed" | "reviewed" = "none"
 ): ThreadListPage {
+  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
+  const plainTitlePromptHash = buildVipTitlePromptHash(false);
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
   const generationCondition =
     generationQueueMode === "unreviewed"
@@ -1227,9 +1235,15 @@ function listAllThreads(
       fi.raw_summary,
       COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
     FROM ranked_items fi
+    INNER JOIN feed_sources fs ON fs.id = fi.feed_id
     INNER JOIN source_names ON source_names.article_key = fi.article_key
     LEFT JOIN vip_titles generated_vt
-      ON generated_vt.feed_item_id = fi.id AND generated_vt.model = ? AND generated_vt.prompt_hash = ?
+      ON generated_vt.feed_item_id = fi.id
+      AND generated_vt.model = ?
+      AND generated_vt.prompt_hash = CASE
+        WHEN fs.generate_title_from_summary = 1 THEN ?
+        ELSE ?
+      END
     LEFT JOIN vip_titles raw_vt
       ON raw_vt.feed_item_id = fi.id AND raw_vt.model = ? AND raw_vt.prompt_hash = ?
     LEFT JOIN thread_summaries rss_ts
@@ -1251,7 +1265,8 @@ function listAllThreads(
   `).all(
     filterUnread,
     titleModel,
-    vipTitlePromptHash,
+    summaryTitlePromptHash,
+    plainTitlePromptHash,
     titleModel,
     rawTitlePromptHash,
     activeModel,
@@ -1423,6 +1438,8 @@ export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
+  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
+  const plainTitlePromptHash = buildVipTitlePromptHash(false);
   markThreadRead(threadId);
 
   // 1. thread_posts から取得を試みる
@@ -1458,12 +1475,16 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.generation_status,
         fi.raw_summary
       FROM feed_items fi
+      INNER JOIN feed_sources fs ON fs.id = fi.feed_id
       INNER JOIN source_names
         ON source_names.article_key = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
       LEFT JOIN vip_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
-        AND generated_vt.prompt_hash = ?
+        AND generated_vt.prompt_hash = CASE
+          WHEN fs.generate_title_from_summary = 1 THEN ?
+          ELSE ?
+        END
       LEFT JOIN vip_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -1472,7 +1493,8 @@ export function getThread(threadId: string): ThreadDetail | null {
     `)
     .get(
       titleModel,
-      vipTitlePromptHash,
+      summaryTitlePromptHash,
+      plainTitlePromptHash,
       titleModel,
       rawTitlePromptHash,
       threadId
@@ -2104,6 +2126,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
+  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
+  const plainTitlePromptHash = buildVipTitlePromptHash(false);
   const rows = db
     .prepare(
       `
@@ -2124,7 +2148,10 @@ export function listFavoriteThreads(): ThreadListItem[] {
       LEFT JOIN vip_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
-        AND generated_vt.prompt_hash = ?
+        AND generated_vt.prompt_hash = CASE
+          WHEN fs.generate_title_from_summary = 1 THEN ?
+          ELSE ?
+        END
       LEFT JOIN vip_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -2145,7 +2172,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
     )
     .all(
       titleModel,
-      vipTitlePromptHash,
+      summaryTitlePromptHash,
+      plainTitlePromptHash,
       titleModel,
       rawTitlePromptHash,
       activeModel,

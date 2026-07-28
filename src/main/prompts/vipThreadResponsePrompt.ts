@@ -14,9 +14,15 @@
  * - no は 2 以降。1 はRSS本文そのものを表示するため生成しない。
  */
 
+import crypto from "node:crypto";
+import { VIP_SYSTEM_INSTRUCTION } from "../ai/promptParts.js";
 import { VIP_ID_FORMAT_DESC, VIP_NG_RULES, VIP_STYLE_RULES } from "./vipCommonRules.js";
 
-export const vipThreadResponsePromptHash = "vip-thread-response-v17";
+export const vipThreadResponsePromptHash = crypto
+  .createHash("sha256")
+  .update(`vip-thread-response-v18\n${VIP_SYSTEM_INSTRUCTION}`)
+  .digest("hex")
+  .slice(0, 16);
 export const defaultResidentPromptHash = "default";
 
 export type VipThreadResponsePromptInput = {

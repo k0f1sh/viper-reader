@@ -22,6 +22,7 @@ const {
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
 const { buildVipThreadResponsePrompt } = await import("../dist/main/prompts/vipThreadResponsePrompt.js");
+const { buildVipTitlePromptHash } = await import("../dist/main/prompts/vipTitlePrompt.js");
 const {
   getRendererUserSetting,
   saveRendererUserSetting
@@ -76,6 +77,13 @@ test("スレタイ自動変換は未読かつ未変換の記事だけを対象�
   const items = listUnconvertedFeedItems("selection", titleModel, "test-prompt");
 
   assert.deepEqual(items.map((item) => item.id), ["unread"]);
+});
+
+test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {
+  assert.notEqual(
+    buildVipTitlePromptHash(false),
+    buildVipTitlePromptHash(true)
+  );
 });
 
 test("生成完了した記事は確認するまで生成済みキューに残る", () => {

@@ -13,7 +13,7 @@ import {
   saveVipTitles,
   upsertFeedItems
 } from "../db/repository.js";
-import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
@@ -76,11 +76,12 @@ export async function refreshFeed(
     const result = upsertFeedItems(feed.id, items);
     const modelToUse = getActiveModel();
     const titleModel = getTitleGenerationModel();
+    const titlePromptHash = buildVipTitlePromptHash(feed.generateTitleFromSummary);
     const initialCacheItems = listFeedItemsForInitialCaches(feed.id);
     saveRawVipTitleFallbacks(initialCacheItems, titleModel);
     saveRssThreadSummaries(initialCacheItems, modelToUse);
 
-    const unconvertedItems = listUnconvertedFeedItems(feed.id, titleModel, vipTitlePromptHash);
+    const unconvertedItems = listUnconvertedFeedItems(feed.id, titleModel, titlePromptHash);
     const titleConversionItems = unconvertedItems.slice(0, maxTitleConversionsPerRefresh);
     const titleConversionSkippedByLimit = unconvertedItems.length - titleConversionItems.length;
     onProgress(
@@ -94,7 +95,7 @@ export async function refreshFeed(
       titleConversionItems,
       feed.generateTitleFromSummary
     );
-    const convertedCount = saveVipTitles(transformed.titles, titleModel, vipTitlePromptHash);
+    const convertedCount = saveVipTitles(transformed.titles, titleModel, titlePromptHash);
 
     for (const log of transformed.logs) {
       recordLlmRequestLog(log);
