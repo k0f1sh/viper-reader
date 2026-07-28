@@ -13,6 +13,7 @@ const {
   listUnconvertedFeedItems,
   getReadingQueueSummary,
   listGeneratedQueue,
+  listFailedGenerationQueue,
   markThreadGenerationReviewed,
   setThreadGenerationState,
   upsertFeedItems,
@@ -131,6 +132,25 @@ test("生成完了した記事は確認するまで生成済みキューに残�
   assert.equal(getReadingQueueSummary().reviewedCount, 1);
   assert.deepEqual(listGeneratedQueue().items, []);
   assert.deepEqual(listGeneratedQueue(0, 100, true).items.map((item) => item.id), ["queued-item"]);
+});
+
+test("生成失敗した記事だけを失敗キューへ表示する", () => {
+  insertFeed("failed-queue");
+  insertItem({ id: "failed-item", feedId: "failed-queue" });
+  insertItem({ id: "completed-item", feedId: "failed-queue" });
+
+  setThreadGenerationState("failed-item", "failed");
+  setThreadGenerationState("completed-item", "completed");
+
+  assert.deepEqual(
+    listFailedGenerationQueue().items.map((item) => item.id),
+    ["failed-item"]
+  );
+  assert.equal(getReadingQueueSummary().failedCount, 1);
+
+  setThreadGenerationState("failed-item", "completed");
+  assert.deepEqual(listFailedGenerationQueue().items, []);
+  assert.equal(getReadingQueueSummary().failedCount, 0);
 });
 
 test("本文キャッシュがあれば再取得せず、実際の生成工程だけを通知する", async () => {

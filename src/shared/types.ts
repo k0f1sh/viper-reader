@@ -47,6 +47,8 @@ export type ReadingQueueSummary = {
   failedCount: number;
 };
 
+export type SmartView = "unread" | "generated" | "reviewed" | "failed";
+
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
   replyRuns: ReplyGenerationRun[];

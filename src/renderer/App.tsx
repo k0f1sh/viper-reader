@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -154,10 +154,10 @@ export function App() {
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [smartView, setSmartView] = useState<"unread" | "generated" | "reviewed" | null>(null);
+  const [smartView, setSmartView] = useState<SmartView | null>(null);
   const showUnreadOnlyRef = useRef(false);
   showUnreadOnlyRef.current = showUnreadOnly;
-  const smartViewRef = useRef<"unread" | "generated" | "reviewed" | null>(null);
+  const smartViewRef = useRef<SmartView | null>(null);
   smartViewRef.current = smartView;
   const threadListRequestIdRef = useRef(0);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>({
@@ -223,6 +223,8 @@ export function App() {
       void reloadGeneratedQueue(0);
     } else if (smartView === "reviewed") {
       void reloadReviewedGenerationQueue(0);
+    } else if (smartView === "failed") {
+      void reloadFailedGenerationQueue(0);
     } else {
       void reloadThreads(selectedFeedId, undefined, 0);
     }
@@ -387,6 +389,7 @@ export function App() {
           }
         });
         if (smartView === "generated") void reloadGeneratedQueue(0);
+        if (smartView === "failed") void reloadFailedGenerationQueue(0);
       }
       void reloadQueueSummary();
     });
@@ -454,6 +457,16 @@ export function App() {
     setThreadListTotalCount(result.totalCount);
   }
 
+  async function reloadFailedGenerationQueue(page = threadListPage) {
+    if (!window.viperReader) return;
+    const requestId = ++threadListRequestIdRef.current;
+    const result = await window.viperReader.listFailedGenerationQueue(page);
+    if (requestId !== threadListRequestIdRef.current) return;
+    setThreadList(result.items);
+    setThreadListPage(result.page);
+    setThreadListTotalCount(result.totalCount);
+  }
+
   async function reloadQueueSummary() {
     if (!window.viperReader) return;
     setQueueSummary(await window.viperReader.getReadingQueueSummary());
@@ -464,6 +477,8 @@ export function App() {
       await reloadGeneratedQueue(0);
     } else if (smartViewRef.current === "reviewed") {
       await reloadReviewedGenerationQueue(0);
+    } else if (smartViewRef.current === "failed") {
+      await reloadFailedGenerationQueue(0);
     } else if (selectedFeedIdRef.current) {
       await reloadThreads(selectedFeedIdRef.current, preferredThreadId, 0);
     }
@@ -473,6 +488,7 @@ export function App() {
     if (!selectedFeedId || nextPage < 0) return;
     if (smartView === "generated") void reloadGeneratedQueue(nextPage);
     else if (smartView === "reviewed") void reloadReviewedGenerationQueue(nextPage);
+    else if (smartView === "failed") void reloadFailedGenerationQueue(nextPage);
     else void reloadThreads(selectedFeedId, undefined, nextPage);
   }
 
@@ -594,6 +610,7 @@ export function App() {
           { id: "__unread_queue__", select: () => selectSmartView("unread") },
           { id: "__generated_queue__", select: () => selectSmartView("generated") },
           { id: "__reviewed_queue__", select: () => selectSmartView("reviewed") },
+          { id: "__failed_queue__", select: () => selectSmartView("failed") },
           { id: allFeedsId, select: () => selectFeed(allFeedsId) },
           ...feedList.map((feed) => ({ id: feed.id, select: () => selectFeed(feed.id) }))
         ];
@@ -604,7 +621,9 @@ export function App() {
               ? "__generated_queue__"
               : smartView === "reviewed"
                 ? "__reviewed_queue__"
-              : selectedFeedId;
+                : smartView === "failed"
+                  ? "__failed_queue__"
+                : selectedFeedId;
         const currentIndex = navigationTargets.findIndex((targetItem) => targetItem.id === currentTargetId);
         const delta = event.key === "l" ? 1 : -1;
         const nextIndex = currentIndex < 0 ? (delta > 0 ? 0 : navigationTargets.length - 1) : currentIndex + delta;
@@ -808,7 +827,7 @@ export function App() {
     setRefreshMessage("");
   }
 
-  function selectSmartView(view: "unread" | "generated" | "reviewed") {
+  function selectSmartView(view: SmartView) {
     function activateView() {
       setSmartView(view);
       setShowUnreadOnly(view === "unread");

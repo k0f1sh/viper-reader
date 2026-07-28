@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { FeedSource, ReadingQueueSummary, ThreadListItem } from "../../shared/types";
+import type { FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
 
 type ThreadListPaneProps = {
@@ -27,7 +27,7 @@ type ThreadListPaneProps = {
   totalCount: number;
   onPreviousPage: () => void;
   onNextPage: () => void;
-  smartView: "unread" | "generated" | "reviewed" | null;
+  smartView: SmartView | null;
   queueSummary: ReadingQueueSummary;
   onOpenGeneratedQueue: () => void;
 };
@@ -87,6 +87,8 @@ export function ThreadListPane({
                 ? "生成済み・未確認"
                 : smartView === "reviewed"
                   ? "生成済み・確認済み"
+                  : smartView === "failed"
+                    ? "生成失敗"
                   : "スレタイ一覧"}
           </div>
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>

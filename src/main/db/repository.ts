@@ -1175,7 +1175,7 @@ function listAllThreads(
   page: number,
   pageSize: number,
   filterUnread: number,
-  generationQueueMode: "none" | "unreviewed" | "reviewed" = "none"
+  generationQueueMode: "none" | "unreviewed" | "reviewed" | "failed" = "none"
 ): ThreadListPage {
   const summaryTitlePromptHash = buildVipTitlePromptHash(true);
   const plainTitlePromptHash = buildVipTitlePromptHash(false);
@@ -1185,7 +1185,9 @@ function listAllThreads(
       ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL"
       : generationQueueMode === "reviewed"
         ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NOT NULL"
-        : "";
+        : generationQueueMode === "failed"
+          ? "AND fi.generation_status = 'failed'"
+          : "";
   const countRow = db.prepare(`
     SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
     FROM feed_items fi
@@ -1257,6 +1259,7 @@ function listAllThreads(
     ORDER BY
       ${generationQueueMode === "unreviewed" ? "fi.generation_completed_at ASC," : ""}
       ${generationQueueMode === "reviewed" ? "fi.generation_reviewed_at DESC," : ""}
+      ${generationQueueMode === "failed" ? "fi.generation_completed_at DESC," : ""}
       CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
       COALESCE(fi.published_at, fi.created_at) DESC,
       fi.created_at DESC,
@@ -1292,6 +1295,20 @@ export function listGeneratedQueue(page = 0, pageSize = 100, reviewed = false): 
     safePageSize,
     0,
     reviewed ? "reviewed" : "unreviewed"
+  );
+}
+
+export function listFailedGenerationQueue(page = 0, pageSize = 100): ThreadListPage {
+  const safePage = Math.max(0, Math.floor(page));
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  return listAllThreads(
+    getDatabase(),
+    getActiveModel(),
+    getTitleGenerationModel(),
+    safePage,
+    safePageSize,
+    0,
+    "failed"
   );
 }
 

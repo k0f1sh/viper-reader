@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedSource, ReadingQueueSummary, ThreadListItem } from "../../shared/types";
+import type { AppLogEntry, FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
 import { LogPane } from "./LogPane";
 
 type FeedPaneProps = {
@@ -21,8 +21,8 @@ type FeedPaneProps = {
   allFeedsId: string;
   allUnreadCount: number;
   queueSummary: ReadingQueueSummary;
-  activeSmartView: "unread" | "generated" | "reviewed" | null;
-  onSelectSmartView: (view: "unread" | "generated" | "reviewed") => void;
+  activeSmartView: SmartView | null;
+  onSelectSmartView: (view: SmartView) => void;
   feedTreeHeight: number;
   onStartFeedTreeResize: (event: ReactMouseEvent<HTMLDivElement>) => void;
 };
@@ -133,7 +133,14 @@ export function FeedPane({
           <span className="feed-name">生成済み・確認済み</span>
         </button>
         {queueSummary.failedCount > 0 ? (
-          <div className="queue-failure-row">生成失敗 <span>{queueSummary.failedCount}</span></div>
+          <button
+            className={`feed-row smart-feed-row queue-failure-row ${activeSmartView === "failed" ? "is-selected" : ""}`}
+            onClick={() => onSelectSmartView("failed")}
+            type="button"
+          >
+            <span className="feed-name">生成失敗</span>
+            <span className="feed-count">{queueSummary.failedCount}</span>
+          </button>
         ) : null}
         <div className="tree-heading">RSS</div>
         <button
