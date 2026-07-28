@@ -17,6 +17,7 @@ import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
+import { runFeedRefreshSingleFlight } from "./feedRefreshSingleFlight.js";
 
 type ParsedItem = {
   id: string;
@@ -32,9 +33,16 @@ const parser = new Parser();
 const maxTitleConversionsPerRefresh = 30;
 const maxFeedBytes = 5 * 1024 * 1024;
 
-export async function refreshFeed(
+export function refreshFeed(
   feedId: string,
   onProgress: (message: string) => void = () => undefined
+): Promise<RefreshFeedResult> {
+  return runFeedRefreshSingleFlight(feedId, () => refreshFeedOnce(feedId, onProgress));
+}
+
+async function refreshFeedOnce(
+  feedId: string,
+  onProgress: (message: string) => void
 ): Promise<RefreshFeedResult> {
   const startedAt = new Date().toISOString();
   const feed = getFeedSource(feedId);

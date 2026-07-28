@@ -23,6 +23,7 @@ const {
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
 const { buildVipThreadResponsePrompt } = await import("../dist/main/prompts/vipThreadResponsePrompt.js");
 const { buildVipTitlePromptHash } = await import("../dist/main/prompts/vipTitlePrompt.js");
+const { runFeedRefreshSingleFlight } = await import("../dist/main/rss/feedRefreshSingleFlight.js");
 const {
   getRendererUserSetting,
   saveRendererUserSetting
@@ -84,6 +85,31 @@ test("スレタイ生成モードごとに異なるプロンプトハッシュ�
     buildVipTitlePromptHash(false),
     buildVipTitlePromptHash(true)
   );
+});
+
+test("同じフィードの並行更新は一つの処理を共有する", async () => {
+  let invocationCount = 0;
+  let finishRefresh;
+  const task = () => {
+    invocationCount += 1;
+    return new Promise((resolve) => {
+      finishRefresh = resolve;
+    });
+  };
+
+  const first = runFeedRefreshSingleFlight("single-flight", task);
+  const second = runFeedRefreshSingleFlight("single-flight", task);
+  assert.equal(invocationCount, 1);
+
+  finishRefresh("done");
+  assert.deepEqual(await Promise.all([first, second]), ["done", "done"]);
+
+  const third = runFeedRefreshSingleFlight("single-flight", async () => {
+    invocationCount += 1;
+    return "next";
+  });
+  assert.equal(await third, "next");
+  assert.equal(invocationCount, 2);
 });
 
 test("生成完了した記事は確認するまで生成済みキューに残る", () => {
