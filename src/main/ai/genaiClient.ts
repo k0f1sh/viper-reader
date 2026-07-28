@@ -201,21 +201,24 @@ export async function generateText(params: {
 }
 
 /**
- * レスポンステキストを JSON パースして parse 関数に渡す。
+ * レスポンステキストの JSON 構文を確認してから parse 関数に渡す。
  * Markdown コードフェンスは除去する。
- * parse が例外を投げた場合は null を返す。
+ * JSON 構文エラーと、parse 内の追加検証エラーを区別して呼び出し元へ返す。
  */
-function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T | null {
+function parseJsonResponse<T>(responseText: string, parse: (text: string) => T): T {
+  const trimmed = responseText.trim();
+  const withoutFence = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
   try {
-    const trimmed = responseText.trim();
-    const withoutFence = trimmed
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-    return parse(withoutFence);
+    JSON.parse(withoutFence);
   } catch {
-    return null;
+    throw new Error("JSON パースに失敗しました");
   }
+
+  return parse(withoutFence);
 }
 
 async function raceWithTimeout<T>(

@@ -71,6 +71,23 @@ test("Geminiの不正JSONはgenerateJson全体で安全にエラー結果へ変�
   assert.equal(fenced.errorMessage, null);
 });
 
+test("JSON構文エラーと保存前の追加検証エラーを区別する", async () => {
+  const result = await generateJson(
+    {
+      model: "test-model",
+      purpose: "thread_response",
+      contents: "test",
+      parse: () => {
+        throw new Error("記事に根拠のない数値表現があります: 50%");
+      }
+    },
+    fakeTransport(async () => ({ text: '{"body":"50%高速化"}' }))
+  );
+
+  assert.equal(result.value, null);
+  assert.equal(result.errorMessage, "記事に根拠のない数値表現があります: 50%");
+});
+
 test("Gemini呼び出し全体が制限時間を超えたら用途付きのエラー結果を返す", async () => {
   const result = await generateJson(
     {
@@ -126,6 +143,13 @@ test("生成文中の根拠がない数値・バージョンを検出する", ()
     findUngroundedNumericClaims(
       ">>2 の通り、v2.1で3件修正",
       ["v2.1で3件修正"]
+    ),
+    []
+  );
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      "重要な点は3つある",
+      ["重要な点を説明する"]
     ),
     []
   );

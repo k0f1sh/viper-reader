@@ -1,5 +1,5 @@
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
+import { JSDOM, VirtualConsole } from "jsdom";
 import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { checkRobotsTxt } from "./robotsTxtChecker.js";
@@ -75,7 +75,10 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
 
   // 3. Readabilityによる本文抽出
   try {
-    const dom = new JSDOM(html, { url: targetUrl });
+    const virtualConsole = new VirtualConsole().forwardTo(console, {
+      jsdomErrors: ["unhandled-exception", "resource-loading"]
+    });
+    const dom = new JSDOM(html, { url: targetUrl, virtualConsole });
     const reader = new Readability(dom.window.document);
     const article = reader.parse();
 
