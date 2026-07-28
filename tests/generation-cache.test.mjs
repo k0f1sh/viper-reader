@@ -15,6 +15,7 @@ const {
   listGeneratedQueue,
   markThreadGenerationReviewed,
   setThreadGenerationState,
+  upsertFeedItems,
   saveArticleBody,
   saveRawVipTitleFallbacks,
   saveRssThreadSummaries
@@ -131,6 +132,47 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
   assert.equal(
     db.prepare("SELECT COUNT(*) AS count FROM article_fetch_logs WHERE feed_item_id = ?")
       .get("cached").count,
+    0
+  );
+});
+
+test("RSSの記事内容が訂正されたら派生キャッシュを失効する", () => {
+  insertFeed("corrected");
+  insertItem({ id: "corrected-item", feedId: "corrected" });
+  const originalItem = {
+    id: "corrected-item",
+    title: "Title corrected-item",
+    url: "https://example.com/articles/corrected-item",
+    publishedAt: now,
+    rawSummary: "Summary corrected-item"
+  };
+  saveRawVipTitleFallbacks([originalItem], titleModel);
+  saveRssThreadSummaries([originalItem], responseModel);
+  saveArticleBody(originalItem.id, originalItem.url, "元の記事本文");
+
+  const result = upsertFeedItems("corrected", [{
+    ...originalItem,
+    feedId: "corrected",
+    guid: originalItem.id,
+    title: "訂正後のタイトル",
+    url: "https://example.com/articles/corrected-item-v2",
+    rawSummary: "訂正後の概要"
+  }]);
+
+  assert.equal(result.updatedCount, 1);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM vip_titles WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
+    0
+  );
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM thread_summaries WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
+    0
+  );
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM article_bodies WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
     0
   );
 });

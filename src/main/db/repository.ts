@@ -463,6 +463,9 @@ export function upsertFeedItems(
     WHERE id = ?
     `
   );
+  const deleteDerivedTitles = db.prepare("DELETE FROM vip_titles WHERE feed_item_id = ?");
+  const deleteDerivedSummaries = db.prepare("DELETE FROM thread_summaries WHERE feed_item_id = ?");
+  const deleteArticleBodies = db.prepare("DELETE FROM article_bodies WHERE feed_item_id = ?");
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
 
   db.exec("BEGIN");
@@ -500,6 +503,11 @@ export function upsertFeedItems(
         existing.published_at !== item.publishedAt ||
         existing.raw_summary !== item.rawSummary
       ) {
+        deleteDerivedTitles.run(feedItemId);
+        deleteDerivedSummaries.run(feedItemId);
+        if (existing.url !== item.url) {
+          deleteArticleBodies.run(feedItemId);
+        }
         updateItem.run(item.title, item.url, canonicalUrl, item.publishedAt, item.rawSummary, fetchedAt, feedItemId);
         updatedCount += 1;
       } else {
