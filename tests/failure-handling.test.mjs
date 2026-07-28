@@ -17,6 +17,7 @@ const {
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
 const { assertSafeNetworkUrl } = await import("../dist/main/network/safeFetch.js");
 const { findUngroundedNumericClaims } = await import("../dist/main/ai/factualGrounding.js");
+const { sendIfAvailable } = await import("../dist/main/ipc/safeSender.js");
 
 const db = getDatabase();
 
@@ -127,4 +128,22 @@ test("生成文中の根拠がない数値・バージョンを検出する", ()
     ),
     []
   );
+});
+
+test("破棄済みまたは送信失敗したIPC senderを安全に無視する", () => {
+  let sendCount = 0;
+  assert.equal(sendIfAvailable({
+    isDestroyed: () => true,
+    send: () => {
+      sendCount += 1;
+    }
+  }, "test"), false);
+  assert.equal(sendCount, 0);
+
+  assert.equal(sendIfAvailable({
+    isDestroyed: () => false,
+    send: () => {
+      throw new Error("sender was destroyed");
+    }
+  }, "test"), false);
 });

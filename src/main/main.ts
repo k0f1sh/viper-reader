@@ -49,6 +49,7 @@ import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
 import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
 import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
+import { sendIfAvailable } from "./ipc/safeSender.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -189,21 +190,21 @@ ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => 
   setThreadGenerationState(threadId, "queued");
   startThreadResponseGeneration(threadId, force, (status) => {
     setThreadGenerationState(threadId, status === "done" || status === "skipped" ? "completed" : "failed");
-    event.sender.send("threads:generation-complete", { threadId, status });
+    sendIfAvailable(event.sender, "threads:generation-complete", { threadId, status });
   }, (progress) => {
     setThreadGenerationState(threadId, "generating");
-    event.sender.send("threads:generation-progress", { threadId, ...progress });
+    sendIfAvailable(event.sender, "threads:generation-progress", { threadId, ...progress });
   });
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
   return postThreadMessage(threadId, name, mail, body, (status) => {
-    event.sender.send("threads:post-status", { threadId, status });
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status });
   });
 });
 ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
   return generateRepliesOnly(threadId, (status) => {
-    event.sender.send("threads:post-status", { threadId, status });
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status });
   });
 });
 ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
@@ -213,7 +214,7 @@ ipcMain.handle("feeds:mark-read", (_event, feedId: string) => markFeedRead(feedI
 ipcMain.handle("feeds:mark-all-read", () => markAllFeedsRead());
 ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
   refreshFeed(feedId, (message) => {
-    event.sender.send("feeds:refresh-progress", { feedId, message });
+    sendIfAvailable(event.sender, "feeds:refresh-progress", { feedId, message });
   })
 );
 ipcMain.handle("stats:get", () => getStatistics());
@@ -230,7 +231,9 @@ ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearF
 ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
   const feedId = saveReplyFeedback(runId, rating, tags);
   void maybeCreatePromptProposal(feedId).then((versionId) => {
-    if (versionId && !event.sender.isDestroyed()) event.sender.send("feeds:prompt-proposal-ready", { feedId, versionId });
+    if (versionId) {
+      sendIfAvailable(event.sender, "feeds:prompt-proposal-ready", { feedId, versionId });
+    }
   }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
 });
 ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => listResidentPromptVersions(feedId));
