@@ -625,8 +625,9 @@ export function App() {
         }
       } else if (event.key === "b") {
         event.preventDefault(); void toggleFavorite();
-      } else if (event.key === "o") {
+      } else if (event.key.toLowerCase() === "o") {
         event.preventDefault();
+        if (event.repeat) return;
         setThreadViewMode((current) => current === "replies" ? "browser" : "replies");
       } else if (event.key === "U") {
         event.preventDefault(); void toggleSelectedThreadRead();

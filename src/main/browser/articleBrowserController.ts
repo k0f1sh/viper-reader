@@ -104,6 +104,7 @@ export class ArticleBrowserController {
   hide(): void {
     this.isVisible = false;
     this.hideNativeView();
+    this.focusOwner();
   }
 
   setBounds(bounds: ArticleBrowserBounds): void {
@@ -258,7 +259,7 @@ export class ArticleBrowserController {
         && hasNoModifiers;
       if (input.type === "keyDown" && hasNoModifiers && (key === "j" || key === "k")) {
         event.preventDefault();
-        this.owner.webContents.focus();
+        this.focusOwner();
         const keyCode = key === "j" ? "J" : "K";
         this.owner.webContents.sendInputEvent({ type: "keyDown", keyCode });
         this.owner.webContents.sendInputEvent({ type: "keyUp", keyCode });
@@ -274,7 +275,7 @@ export class ArticleBrowserController {
         && key === "o"
       ) {
         event.preventDefault();
-        this.owner.webContents.focus();
+        this.focusOwner();
         this.owner.webContents.sendInputEvent({ type: "keyDown", keyCode: "O" });
         this.owner.webContents.sendInputEvent({ type: "keyUp", keyCode: "O" });
       }
@@ -389,6 +390,12 @@ export class ArticleBrowserController {
 
   private hideNativeView(): void {
     this.view?.setVisible(false);
+  }
+
+  private focusOwner(): void {
+    if (!this.owner.isDestroyed() && !this.owner.webContents.isDestroyed()) {
+      this.owner.webContents.focus();
+    }
   }
 
   private resolveBlockerStatus(url: string): ArticleBrowserState["blockerStatus"] {
