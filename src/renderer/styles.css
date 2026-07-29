@@ -1066,6 +1066,15 @@ body.is-article-pane-resizing * {
   justify-content: center;
 }
 
+.thread-generation-cell[role="button"] {
+  cursor: pointer;
+}
+
+.thread-generation-cell[role="button"]:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: 2px;
+}
+
 .thread-status-lamp {
   display: block;
   width: 10px;
@@ -1282,6 +1291,96 @@ body.is-article-pane-resizing * {
   border-left: 2px solid #ffffff;
   background: #d4d0c8;
   box-shadow: 2px 2px 0 #808080;
+}
+
+.generation-failure-modal {
+  display: grid;
+  grid-template-rows: 24px minmax(0, 1fr) auto;
+  width: min(760px, 94vw);
+  max-height: min(620px, 90vh);
+  border-top: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  border-left: 2px solid #ffffff;
+  background: #d4d0c8;
+  box-shadow: 2px 2px 0 #808080;
+}
+
+.generation-failure-content {
+  min-height: 220px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.generation-failure-thread-title {
+  margin-bottom: 10px;
+  padding: 5px 7px;
+  border: 1px inset #ffffff;
+  background: #ffffff;
+  font-weight: 700;
+}
+
+.generation-failure-summary {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 0 0 10px;
+}
+
+.generation-failure-summary dt {
+  font-weight: 700;
+}
+
+.generation-failure-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.generation-technical-details {
+  margin: 8px 0 12px;
+}
+
+.generation-technical-details pre {
+  max-height: 180px;
+  padding: 7px;
+  overflow: auto;
+  border: 1px inset #ffffff;
+  background: #111111;
+  color: #eeeeee;
+  font: 11px/1.45 monospace;
+  white-space: pre-wrap;
+}
+
+.generation-attempt-history {
+  display: grid;
+  gap: 3px;
+}
+
+.generation-attempt-row {
+  display: grid;
+  grid-template-columns: 150px 58px 150px minmax(0, 1fr);
+  gap: 6px;
+  padding: 3px 5px;
+  border-bottom: 1px solid #aaaaaa;
+  background: #eeeeee;
+  font-size: 11px;
+}
+
+.generation-attempt-row.is-failed {
+  color: #9a0000;
+}
+
+.generation-failure-empty {
+  padding: 24px 8px;
+  color: #555555;
+}
+
+.generation-failure-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 8px;
+  border-top: 1px solid #808080;
 }
 
 .modal-title-bar {

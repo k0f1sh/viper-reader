@@ -18,6 +18,7 @@ type ThreadListPaneProps = {
   threadListMinWidth: number;
   onRefresh: () => void;
   onSelectThread: (threadId: string) => void;
+  onShowGenerationFailure: (threadId: string) => void;
   onToggleUnreadOnly: () => void;
   onMarkAllRead: () => void;
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
@@ -48,6 +49,7 @@ export function ThreadListPane({
   threadListMinWidth,
   onRefresh,
   onSelectThread,
+  onShowGenerationFailure,
   onToggleUnreadOnly,
   onMarkAllRead,
   onStartColumnResize,
@@ -180,6 +182,19 @@ export function ThreadListPane({
               <span
                 aria-label={lampLabel}
                 className="thread-generation-cell"
+                onClick={(event) => {
+                  if (!isFailed) return;
+                  event.stopPropagation();
+                  onShowGenerationFailure(thread.id);
+                }}
+                onKeyDown={(event) => {
+                  if (!isFailed || (event.key !== "Enter" && event.key !== " ")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onShowGenerationFailure(thread.id);
+                }}
+                role={isFailed ? "button" : undefined}
+                tabIndex={isFailed ? 0 : undefined}
                 title={lampLabel}
               >
                 <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />

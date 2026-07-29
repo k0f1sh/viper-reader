@@ -13,6 +13,7 @@ const {
   listUnconvertedFeedItems,
   getReadingQueueSummary,
   listGeneratedQueue,
+  listThreadGenerationAttempts,
   listThreads,
   markThreadRead,
   markThreadGenerationReviewed,
@@ -196,7 +197,7 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
     );
   });
 
-  assert.equal(completion, "skipped");
+  assert.equal(completion, "error");
   assert.deepEqual(progress, [
     "checking-cache",
     "preparing-context",
@@ -207,6 +208,12 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
       .get("cached").count,
     0
   );
+  const [attempt] = listThreadGenerationAttempts("cached");
+  assert.equal(attempt.status, "failed");
+  assert.equal(attempt.stage, "generating-posts");
+  assert.match(attempt.errorMessage, /API キーが設定されていません/);
+  assert.ok(attempt.model);
+  assert.equal(attempt.force, false);
 });
 
 test("RSSの記事内容が訂正されたら派生キャッシュを失効する", () => {

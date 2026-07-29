@@ -149,6 +149,19 @@ export type ThreadGenerationProgress = {
   message: string;
 };
 
+export type ThreadGenerationAttempt = {
+  id: string;
+  threadId: string;
+  status: "running" | "completed" | "failed" | "skipped";
+  stage: ThreadGenerationProgress["stage"];
+  errorMessage: string | null;
+  technicalDetails: string | null;
+  model: string;
+  force: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
 export type AppLogEntry = {
   id: string;
   level: "log" | "info" | "warn" | "error";

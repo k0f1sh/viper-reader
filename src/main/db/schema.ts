@@ -150,6 +150,23 @@ CREATE TABLE IF NOT EXISTS article_fetch_logs (
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS thread_generation_attempts (
+  id TEXT PRIMARY KEY,
+  feed_item_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  error_message TEXT,
+  technical_details TEXT,
+  model TEXT NOT NULL,
+  force INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_thread_generation_attempts_item_started
+  ON thread_generation_attempts(feed_item_id, started_at DESC);
+
 CREATE TABLE IF NOT EXISTS thread_posts (
   id TEXT PRIMARY KEY,
   feed_item_id TEXT NOT NULL,

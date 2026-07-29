@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
 import { BrowserSettingsModal } from "./components/BrowserSettingsModal";
 import { FeedPane } from "./components/FeedPane";
 import { FeedSettingsModal } from "./components/FeedSettingsModal";
+import { GenerationFailureModal } from "./components/GenerationFailureModal";
 import { MenuBar } from "./components/MenuBar";
 import { ModelSettingsModal } from "./components/ModelSettingsModal";
 import { ReplyPopup } from "./components/ReplyPopup";
@@ -171,6 +172,10 @@ export function App() {
     reviewedCount: 0
   });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
+  const [generationFailureThreadId, setGenerationFailureThreadId] = useState<string | null>(null);
+  const [generationAttempts, setGenerationAttempts] = useState<ThreadGenerationAttempt[]>([]);
+  const [isGenerationAttemptsLoading, setIsGenerationAttemptsLoading] = useState(false);
+  const [isRetryingGeneration, setIsRetryingGeneration] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全体共通（未読のみ）", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
@@ -185,7 +190,8 @@ export function App() {
     || isModelSettingsOpen
     || isResidentPromptsOpen
     || isAddFeedOpen
-    || settingsFeed !== null;
+    || settingsFeed !== null
+    || generationFailureThreadId !== null;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
   // 未読巡回中は、開いて既読になった行もセッション内に残して一覧の並びを安定させる。
@@ -366,6 +372,15 @@ export function App() {
         nextIds.delete(status.threadId);
         return nextIds;
       });
+      const generationStatus = status.status === "error" ? "failed" : "completed";
+      setThreadList((currentThreads) =>
+        currentThreads.map((thread) =>
+          thread.id === status.threadId ? { ...thread, generationStatus } : thread
+        )
+      );
+      setSelectedThread((thread) =>
+        thread?.id === status.threadId ? { ...thread, generationStatus } : thread
+      );
 
       if (status.status === "done") {
         if (status.threadId !== selectedThreadId) {
@@ -1216,6 +1231,41 @@ export function App() {
     }
   }
 
+  async function showGenerationFailure(threadId: string) {
+    if (!window.viperReader) return;
+    setGenerationFailureThreadId(threadId);
+    setGenerationAttempts([]);
+    setIsGenerationAttemptsLoading(true);
+    try {
+      const attempts = await window.viperReader.listThreadGenerationAttempts(threadId);
+      setGenerationAttempts(attempts);
+    } finally {
+      setIsGenerationAttemptsLoading(false);
+    }
+  }
+
+  async function retryFailedGeneration() {
+    if (!window.viperReader || !generationFailureThreadId || isRetryingGeneration) return;
+    const threadId = generationFailureThreadId;
+    setIsRetryingGeneration(true);
+    setGeneratingThreadIds((currentIds) => new Set(currentIds).add(threadId));
+    setThreadGenerationProgress((current) => {
+      const next = new Map(current);
+      next.set(threadId, "レス生成を準備中...");
+      return next;
+    });
+    setThreadList((threads) =>
+      threads.map((thread) => thread.id === threadId ? { ...thread, generationStatus: "queued" } : thread)
+    );
+    try {
+      await window.viperReader.generateThreadResponses(threadId, true);
+      setGenerationFailureThreadId(null);
+      await reloadQueueSummary();
+    } finally {
+      setIsRetryingGeneration(false);
+    }
+  }
+
   async function regenerateSelectedVipTitle() {
     if (!selectedThread || !window.viperReader || regeneratingTitleThreadId) {
       return;
@@ -1767,6 +1817,7 @@ export function App() {
             threadListMinWidth={threadListMinWidth}
             onRefresh={() => void refreshSelectedFeed()}
             onSelectThread={selectThreadById}
+            onShowGenerationFailure={(threadId) => void showGenerationFailure(threadId)}
             onToggleUnreadOnly={() => {
               if (!isUnreadOnlyLocked) setShowUnreadOnly((current) => !current);
             }}
@@ -1963,6 +2014,17 @@ export function App() {
           onGenerateTitleFromSummaryChange={setSettingsGenerateTitleFromSummary}
           onSave={() => void saveFeedSettings()}
           onClose={() => setSettingsFeed(null)}
+        />
+      ) : null}
+
+      {generationFailureThreadId ? (
+        <GenerationFailureModal
+          thread={threadList.find((thread) => thread.id === generationFailureThreadId)}
+          attempts={generationAttempts}
+          isLoading={isGenerationAttemptsLoading}
+          isRetrying={isRetryingGeneration}
+          onRetry={() => void retryFailedGeneration()}
+          onClose={() => setGenerationFailureThreadId(null)}
         />
       ) : null}
 

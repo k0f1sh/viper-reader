@@ -5,10 +5,12 @@ import {
   getArticleSummary,
   getFeedResidentPrompt,
   getThread,
+  finishThreadGenerationAttempt,
   recordLlmRequestLog,
   recordArticleFetchLog,
   saveArticleBody,
-  saveThreadResponsePosts
+  saveThreadResponsePosts,
+  startThreadGenerationAttempt
 } from "../db/repository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
@@ -39,17 +41,37 @@ export function startThreadResponseGeneration(
     return;
   }
 
+  const attemptId = startThreadGenerationAttempt(threadId, force, getActiveModel());
+  let currentStage: ThreadGenerationProgress["stage"] = "checking-cache";
+  const reportProgress = (progress: Omit<ThreadGenerationProgress, "threadId">): void => {
+    currentStage = progress.stage;
+    onProgress(progress);
+  };
+
   void (async () => {
     try {
-      onProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
-      const scrapedBody = await getOrScrapeArticleBody(thread, onProgress);
+      reportProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
+      const scrapedBody = await getOrScrapeArticleBody(thread, reportProgress);
 
-      onProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
+      reportProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
       const articleSummary = getArticleSummary(threadId);
-      const status = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, onProgress);
-      onComplete(status);
+      const result = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, reportProgress);
+      finishThreadGenerationAttempt(
+        attemptId,
+        result.status === "done" ? "completed" : result.status === "error" ? "failed" : "skipped",
+        currentStage,
+        result.errorMessage
+      );
+      onComplete(result.status);
     } catch (error) {
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
+      finishThreadGenerationAttempt(
+        attemptId,
+        "failed",
+        currentStage,
+        error instanceof Error ? error.message : "予期しないエラーが発生しました。",
+        error instanceof Error ? error.stack ?? error.message : String(error)
+      );
       onComplete("error");
     } finally {
       releaseThreadLock(threadId);
@@ -93,7 +115,7 @@ async function generateAndSaveThreadResponses(
   scrapedBody: string | null,
   articleSummary: string | null,
   onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void
-): Promise<"done" | "skipped" | "error"> {
+): Promise<{ status: "done" | "skipped" | "error"; errorMessage: string | null }> {
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
   const promptHash = buildVipThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
   onProgress({ stage: "generating-posts", message: "AI住民が >>2 以降のレスを生成中..." });
@@ -108,10 +130,12 @@ async function generateAndSaveThreadResponses(
   }
 
   if (generated.log?.status === "skipped") {
-    return "skipped";
+    return generated.log.errorMessage
+      ? { status: "error", errorMessage: generated.log.errorMessage }
+      : { status: "skipped", errorMessage: null };
   }
   if (generated.log?.status === "error") {
-    return "error";
+    return { status: "error", errorMessage: generated.log.errorMessage ?? "AIレスの生成に失敗しました。" };
   }
 
   if (generated.posts.length > 0) {
@@ -124,8 +148,8 @@ async function generateAndSaveThreadResponses(
       getActiveModel(),
       promptHash
     );
-    return "done";
+    return { status: "done", errorMessage: null };
   }
 
-  return "skipped";
+  return { status: "skipped", errorMessage: null };
 }
