@@ -16,6 +16,7 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationAttempt,
+  TitleGenerationAttempt,
   ThreadGenerationStatus,
   ThreadGenerationProgress,
   ThreadListItem,
@@ -32,6 +33,7 @@ export type ViperReaderApi = {
   getReadingQueueSummary: () => Promise<ReadingQueueSummary>;
   markThreadGenerationReviewed: (threadId: string) => Promise<void>;
   listThreadGenerationAttempts: (threadId: string) => Promise<ThreadGenerationAttempt[]>;
+  listTitleGenerationAttempts: (threadId: string) => Promise<TitleGenerationAttempt[]>;
   countUnreadArticles: () => Promise<number>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
@@ -95,6 +97,7 @@ const api: ViperReaderApi = {
   getReadingQueueSummary: () => ipcRenderer.invoke("threads:get-queue-summary"),
   markThreadGenerationReviewed: (threadId) => ipcRenderer.invoke("threads:mark-generation-reviewed", threadId),
   listThreadGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-generation-attempts", threadId),
+  listTitleGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-title-generation-attempts", threadId),
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),

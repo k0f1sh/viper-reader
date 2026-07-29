@@ -167,6 +167,20 @@ CREATE TABLE IF NOT EXISTS thread_generation_attempts (
 CREATE INDEX IF NOT EXISTS idx_thread_generation_attempts_item_started
   ON thread_generation_attempts(feed_item_id, started_at DESC);
 
+CREATE TABLE IF NOT EXISTS title_generation_attempts (
+  id TEXT PRIMARY KEY,
+  feed_item_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error_message TEXT,
+  model TEXT NOT NULL,
+  prompt_hash TEXT NOT NULL,
+  attempted_at TEXT NOT NULL,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_title_generation_attempts_item_attempted
+  ON title_generation_attempts(feed_item_id, attempted_at DESC);
+
 CREATE TABLE IF NOT EXISTS thread_posts (
   id TEXT PRIMARY KEY,
   feed_item_id TEXT NOT NULL,

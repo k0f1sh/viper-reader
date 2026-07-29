@@ -17,12 +17,15 @@ const {
   listThreads,
   markThreadRead,
   markThreadGenerationReviewed,
+  listTitleGenerationAttempts,
+  recordTitleGenerationAttempts,
   setThreadRead,
   setThreadGenerationState,
   upsertFeedItems,
   saveArticleBody,
   saveRawVipTitleFallbacks,
-  saveRssThreadSummaries
+  saveRssThreadSummaries,
+  saveVipTitles
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
 const { postThreadMessage } = await import("../dist/main/threads/postMessage.js");
@@ -31,6 +34,7 @@ const { buildVipTitlePromptHash } = await import("../dist/main/prompts/vipTitleP
 const { runFeedRefreshSingleFlight } = await import("../dist/main/rss/feedRefreshSingleFlight.js");
 const {
   getRendererUserSetting,
+  getTitleGenerationModel,
   saveRendererUserSetting
 } = await import("../dist/main/settings/settingsService.js");
 
@@ -109,6 +113,30 @@ test("同じcanonical URLの記事は全取得元をまとめて既読・未読�
       .map((row) => row.id),
     ["canonical-item-a", "canonical-item-b"]
   );
+});
+
+test("スレタイ変換の失敗・未変換を記事単位で保存し、成功時に状態表示を消す", () => {
+  insertFeed("title-status");
+  insertItem({ id: "title-status-item", feedId: "title-status" });
+  const promptHash = buildVipTitlePromptHash(false);
+  const currentTitleModel = getTitleGenerationModel();
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "failed", errorMessage: "変換タイムアウト" }
+  ], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, "failed");
+  assert.equal(listTitleGenerationAttempts("title-status-item")[0].errorMessage, "変換タイムアウト");
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "skipped", errorMessage: "APIキー未設定" }
+  ], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, "skipped");
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "completed", errorMessage: null }
+  ], currentTitleModel, promptHash);
+  saveVipTitles([{ feedItemId: "title-status-item", title: "VIPタイトル" }], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, null);
 });
 
 test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {

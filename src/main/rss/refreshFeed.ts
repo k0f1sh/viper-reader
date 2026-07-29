@@ -7,6 +7,7 @@ import {
   listFeedItemsForInitialCaches,
   listUnconvertedFeedItems,
   recordLlmRequestLog,
+  recordTitleGenerationAttempts,
   recordRssRefreshRun,
   saveRawVipTitleFallbacks,
   saveRssThreadSummaries,
@@ -104,6 +105,7 @@ async function refreshFeedOnce(
       feed.generateTitleFromSummary
     );
     const convertedCount = saveVipTitles(transformed.titles, titleModel, titlePromptHash);
+    recordTitleGenerationAttempts(transformed.outcomes, titleModel, titlePromptHash);
 
     for (const log of transformed.logs) {
       recordLlmRequestLog(log);

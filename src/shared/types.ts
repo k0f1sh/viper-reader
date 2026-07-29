@@ -29,6 +29,7 @@ export type ThreadListItem = {
   isRead: boolean;
   isFavorite: boolean;
   generationStatus: "queued" | "generating" | "completed" | "failed" | null;
+  titleGenerationStatus: "failed" | "skipped" | null;
 };
 
 export type ThreadListPage = {
@@ -160,6 +161,15 @@ export type ThreadGenerationAttempt = {
   force: boolean;
   startedAt: string;
   finishedAt: string | null;
+};
+
+export type TitleGenerationAttempt = {
+  id: string;
+  threadId: string;
+  status: "completed" | "failed" | "skipped";
+  errorMessage: string | null;
+  model: string;
+  attemptedAt: string;
 };
 
 export type AppLogEntry = {

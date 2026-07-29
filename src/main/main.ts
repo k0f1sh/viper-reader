@@ -15,6 +15,7 @@ import {
   listThreads,
   listGeneratedQueue,
   listThreadGenerationAttempts,
+  listTitleGenerationAttempts,
   getReadingQueueSummary,
   countAllUnreadArticles,
   listResidentPromptVersions,
@@ -146,6 +147,9 @@ ipcMain.handle("threads:get-queue-summary", () => getReadingQueueSummary());
 ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => markThreadGenerationReviewed(threadId));
 ipcMain.handle("threads:list-generation-attempts", (_event, threadId: string) =>
   listThreadGenerationAttempts(threadId, 5)
+);
+ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: string) =>
+  listTitleGenerationAttempts(threadId, 5)
 );
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
 ipcMain.handle("threads:get", (_event, threadId: string) => {

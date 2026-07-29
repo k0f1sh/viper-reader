@@ -19,6 +19,7 @@ type ThreadListPaneProps = {
   onRefresh: () => void;
   onSelectThread: (threadId: string) => void;
   onShowGenerationFailure: (threadId: string) => void;
+  onShowTitleGenerationStatus: (threadId: string) => void;
   onToggleUnreadOnly: () => void;
   onMarkAllRead: () => void;
   onStartColumnResize: (columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) => void;
@@ -50,6 +51,7 @@ export function ThreadListPane({
   onRefresh,
   onSelectThread,
   onShowGenerationFailure,
+  onShowTitleGenerationStatus,
   onToggleUnreadOnly,
   onMarkAllRead,
   onStartColumnResize,
@@ -182,6 +184,28 @@ export function ThreadListPane({
               <span
                 aria-label={lampLabel}
                 className="thread-generation-cell"
+              >
+                {thread.titleGenerationStatus ? (
+                  <span
+                    aria-label={thread.titleGenerationStatus === "failed" ? "スレタイ変換失敗" : "スレタイ未変換"}
+                    className={`thread-title-status-marker is-${thread.titleGenerationStatus}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onShowTitleGenerationStatus(thread.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onShowTitleGenerationStatus(thread.id);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title={thread.titleGenerationStatus === "failed" ? "スレタイ変換失敗" : "スレタイ未変換"}
+                  />
+                ) : null}
+                <span
+                  className={isFailed ? "thread-response-status-marker is-clickable" : "thread-response-status-marker"}
                 onClick={(event) => {
                   if (!isFailed) return;
                   event.stopPropagation();
@@ -198,6 +222,7 @@ export function ThreadListPane({
                 title={lampLabel}
               >
                 <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
+                </span>
               </span>
               <span className="thread-title">
                 {thread.vipTitle}

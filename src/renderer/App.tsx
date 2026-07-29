@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -16,6 +16,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
+import { TitleGenerationStatusModal } from "./components/TitleGenerationStatusModal";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const defaultThreadColumnWidths = [44, 360, 170, 300, 54, 126, 260];
@@ -176,6 +177,9 @@ export function App() {
   const [generationAttempts, setGenerationAttempts] = useState<ThreadGenerationAttempt[]>([]);
   const [isGenerationAttemptsLoading, setIsGenerationAttemptsLoading] = useState(false);
   const [isRetryingGeneration, setIsRetryingGeneration] = useState(false);
+  const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
+  const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
+  const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全体共通（未読のみ）", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
@@ -191,7 +195,8 @@ export function App() {
     || isResidentPromptsOpen
     || isAddFeedOpen
     || settingsFeed !== null
-    || generationFailureThreadId !== null;
+    || generationFailureThreadId !== null
+    || titleGenerationThreadId !== null;
   const threadGridColumns = threadColumnWidths.map((width) => `${width}px`).join(" ");
   const threadListMinWidth = threadColumnWidths.reduce((total, width) => total + width, 0);
   // 未読巡回中は、開いて既読になった行もセッション内に残して一覧の並びを安定させる。
@@ -1270,6 +1275,18 @@ export function App() {
     }
   }
 
+  async function showTitleGenerationStatus(threadId: string) {
+    if (!window.viperReader) return;
+    setTitleGenerationThreadId(threadId);
+    setTitleGenerationAttempts([]);
+    setIsTitleGenerationAttemptsLoading(true);
+    try {
+      setTitleGenerationAttempts(await window.viperReader.listTitleGenerationAttempts(threadId));
+    } finally {
+      setIsTitleGenerationAttemptsLoading(false);
+    }
+  }
+
   async function regenerateSelectedVipTitle() {
     if (!selectedThread || !window.viperReader || regeneratingTitleThreadId) {
       return;
@@ -1822,6 +1839,7 @@ export function App() {
             onRefresh={() => void refreshSelectedFeed()}
             onSelectThread={selectThreadById}
             onShowGenerationFailure={(threadId) => void showGenerationFailure(threadId)}
+            onShowTitleGenerationStatus={(threadId) => void showTitleGenerationStatus(threadId)}
             onToggleUnreadOnly={() => {
               if (!isUnreadOnlyLocked) setShowUnreadOnly((current) => !current);
             }}
@@ -2029,6 +2047,15 @@ export function App() {
           isRetrying={isRetryingGeneration}
           onRetry={() => void retryFailedGeneration()}
           onClose={() => setGenerationFailureThreadId(null)}
+        />
+      ) : null}
+
+      {titleGenerationThreadId ? (
+        <TitleGenerationStatusModal
+          thread={threadList.find((thread) => thread.id === titleGenerationThreadId)}
+          attempts={titleGenerationAttempts}
+          isLoading={isTitleGenerationAttemptsLoading}
+          onClose={() => setTitleGenerationThreadId(null)}
         />
       ) : null}
 

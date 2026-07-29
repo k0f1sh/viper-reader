@@ -14,6 +14,7 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationAttempt,
+  TitleGenerationAttempt,
   ThreadListItem,
   ThreadListPage,
   ThreadPost,
@@ -64,6 +65,7 @@ type ThreadRow = {
   response_count: number;
   is_favorite: number;
   generation_status?: ThreadListItem["generationStatus"];
+  title_generation_status?: "completed" | "failed" | "skipped" | null;
   posts_json?: string;
   response_posts_json?: string;
 };
@@ -772,6 +774,69 @@ export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash
   return savedCount;
 }
 
+export function recordTitleGenerationAttempts(
+  outcomes: Array<{
+    feedItemId: string;
+    status: "completed" | "failed" | "skipped";
+    errorMessage: string | null;
+  }>,
+  model: string,
+  promptHash: string
+): void {
+  if (outcomes.length === 0) return;
+  const db = getDatabase();
+  const attemptedAt = new Date().toISOString();
+  const insert = db.prepare(`
+    INSERT INTO title_generation_attempts
+      (id, feed_item_id, status, error_message, model, prompt_hash, attempted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const outcome of outcomes) {
+      insert.run(
+        `title-generation:${crypto.randomUUID()}`,
+        outcome.feedItemId,
+        outcome.status,
+        outcome.errorMessage?.slice(0, 8_000) ?? null,
+        model,
+        promptHash,
+        attemptedAt
+      );
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function listTitleGenerationAttempts(threadId: string, limit = 5): TitleGenerationAttempt[] {
+  const safeLimit = Math.min(20, Math.max(1, Math.floor(limit)));
+  const rows = getDatabase().prepare(`
+    SELECT id, feed_item_id, status, error_message, model, attempted_at
+    FROM title_generation_attempts
+    WHERE feed_item_id = ?
+    ORDER BY attempted_at DESC, rowid DESC
+    LIMIT ?
+  `).all(threadId, safeLimit) as Array<{
+    id: string;
+    feed_item_id: string;
+    status: TitleGenerationAttempt["status"];
+    error_message: string | null;
+    model: string;
+    attempted_at: string;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    threadId: row.feed_item_id,
+    status: row.status,
+    errorMessage: row.error_message,
+    model: row.model,
+    attemptedAt: row.attempted_at
+  }));
+}
+
 export function replaceVipTitle(title: VipTitleWrite, model: string, promptHash: string): void {
   const db = getDatabase();
   const generatedAt = new Date().toISOString();
@@ -1108,6 +1173,11 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
+        CASE
+          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          ELSE 'skipped'
+        END AS title_generation_status,
         fi.raw_summary,
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
@@ -1233,6 +1303,11 @@ function listAllThreads(
       fi.read_at,
       fi.is_favorite,
       fi.generation_status,
+      CASE
+        WHEN generated_vt.id IS NOT NULL THEN NULL
+        WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+        ELSE 'skipped'
+      END AS title_generation_status,
       fi.raw_summary,
       COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
     FROM ranked_items fi
@@ -1554,6 +1629,11 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
+        CASE
+          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          ELSE 'skipped'
+        END AS title_generation_status,
         fi.raw_summary
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
@@ -1590,6 +1670,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       read_at: string | null;
       is_favorite: number;
       generation_status: ThreadListItem["generationStatus"];
+      title_generation_status: "completed" | "failed" | "skipped" | null;
       raw_summary: string | null;
     } | undefined;
 
@@ -1608,6 +1689,10 @@ export function getThread(threadId: string): ThreadDetail | null {
     isRead: threadInfoRow.read_at !== null,
     isFavorite: threadInfoRow.is_favorite === 1,
     generationStatus: threadInfoRow.generation_status,
+    titleGenerationStatus:
+      threadInfoRow.title_generation_status === "failed" || threadInfoRow.title_generation_status === "skipped"
+        ? threadInfoRow.title_generation_status
+        : null,
     responseCount: 0
   };
 
@@ -2050,7 +2135,11 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     isRead: row.read_at !== null,
     isFavorite: row.is_favorite === 1,
     responseCount: Number(row.response_count),
-    generationStatus: row.generation_status ?? null
+    generationStatus: row.generation_status ?? null,
+    titleGenerationStatus:
+      row.title_generation_status === "failed" || row.title_generation_status === "skipped"
+        ? row.title_generation_status
+        : null
   };
 }
 
@@ -2222,6 +2311,12 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
+        fi.generation_status,
+        CASE
+          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          ELSE 'skipped'
+        END AS title_generation_status,
         fi.raw_summary,
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi

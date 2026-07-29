@@ -7,9 +7,16 @@ import { vipTitleArraySchema } from "./schemas.js";
 
 export type TitleTransformResult = {
   titles: VipTitleWrite[];
+  outcomes: TitleTransformOutcome[];
   failedCount: number;
   skippedCount: number;
   logs: LlmRequestLogWrite[];
+};
+
+export type TitleTransformOutcome = {
+  feedItemId: string;
+  status: "completed" | "failed" | "skipped";
+  errorMessage: string | null;
 };
 
 type GeminiTitleResponse = Array<{
@@ -28,6 +35,7 @@ export async function transformTitlesToVipStyle(
   if (items.length === 0) {
     return {
       titles: [],
+      outcomes: [],
       failedCount: 0,
       skippedCount: 0,
       logs: []
@@ -41,6 +49,11 @@ export async function transformTitlesToVipStyle(
     const now = new Date().toISOString();
     return {
       titles: [],
+      outcomes: items.map((item) => ({
+        feedItemId: item.id,
+        status: "skipped",
+        errorMessage: missingApiKeyMessage
+      })),
       failedCount: 0,
       skippedCount: items.length,
       logs: [
@@ -69,6 +82,7 @@ export async function transformTitlesToVipStyle(
 
   const titles: VipTitleWrite[] = [];
   const logs: LlmRequestLogWrite[] = [];
+  const outcomes: TitleTransformOutcome[] = [];
   let failedCount = 0;
 
   for (const chunk of chunkItems(items, titleBatchSize)) {
@@ -95,8 +109,19 @@ export async function transformTitlesToVipStyle(
       const converted = validateConvertedTitles(result.value, chunk);
       titles.push(...converted);
       failedCount += chunk.length - converted.length;
+      const convertedIds = new Set(converted.map((title) => title.feedItemId));
+      outcomes.push(...chunk.map((item) => ({
+        feedItemId: item.id,
+        status: convertedIds.has(item.id) ? "completed" as const : "failed" as const,
+        errorMessage: convertedIds.has(item.id) ? null : "Gemini応答に有効なスレタイがありませんでした。"
+      })));
     } else {
       failedCount += chunk.length;
+      outcomes.push(...chunk.map((item) => ({
+        feedItemId: item.id,
+        status: "failed" as const,
+        errorMessage: result.errorMessage ?? "スレタイ生成に失敗しました。"
+      })));
     }
 
     logs.push({
@@ -122,6 +147,7 @@ export async function transformTitlesToVipStyle(
 
   return {
     titles,
+    outcomes,
     failedCount,
     skippedCount: 0,
     logs
