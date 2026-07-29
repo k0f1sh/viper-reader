@@ -959,7 +959,6 @@ body.is-article-pane-resizing * {
   align-items: center;
 }
 .refresh-button.is-active { color: #ffffff; background: #0a246a; }
-.thread-row:not(.is-read) .thread-title::before { content: "● "; color: #cc0000; font-size: 9px; }
 .thread-row.is-selected .thread-title { color: #ffffff; }
 
 .thread-original-title {

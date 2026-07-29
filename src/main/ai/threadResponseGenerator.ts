@@ -76,7 +76,7 @@ export async function generateThreadResponses(
     systemInstruction: VIP_SYSTEM_INSTRUCTION,
     contents: prompt,
     responseSchema: threadPostArraySchema,
-    timeoutMs: 45000,
+    timeoutMs: 90000,
     parse: (text) => {
       const parsed = JSON.parse(text) as unknown;
       if (!Array.isArray(parsed)) throw new Error("Gemini thread response is not an array");
