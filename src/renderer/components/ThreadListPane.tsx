@@ -185,9 +185,6 @@ export function ThreadListPane({
                 <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
               </span>
               <span className="thread-title">
-                {isGenerating ? <span className="status-badge generating">[生成中] </span> : null}
-                {!isGenerating && isQueued ? <span className="status-badge generating">[待機中] </span> : null}
-                {isCompleted ? <span className="status-badge completed">[生成完了] </span> : null}
                 {thread.vipTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
