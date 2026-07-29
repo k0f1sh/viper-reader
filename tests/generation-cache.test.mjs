@@ -14,7 +14,9 @@ const {
   getReadingQueueSummary,
   listGeneratedQueue,
   listThreads,
+  markThreadRead,
   markThreadGenerationReviewed,
+  setThreadRead,
   setThreadGenerationState,
   upsertFeedItems,
   saveArticleBody,
@@ -79,6 +81,32 @@ test("スレタイ自動変換は未読かつ未変換の記事だけを対象�
   const items = listUnconvertedFeedItems("selection", titleModel, "test-prompt");
 
   assert.deepEqual(items.map((item) => item.id), ["unread"]);
+});
+
+test("同じcanonical URLの記事は全取得元をまとめて既読・未読にする", () => {
+  insertFeed("canonical-read-a");
+  insertFeed("canonical-read-b");
+  insertItem({ id: "canonical-item-a", feedId: "canonical-read-a" });
+  insertItem({ id: "canonical-item-b", feedId: "canonical-read-b" });
+  db.prepare("UPDATE feed_items SET canonical_url = ? WHERE id IN (?, ?)")
+    .run("https://example.com/canonical/shared", "canonical-item-a", "canonical-item-b");
+
+  markThreadRead("canonical-item-a");
+
+  assert.deepEqual(
+    db.prepare("SELECT id FROM feed_items WHERE id IN (?, ?) AND read_at IS NULL ORDER BY id")
+      .all("canonical-item-a", "canonical-item-b"),
+    []
+  );
+
+  setThreadRead("canonical-item-b", false);
+
+  assert.deepEqual(
+    db.prepare("SELECT id FROM feed_items WHERE id IN (?, ?) AND read_at IS NULL ORDER BY id")
+      .all("canonical-item-a", "canonical-item-b")
+      .map((row) => row.id),
+    ["canonical-item-a", "canonical-item-b"]
+  );
 });
 
 test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {

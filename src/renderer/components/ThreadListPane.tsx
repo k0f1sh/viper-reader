@@ -12,6 +12,7 @@ type ThreadListPaneProps = {
   isRefreshing: boolean;
   refreshMessage: string;
   showUnreadOnly: boolean;
+  isUnreadOnlyLocked: boolean;
   threadColumnLabels: readonly string[];
   threadGridColumns: string;
   threadListMinWidth: number;
@@ -41,6 +42,7 @@ export function ThreadListPane({
   isRefreshing,
   refreshMessage,
   showUnreadOnly,
+  isUnreadOnlyLocked,
   threadColumnLabels,
   threadGridColumns,
   threadListMinWidth,
@@ -99,7 +101,12 @@ export function ThreadListPane({
             <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>生成済 {queueSummary.completedCount}</span>
           </div>
           <div className="thread-toolbar-actions">
-            <button className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`} onClick={onToggleUnreadOnly} type="button">
+            <button
+              className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`}
+              disabled={isUnreadOnlyLocked}
+              onClick={onToggleUnreadOnly}
+              type="button"
+            >
               {showUnreadOnly ? "未読のみ ✓" : "未読のみ"}
             </button>
             <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">

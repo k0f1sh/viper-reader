@@ -156,7 +156,10 @@ export function App() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [smartView, setSmartView] = useState<SmartView | null>(null);
   const showUnreadOnlyRef = useRef(false);
-  showUnreadOnlyRef.current = showUnreadOnly;
+  const isUnreadOnlyLocked = selectedFeedId === allFeedsId && smartView === null;
+  const effectiveShowUnreadOnly =
+    smartView === "unread" || (smartView === null && (isUnreadOnlyLocked || showUnreadOnly));
+  showUnreadOnlyRef.current = effectiveShowUnreadOnly;
   const smartViewRef = useRef<SmartView | null>(null);
   smartViewRef.current = smartView;
   const threadListRequestIdRef = useRef(0);
@@ -507,7 +510,7 @@ export function App() {
       await window.viperReader.markFeedRead(selectedFeedId);
     }
     setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
-    if (showUnreadOnly) setThreadListTotalCount(0);
+    if (effectiveShowUnreadOnly) setThreadListTotalCount(0);
     await reloadFeeds();
     await reloadQueueSummary();
   }
@@ -802,7 +805,6 @@ export function App() {
   function selectFeed(feedId: string) {
     reviewCurrentGeneratedThread();
     setSmartView(null);
-    setShowUnreadOnly(false);
     setSelectedFeedId(feedId);
     setRefreshMessage("");
   }
@@ -810,7 +812,6 @@ export function App() {
   function selectSmartView(view: SmartView) {
     function activateView() {
       setSmartView(view);
-      setShowUnreadOnly(view === "unread");
       setSelectedFeedId(allFeedsId);
       setSelectedThreadId(undefined);
       setSelectedThread(null);
@@ -1759,13 +1760,16 @@ export function App() {
             completedThreadIds={completedGenerationThreadIds}
             isRefreshing={isRefreshing}
             refreshMessage={refreshMessage}
-            showUnreadOnly={showUnreadOnly}
+            showUnreadOnly={effectiveShowUnreadOnly}
+            isUnreadOnlyLocked={isUnreadOnlyLocked}
             threadColumnLabels={threadColumnLabels}
             threadGridColumns={threadGridColumns}
             threadListMinWidth={threadListMinWidth}
             onRefresh={() => void refreshSelectedFeed()}
             onSelectThread={selectThreadById}
-            onToggleUnreadOnly={() => setShowUnreadOnly((current) => !current)}
+            onToggleUnreadOnly={() => {
+              if (!isUnreadOnlyLocked) setShowUnreadOnly((current) => !current);
+            }}
             onMarkAllRead={() => void markAllThreadsRead()}
             onStartColumnResize={startThreadColumnResize}
             canRefresh={selectedFeedId !== allFeedsId || feedList.length > 0}
