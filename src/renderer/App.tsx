@@ -160,7 +160,7 @@ export function App() {
   const showUnreadOnlyRef = useRef(false);
   const isUnreadOnlyLocked = selectedFeedId === allFeedsId && smartView === null;
   const effectiveShowUnreadOnly =
-    smartView === "unread" || (smartView === null && (isUnreadOnlyLocked || showUnreadOnly));
+    smartView === "unread" || (smartView === null && !isUnreadOnlyLocked && showUnreadOnly);
   showUnreadOnlyRef.current = effectiveShowUnreadOnly;
   const smartViewRef = useRef<SmartView | null>(null);
   smartViewRef.current = smartView;
@@ -182,7 +182,7 @@ export function App() {
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
-    ? { id: allFeedsId, title: "全体共通（未読のみ）", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
+    ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;

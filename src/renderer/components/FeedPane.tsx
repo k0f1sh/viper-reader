@@ -136,10 +136,10 @@ export function FeedPane({
         <button
           className={`feed-row ${selectedFeedId === allFeedsId ? "is-selected" : ""}`}
           onClick={() => onSelectFeed(allFeedsId)}
-          title="全板の未読記事を新着順で表示"
+          title="全板の記事を新着順で表示"
           type="button"
         >
-          <span className="feed-name">全体共通（未読のみ）</span>
+          <span className="feed-name">全体共通</span>
           <span className="feed-count">{allUnreadCount}</span>
         </button>
         {feeds.map((feed) => (
