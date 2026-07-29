@@ -321,7 +321,11 @@ export function App() {
       if (data.threadId !== selectedThreadId) return;
       setPostStatus(data.status);
       if (data.status === "done" || data.status === "error") {
-        if (data.status === "error") setPostError("AI住民のレス生成に失敗しました。書き込みは保存されています。");
+        if (data.status === "error") {
+          setPostError(
+            `${data.errorMessage ?? "AI住民のレス生成に失敗しました。"} 書き込みは保存されています。`
+          );
+        }
         void window.viperReader?.getThread(data.threadId).then((thread) => {
           if (!thread) return;
           setSelectedThread(thread);

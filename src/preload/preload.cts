@@ -61,7 +61,7 @@ export type ViperReaderApi = {
   onRefreshProgress: (callback: (progress: RefreshProgress) => void) => () => void;
   onThreadGenerationComplete: (callback: (status: ThreadGenerationStatus) => void) => () => void;
   onThreadGenerationProgress: (callback: (progress: ThreadGenerationProgress) => void) => () => void;
-  onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error" }) => void) => () => void;
+  onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error"; errorMessage?: string }) => void) => () => void;
   listLogs: () => Promise<AppLogEntry[]>;
   copyLogs: (text: string) => Promise<void>;
   onLogEntry: (callback: (entry: AppLogEntry) => void) => () => void;
@@ -147,7 +147,10 @@ const api: ViperReaderApi = {
     };
   },
   onPostStatus: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: { threadId: string; status: any }) => callback(data);
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: { threadId: string; status: "writing" | "generating" | "done" | "error"; errorMessage?: string }
+    ) => callback(data);
     ipcRenderer.on("threads:post-status", listener);
     return () => {
       ipcRenderer.removeListener("threads:post-status", listener);

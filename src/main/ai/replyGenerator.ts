@@ -38,7 +38,7 @@ export async function generateReplyPosts(
   const modelToUse = getActiveModel();
   const startedAt = new Date().toISOString();
   const mode = options.mode ?? "reply_to_user";
-  const timeoutMs = mode === "continue_thread" ? 60000 : 30000;
+  const timeoutMs = mode === "continue_thread" ? 60000 : 90000;
 
   // スレッドの最新のレス番号（最大のレス番号 + 1）
   const maxNo = thread.posts.reduce((max, p) => Math.max(max, p.no), 0);

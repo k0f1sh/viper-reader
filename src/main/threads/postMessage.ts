@@ -15,12 +15,17 @@ import {
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
 
+type PostStatusCallback = (
+  status: "writing" | "generating" | "done" | "error",
+  errorMessage?: string
+) => void;
+
 export async function postThreadMessage(
   threadId: string,
   name: string,
   mail: string,
   body: string,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<ThreadDetail | null> {
   if (
     typeof threadId !== "string"
@@ -103,7 +108,7 @@ export async function postThreadMessage(
 async function completePostGeneration(
   threadId: string,
   thread: ThreadDetail,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<void> {
   try {
     await ensureArticleSummary(threadId, thread.feedId);
@@ -111,7 +116,7 @@ async function completePostGeneration(
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
-    onStatus?.("error");
+    onStatus?.("error", error instanceof Error ? error.message : String(error));
   } finally {
     releaseThreadLock(threadId);
   }
@@ -138,7 +143,7 @@ function formatVipDate(date: Date): string {
 
 export async function generateRepliesOnly(
   threadId: string,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<ThreadDetail | null> {
   if (!acquireThreadLock(threadId)) {
     onStatus?.("done");
@@ -168,7 +173,7 @@ export async function generateRepliesOnly(
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
-    onStatus?.("error");
+    onStatus?.("error", error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
     releaseThreadLock(threadId);
@@ -212,8 +217,11 @@ async function generateAndSaveReplies(
     recordLlmRequestLog(aiResult.log);
   }
 
+  if (aiResult.log?.errorMessage) {
+    throw new Error(aiResult.log.errorMessage);
+  }
   if (aiResult.posts.length === 0) {
-    return;
+    throw new Error("Geminiから返信レスを取得できませんでした。");
   }
 
   const maxNo = getMaxPostNo(thread);

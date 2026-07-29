@@ -25,6 +25,7 @@ const {
   saveRssThreadSummaries
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
+const { postThreadMessage } = await import("../dist/main/threads/postMessage.js");
 const { buildVipThreadResponsePrompt } = await import("../dist/main/prompts/vipThreadResponsePrompt.js");
 const { buildVipTitlePromptHash } = await import("../dist/main/prompts/vipTitlePrompt.js");
 const { runFeedRefreshSingleFlight } = await import("../dist/main/rss/feedRefreshSingleFlight.js");
@@ -214,6 +215,32 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
   assert.match(attempt.errorMessage, /API キーが設定されていません/);
   assert.ok(attempt.model);
   assert.equal(attempt.force, false);
+});
+
+test("書き込み後の返信生成に失敗しても書き込みを保存し、理由付きで失敗通知する", async () => {
+  insertFeed("post-failure");
+  insertItem({ id: "post-failure-item", feedId: "post-failure" });
+
+  const failure = new Promise((resolve) => {
+    void postThreadMessage(
+      "post-failure-item",
+      "テストユーザー",
+      "sage",
+      "保存される書き込み",
+      (status, errorMessage) => {
+        if (status === "error") resolve(errorMessage);
+      }
+    );
+  });
+
+  assert.match(await failure, /API キーが設定されていません/);
+  const savedPost = db.prepare(`
+    SELECT body, is_user
+    FROM thread_posts
+    WHERE feed_item_id = ? AND is_user = 1
+  `).get("post-failure-item");
+  assert.equal(savedPost.body, "保存される書き込み");
+  assert.equal(savedPost.is_user, 1);
 });
 
 test("RSSの記事内容が訂正されたら派生キャッシュを失効する", () => {

@@ -202,13 +202,13 @@ ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => 
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
-  return postThreadMessage(threadId, name, mail, body, (status) => {
-    sendIfAvailable(event.sender, "threads:post-status", { threadId, status });
+  return postThreadMessage(threadId, name, mail, body, (status, errorMessage) => {
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
 ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
-  return generateRepliesOnly(threadId, (status) => {
-    sendIfAvailable(event.sender, "threads:post-status", { threadId, status });
+  return generateRepliesOnly(threadId, (status, errorMessage) => {
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
 ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
