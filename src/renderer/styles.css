@@ -831,14 +831,23 @@ body.is-article-pane-resizing * {
 }
 
 .thread-list-pagination {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   flex: 0 0 26px;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 0 6px;
   border-top: 1px solid #808080;
   background: #d4d0c8;
   font-size: 11px;
+}
+
+.thread-pagination-controls {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .thread-list-pagination button {
@@ -1061,42 +1070,21 @@ body.is-article-pane-resizing * {
 
 .thread-generation-cell {
   display: flex;
-  gap: 5px;
   align-items: center;
   justify-content: center;
 }
 
-.thread-response-status-marker {
+.thread-status-marker {
   display: flex;
 }
 
-.thread-response-status-marker.is-clickable {
+.thread-status-marker.is-clickable {
   cursor: pointer;
 }
 
-.thread-response-status-marker:focus-visible,
-.thread-title-status-marker:focus-visible {
+.thread-status-marker:focus-visible {
   outline: 1px dotted #000000;
   outline-offset: 2px;
-}
-
-.thread-title-status-marker {
-  width: 8px;
-  height: 8px;
-  border: 1px solid #777777;
-  background: transparent;
-  cursor: pointer;
-  transform: rotate(45deg);
-}
-
-.thread-title-status-marker.is-failed {
-  border-color: #8e1717;
-  background: #e63b3b;
-}
-
-.thread-title-status-marker.is-skipped {
-  border-color: #777777;
-  background: transparent;
 }
 
 .thread-status-lamp {
@@ -1124,13 +1112,47 @@ body.is-article-pane-resizing * {
   animation: generation-lamp-blink 900ms steps(1, end) infinite;
 }
 
-.thread-status-lamp.is-failed {
+.thread-status-lamp.is-response-failed {
   border-color: #8e1717;
   background: #e63b3b;
 }
 
+.thread-status-lamp.is-title-failed {
+  border-color: #9b4800;
+  background: #f08a24;
+}
+
+.thread-status-lamp.is-title-skipped {
+  border-color: #777777;
+  background: transparent;
+}
+
 .thread-row.is-selected .thread-status-lamp {
   box-shadow: 0 0 0 1px #ffffff;
+}
+
+.thread-status-legend {
+  grid-column: 1;
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.thread-status-legend-item {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: #333333;
+  font-size: 10px;
+}
+
+.thread-status-legend-item .thread-status-lamp {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
 }
 
 @keyframes generation-lamp-blink {

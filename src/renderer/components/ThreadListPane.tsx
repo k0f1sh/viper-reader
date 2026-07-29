@@ -157,11 +157,15 @@ export function ThreadListPane({
           const isFailed = thread.generationStatus === "failed";
           const isGenerated = thread.generationStatus === "completed" || thread.responseCount > 1;
           const lampStatus = isFailed
-            ? "failed"
+            ? "response-failed"
+            : thread.titleGenerationStatus === "failed"
+              ? "title-failed"
             : isGenerating
               ? "generating"
               : isQueued
                 ? "queued"
+                : thread.titleGenerationStatus === "skipped"
+                  ? "title-skipped"
                 : isGenerated
                   ? "generated"
                   : "empty";
@@ -170,8 +174,21 @@ export function ThreadListPane({
             queued: "生成待ち",
             generating: "生成中",
             generated: "生成済み",
-            failed: "生成失敗"
+            "response-failed": "レス生成失敗",
+            "title-failed": "スレタイ変換失敗",
+            "title-skipped": "スレタイ未変換"
           }[lampStatus];
+          const isLampClickable =
+            lampStatus === "response-failed"
+            || lampStatus === "title-failed"
+            || lampStatus === "title-skipped";
+          function showLampDetails() {
+            if (lampStatus === "response-failed") {
+              onShowGenerationFailure(thread.id);
+            } else if (lampStatus === "title-failed" || lampStatus === "title-skipped") {
+              onShowTitleGenerationStatus(thread.id);
+            }
+          }
           return (
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
@@ -185,43 +202,24 @@ export function ThreadListPane({
                 aria-label={lampLabel}
                 className="thread-generation-cell"
               >
-                {thread.titleGenerationStatus ? (
-                  <span
-                    aria-label={thread.titleGenerationStatus === "failed" ? "スレタイ変換失敗" : "スレタイ未変換"}
-                    className={`thread-title-status-marker is-${thread.titleGenerationStatus}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onShowTitleGenerationStatus(thread.id);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onShowTitleGenerationStatus(thread.id);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title={thread.titleGenerationStatus === "failed" ? "スレタイ変換失敗" : "スレタイ未変換"}
-                  />
-                ) : null}
                 <span
-                  className={isFailed ? "thread-response-status-marker is-clickable" : "thread-response-status-marker"}
-                onClick={(event) => {
-                  if (!isFailed) return;
-                  event.stopPropagation();
-                  onShowGenerationFailure(thread.id);
-                }}
-                onKeyDown={(event) => {
-                  if (!isFailed || (event.key !== "Enter" && event.key !== " ")) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onShowGenerationFailure(thread.id);
-                }}
-                role={isFailed ? "button" : undefined}
-                tabIndex={isFailed ? 0 : undefined}
-                title={lampLabel}
-              >
-                <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
+                  className={isLampClickable ? "thread-status-marker is-clickable" : "thread-status-marker"}
+                  onClick={(event) => {
+                    if (!isLampClickable) return;
+                    event.stopPropagation();
+                    showLampDetails();
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isLampClickable || (event.key !== "Enter" && event.key !== " ")) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    showLampDetails();
+                  }}
+                  role={isLampClickable ? "button" : undefined}
+                  tabIndex={isLampClickable ? 0 : undefined}
+                  title={lampLabel}
+                >
+                  <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
                 </span>
               </span>
               <span className="thread-title">
@@ -252,10 +250,29 @@ export function ThreadListPane({
         </div>
       ) : null}
       <div className="thread-list-pagination">
-        <button disabled={page === 0} onClick={onPreviousPage} type="button">◀ 前の100件</button>
-        <span>{totalCount === 0 ? "0件" : `${page * pageSize + 1}〜${Math.min((page + 1) * pageSize, totalCount)} / ${totalCount}件`}</span>
-        <button disabled={(page + 1) * pageSize >= totalCount} onClick={onNextPage} type="button">次の100件 ▶</button>
+        <div className="thread-status-legend" aria-label="状態の凡例">
+          <LegendLamp status="response-failed" label="レス失敗" />
+          <LegendLamp status="title-failed" label="タイトル失敗" />
+          <LegendLamp status="generating" label="生成中" />
+          <LegendLamp status="queued" label="待機" />
+          <LegendLamp status="title-skipped" label="未変換" />
+          <LegendLamp status="generated" label="生成済" />
+        </div>
+        <div className="thread-pagination-controls">
+          <button disabled={page === 0} onClick={onPreviousPage} type="button">◀ 前の100件</button>
+          <span>{totalCount === 0 ? "0件" : `${page * pageSize + 1}〜${Math.min((page + 1) * pageSize, totalCount)} / ${totalCount}件`}</span>
+          <button disabled={(page + 1) * pageSize >= totalCount} onClick={onNextPage} type="button">次の100件 ▶</button>
+        </div>
       </div>
     </section>
+  );
+}
+
+function LegendLamp({ status, label }: { status: string; label: string }) {
+  return (
+    <span className="thread-status-legend-item">
+      <span aria-hidden="true" className={`thread-status-lamp is-${status}`} />
+      <span>{label}</span>
+    </span>
   );
 }
