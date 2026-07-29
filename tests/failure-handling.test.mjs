@@ -107,6 +107,35 @@ test("Gemini呼び出し全体が制限時間を超えたら用途付きのエ�
   );
 });
 
+test("Gemini API呼び出しはアプリ全体で最大2並列に制限する", async () => {
+  let activeRequests = 0;
+  let maxActiveRequests = 0;
+  const transport = fakeTransport(async () => {
+    activeRequests += 1;
+    maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    activeRequests -= 1;
+    return { text: "{\"ok\":true}" };
+  });
+
+  const results = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      generateJson(
+        {
+          model: "test-model",
+          purpose: "title_transform",
+          contents: `test-${index}`,
+          parse: JSON.parse
+        },
+        transport
+      )
+    )
+  );
+
+  assert.equal(maxActiveRequests, 2);
+  assert.ok(results.every((result) => result.value?.ok === true));
+});
+
 test("HTTP以外の記事URLは取得せずfetch_failedとして扱う", async () => {
   const result = await scrapeArticle("file:///etc/passwd");
 

@@ -25,6 +25,8 @@ type GeminiTitleResponse = Array<{
 }>;
 
 const titleBatchSize = 12;
+const titleRetryMinDelayMs = 400;
+const titleRetryMaxDelayMs = 1200;
 
 export async function transformTitlesToVipStyle(
   feedId: string,
@@ -89,19 +91,26 @@ export async function transformTitlesToVipStyle(
     const startedAt = new Date().toISOString();
     const prompt = buildVipTitlePrompt(feedTitle, chunk, useSummary);
 
-    const result = await generateJson<GeminiTitleResponse>({
+    const request = {
       model: modelToUse,
-      purpose: "title_transform",
+      purpose: "title_transform" as const,
       systemInstruction: VIP_TITLE_SYSTEM_INSTRUCTION,
       contents: prompt,
       responseSchema: vipTitleArraySchema,
       timeoutMs: 30000,
-      parse: (text) => {
+      parse: (text: string) => {
         const parsed = JSON.parse(text) as unknown;
         if (!Array.isArray(parsed)) throw new Error("Gemini title response is not an array");
         return parsed as GeminiTitleResponse;
       }
-    });
+    };
+    let result = await generateJson<GeminiTitleResponse>(request);
+    let requestCount = 1;
+    if (isTimeoutError(result.errorMessage)) {
+      await waitForTitleRetry();
+      result = await generateJson<GeminiTitleResponse>(request);
+      requestCount = 2;
+    }
 
     const finishedAt = new Date().toISOString();
 
@@ -131,7 +140,7 @@ export async function transformTitlesToVipStyle(
       model: modelToUse,
       promptHash,
       status: result.errorMessage ? "error" : "success",
-      requestCount: 1,
+      requestCount,
       itemCount: chunk.length,
       promptChars: result.promptChars,
       responseChars: result.responseText.length,
@@ -152,6 +161,16 @@ export async function transformTitlesToVipStyle(
     skippedCount: 0,
     logs
   };
+}
+
+function isTimeoutError(errorMessage: string | null): boolean {
+  return errorMessage?.includes("Gemini API 呼び出しがタイムアウトしました") ?? false;
+}
+
+function waitForTitleRetry(): Promise<void> {
+  const delayMs = titleRetryMinDelayMs
+    + Math.floor(Math.random() * (titleRetryMaxDelayMs - titleRetryMinDelayMs + 1));
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: UnconvertedFeedItem[]): VipTitleWrite[] {

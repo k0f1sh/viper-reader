@@ -10,6 +10,10 @@ import { GoogleGenAI } from "@google/genai";
 import type { ContentUnion, GenerateContentParameters, SchemaUnion } from "@google/genai";
 import { getGeminiApiKey } from "../settings/settingsService.js";
 
+const maxConcurrentGeminiRequests = 2;
+let activeGeminiRequests = 0;
+const geminiRequestWaiters: Array<() => void> = [];
+
 export type LlmPurpose =
   | "title_transform"
   | "thread_response"
@@ -92,6 +96,7 @@ export async function generateJson<T>(
     `[LLM Request Start] Model: ${request.model} | Purpose: ${request.purpose}`
   );
 
+  const releaseRequestSlot = await acquireGeminiRequestSlot();
   try {
     const response = await raceWithTimeout(
       generateContent({
@@ -126,6 +131,8 @@ export async function generateJson<T>(
       promptChars,
       errorMessage: error instanceof Error ? error.message : String(error)
     };
+  } finally {
+    releaseRequestSlot();
   }
 }
 
@@ -168,6 +175,7 @@ export async function generateText(params: {
 
   let responseText = "";
 
+  const releaseRequestSlot = await acquireGeminiRequestSlot();
   try {
     const response = await raceWithTimeout(
       generateContent({
@@ -197,7 +205,28 @@ export async function generateText(params: {
       promptChars,
       errorMessage: error instanceof Error ? error.message : String(error)
     };
+  } finally {
+    releaseRequestSlot();
   }
+}
+
+async function acquireGeminiRequestSlot(): Promise<() => void> {
+  if (activeGeminiRequests >= maxConcurrentGeminiRequests) {
+    await new Promise<void>((resolve) => geminiRequestWaiters.push(resolve));
+  } else {
+    activeGeminiRequests += 1;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const nextWaiter = geminiRequestWaiters.shift();
+    if (nextWaiter) {
+      nextWaiter();
+    } else {
+      activeGeminiRequests -= 1;
+    }
+  };
 }
 
 /**
