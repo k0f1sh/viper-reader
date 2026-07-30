@@ -4,14 +4,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
-  addFeedSource,
   clearFeedResidentPrompt,
-  deleteFeedSource,
   getFeedResidentPrompt,
   getArticleBody,
   getStatistics,
   initializeRepository,
-  listFeeds,
   listThreads,
   listGeneratedQueue,
   listThreadGenerationAttempts,
@@ -20,19 +17,24 @@ import {
   countAllUnreadArticles,
   listResidentPromptVersions,
   reviewResidentPromptVersion,
-  reorderFeedSources,
   rollbackResidentPromptVersion,
   saveReplyFeedback,
   saveFeedResidentPrompt,
   setThreadFavorite,
   listFavoriteThreads,
-  markFeedRead,
-  markAllFeedsRead,
   setThreadRead,
   setThreadGenerationState,
-  markThreadGenerationReviewed,
-  updateFeedTitleGenerationSetting
+  markThreadGenerationReviewed
 } from "./db/repository.js";
+import {
+  addFeedSource,
+  deleteFeedSource,
+  listFeeds,
+  markAllFeedsRead,
+  markFeedRead,
+  reorderFeedSources,
+  updateFeedTitleGenerationSetting
+} from "./db/feedRepository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";

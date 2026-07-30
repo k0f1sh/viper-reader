@@ -3,7 +3,6 @@ import Parser from "rss-parser";
 import type { RefreshFeedResult } from "../../shared/types.js";
 import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
 import {
-  getFeedSource,
   listFeedItemsForInitialCaches,
   listUnconvertedFeedItems,
   recordLlmRequestLog,
@@ -14,6 +13,7 @@ import {
   saveVipTitles,
   upsertFeedItems
 } from "../db/repository.js";
+import { getFeedSource } from "../db/feedRepository.js";
 import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";

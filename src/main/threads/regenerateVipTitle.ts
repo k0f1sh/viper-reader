@@ -2,11 +2,11 @@ import type { ThreadDetail } from "../../shared/types.js";
 import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
 import {
   getFeedItemForTitleGeneration,
-  getFeedSource,
   getThread,
   recordLlmRequestLog,
   replaceVipTitle
 } from "../db/repository.js";
+import { getFeedSource } from "../db/feedRepository.js";
 import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getTitleGenerationModel } from "../settings/settingsService.js";
 
