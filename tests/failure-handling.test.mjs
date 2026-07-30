@@ -107,7 +107,7 @@ test("Gemini呼び出し全体が制限時間を超えたら用途付きのエ�
   );
 });
 
-test("Gemini API呼び出しはアプリ全体で最大2並列に制限する", async () => {
+test("Gemini API呼び出しはアプリ全体で最大5並列に制限する", async () => {
   let activeRequests = 0;
   let maxActiveRequests = 0;
   const transport = fakeTransport(async () => {
@@ -119,7 +119,7 @@ test("Gemini API呼び出しはアプリ全体で最大2並列に制限する", 
   });
 
   const results = await Promise.all(
-    Array.from({ length: 5 }, (_, index) =>
+    Array.from({ length: 10 }, (_, index) =>
       generateJson(
         {
           model: "test-model",
@@ -132,7 +132,7 @@ test("Gemini API呼び出しはアプリ全体で最大2並列に制限する", 
     )
   );
 
-  assert.equal(maxActiveRequests, 2);
+  assert.equal(maxActiveRequests, 5);
   assert.ok(results.every((result) => result.value?.ok === true));
 });
 

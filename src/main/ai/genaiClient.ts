@@ -10,7 +10,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { ContentUnion, GenerateContentParameters, SchemaUnion } from "@google/genai";
 import { getGeminiApiKey } from "../settings/settingsService.js";
 
-const maxConcurrentGeminiRequests = 2;
+const maxConcurrentGeminiRequests = 5;
 let activeGeminiRequests = 0;
 const geminiRequestWaiters: Array<() => void> = [];
 
