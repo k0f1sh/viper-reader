@@ -52,6 +52,18 @@ import { ArticleBrowserController } from "./browser/articleBrowserController.js"
 import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
 import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
 import { sendIfAvailable } from "./ipc/safeSender.js";
+import {
+  assertArticleBrowserBounds,
+  assertBoolean,
+  assertHttpUrl,
+  assertIdentifier,
+  assertPage,
+  assertPromptDecision,
+  assertReplyRating,
+  assertShowArticleBrowserRequest,
+  assertString,
+  assertStringArray
+} from "./ipc/inputValidation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,25 +150,41 @@ function createMainWindow(): void {
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
-ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) =>
-  listThreads(feedId, page, 100, unreadOnly)
-);
-ipcMain.handle("threads:list-generated-queue", (_event, page: number) => listGeneratedQueue(page, 100));
-ipcMain.handle("threads:list-reviewed-generation-queue", (_event, page: number) => listGeneratedQueue(page, 100, true));
+ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) => {
+  if (feedId !== null) assertIdentifier(feedId, "feed ID");
+  assertPage(page);
+  assertBoolean(unreadOnly, "unread-only flag");
+  return listThreads(feedId, page, 100, unreadOnly);
+});
+ipcMain.handle("threads:list-generated-queue", (_event, page: number) => {
+  assertPage(page);
+  return listGeneratedQueue(page, 100);
+});
+ipcMain.handle("threads:list-reviewed-generation-queue", (_event, page: number) => {
+  assertPage(page);
+  return listGeneratedQueue(page, 100, true);
+});
 ipcMain.handle("threads:get-queue-summary", () => getReadingQueueSummary());
-ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => markThreadGenerationReviewed(threadId));
-ipcMain.handle("threads:list-generation-attempts", (_event, threadId: string) =>
-  listThreadGenerationAttempts(threadId, 5)
-);
-ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: string) =>
-  listTitleGenerationAttempts(threadId, 5)
-);
+ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return markThreadGenerationReviewed(threadId);
+});
+ipcMain.handle("threads:list-generation-attempts", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return listThreadGenerationAttempts(threadId, 5);
+});
+ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return listTitleGenerationAttempts(threadId, 5);
+});
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
 ipcMain.handle("threads:get", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
   return thread;
 });
 ipcMain.handle("articles:get-body", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
 });
@@ -195,6 +223,8 @@ ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: b
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
 ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(force, "force flag");
   setThreadGenerationState(threadId, "queued");
   startThreadResponseGeneration(threadId, force, (status) => {
     setThreadGenerationState(threadId, status === "done" || status === "skipped" ? "completed" : "failed");
@@ -204,27 +234,47 @@ ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => 
     sendIfAvailable(event.sender, "threads:generation-progress", { threadId, ...progress });
   });
 });
-ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));
+ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return regenerateVipTitle(threadId);
+});
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
+  assertIdentifier(threadId, "thread ID");
+  assertString(name, "name", { maxLength: 80 });
+  assertString(mail, "mail", { maxLength: 20 });
+  assertString(body, "post body", { minLength: 1, maxLength: 10_000 });
   return postThreadMessage(threadId, name, mail, body, (status, errorMessage) => {
     sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
 ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
   return generateRepliesOnly(threadId, (status, errorMessage) => {
     sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
-ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
+ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(isFavorite, "favorite flag");
+  return setThreadFavorite(threadId, isFavorite);
+});
 ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
-ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => setThreadRead(threadId, isRead));
-ipcMain.handle("feeds:mark-read", (_event, feedId: string) => markFeedRead(feedId));
+ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(isRead, "read flag");
+  return setThreadRead(threadId, isRead);
+});
+ipcMain.handle("feeds:mark-read", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return markFeedRead(feedId);
+});
 ipcMain.handle("feeds:mark-all-read", () => markAllFeedsRead());
-ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
-  refreshFeed(feedId, (message) => {
+ipcMain.handle("feeds:refresh", async (event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return refreshFeed(feedId, (message) => {
     sendIfAvailable(event.sender, "feeds:refresh-progress", { feedId, message });
-  })
-);
+  });
+});
 ipcMain.handle("stats:get", () => getStatistics());
 ipcMain.handle("logs:list", () => listBufferedLogs());
 ipcMain.handle("logs:copy", (_event, text: string) => {
@@ -233,10 +283,23 @@ ipcMain.handle("logs:copy", (_event, text: string) => {
   }
   clipboard.writeText(text.slice(0, 1_000_000));
 });
-ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => getFeedResidentPrompt(feedId));
-ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => saveFeedResidentPrompt(feedId, prompt));
-ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));
+ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return getFeedResidentPrompt(feedId);
+});
+ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => {
+  assertIdentifier(feedId, "feed ID");
+  assertString(prompt, "resident prompt", { minLength: 1, maxLength: 20_000 });
+  return saveFeedResidentPrompt(feedId, prompt);
+});
+ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return clearFeedResidentPrompt(feedId);
+});
 ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
+  assertIdentifier(runId, "reply run ID");
+  assertReplyRating(rating);
+  assertStringArray(tags, "feedback tags", { maxItems: 50, maxItemLength: 100 });
   const feedId = saveReplyFeedback(runId, rating, tags);
   void maybeCreatePromptProposal(feedId).then((versionId) => {
     if (versionId) {
@@ -244,34 +307,56 @@ ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRat
     }
   }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
 });
-ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => listResidentPromptVersions(feedId));
-ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => reviewResidentPromptVersion(id, decision));
-ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => rollbackResidentPromptVersion(feedId));
-ipcMain.handle("settings:get", (_event, key: string) => getRendererUserSetting(key));
-ipcMain.handle("settings:save", (_event, key: string, value: string) => saveRendererUserSetting(key, value));
+ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return listResidentPromptVersions(feedId);
+});
+ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => {
+  assertIdentifier(id, "prompt version ID");
+  assertPromptDecision(decision);
+  return reviewResidentPromptVersion(id, decision);
+});
+ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return rollbackResidentPromptVersion(feedId);
+});
+ipcMain.handle("settings:get", (_event, key: string) => {
+  assertString(key, "setting key", { minLength: 1, maxLength: 100 });
+  return getRendererUserSetting(key);
+});
+ipcMain.handle("settings:save", (_event, key: string, value: string) => {
+  assertString(key, "setting key", { minLength: 1, maxLength: 100 });
+  assertString(value, "setting value", { maxLength: 1_000_000 });
+  return saveRendererUserSetting(key, value);
+});
 ipcMain.handle("settings:get-gemini-api-key-status", () => getGeminiApiKeyStatus());
-ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => saveGeminiApiKey(apiKey));
+ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => {
+  assertString(apiKey, "Gemini API key", { minLength: 1, maxLength: 10_000 });
+  return saveGeminiApiKey(apiKey);
+});
 ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) =>
-  addFeedSource(title, url, generateTitleFromSummary)
-);
-ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) => {
+  assertString(title, "feed title", { minLength: 1, maxLength: 200 });
+  assertHttpUrl(url, "feed URL");
+  assertBoolean(generateTitleFromSummary, "title generation flag");
+  return addFeedSource(title, url, generateTitleFromSummary);
+});
+ipcMain.handle("feeds:delete", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return deleteFeedSource(feedId);
+});
 ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
-  if (!Array.isArray(feedIds) || feedIds.some((feedId) => typeof feedId !== "string")) {
-    throw new Error("Invalid feed order.");
-  }
+  assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
 });
-ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) =>
-  updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary)
-);
+ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) => {
+  assertIdentifier(feedId, "feed ID");
+  assertBoolean(generateTitleFromSummary, "title generation flag");
+  return updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary);
+});
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
-  const parsedUrl = new URL(url);
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    throw new Error(`Unsupported URL protocol: ${parsedUrl.protocol}`);
-  }
-
-  await shell.openExternal(parsedUrl.toString());
+  assertHttpUrl(url, "external URL");
+  await shell.openExternal(new URL(url).toString());
 });
 
 void app.whenReady().then(() => {
@@ -325,28 +410,6 @@ function isTrustedRendererUrl(value: string): boolean {
     return candidate.toString() === expected.toString();
   } catch {
     return false;
-  }
-}
-
-function assertShowArticleBrowserRequest(value: ShowArticleBrowserRequest): void {
-  if (!value || typeof value.threadId !== "string" || typeof value.url !== "string") {
-    throw new Error("Invalid article browser request.");
-  }
-  assertArticleBrowserBounds(value.bounds);
-  if (typeof value.allowUnprotected !== "boolean") {
-    throw new Error("Invalid unprotected browsing flag.");
-  }
-}
-
-function assertArticleBrowserBounds(value: ArticleBrowserBounds): void {
-  if (
-    !value
-    || !Number.isFinite(value.x)
-    || !Number.isFinite(value.y)
-    || !Number.isFinite(value.width)
-    || !Number.isFinite(value.height)
-  ) {
-    throw new Error("Invalid article browser bounds.");
   }
 }
 
