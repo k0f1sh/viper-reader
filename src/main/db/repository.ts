@@ -217,10 +217,11 @@ export function upsertFeedItems(
     publishedAt: string | null;
     rawSummary: string | null;
   }>
-): RefreshFeedResult {
+): RefreshFeedResult & { insertedItemIds: string[] } {
   const db = getDatabase();
   const fetchedAt = new Date().toISOString();
   let insertedCount = 0;
+  const insertedItemIds: string[] = [];
   let updatedCount = 0;
   let skippedCount = 0;
 
@@ -274,6 +275,7 @@ export function upsertFeedItems(
           fetchedAt
         );
         insertedCount += 1;
+        insertedItemIds.push(item.id);
       } else if (
         existing.title !== item.title ||
         existing.url !== item.url ||
@@ -309,7 +311,8 @@ export function upsertFeedItems(
     convertedCount: 0,
     conversionFailedCount: 0,
     conversionSkippedCount: 0,
-    fetchedAt
+    fetchedAt,
+    insertedItemIds
   };
 }
 

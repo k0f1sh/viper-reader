@@ -18,6 +18,7 @@ import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
+import { selectTitleConversionItems } from "./selectTitleConversionItems.js";
 import { runFeedRefreshSingleFlight } from "./feedRefreshSingleFlight.js";
 
 type ParsedItem = {
@@ -31,7 +32,6 @@ type ParsedItem = {
 };
 
 const parser = new Parser();
-const maxTitleConversionsPerRefresh = 30;
 const maxFeedBytes = 5 * 1024 * 1024;
 
 export function refreshFeed(
@@ -82,7 +82,7 @@ async function refreshFeedOnce(
       .filter((item): item is ParsedItem => item !== null);
     const items = selectRecentFeedItems(parsedItems);
 
-    const result = upsertFeedItems(feed.id, items);
+    const { insertedItemIds, ...result } = upsertFeedItems(feed.id, items);
     const modelToUse = getActiveModel();
     const titleModel = getTitleGenerationModel();
     const titlePromptHash = buildVipTitlePromptHash(feed.generateTitleFromSummary);
@@ -91,11 +91,13 @@ async function refreshFeedOnce(
     saveRssThreadSummaries(initialCacheItems, modelToUse);
 
     const unconvertedItems = listUnconvertedFeedItems(feed.id, titleModel, titlePromptHash);
-    const titleConversionItems = unconvertedItems.slice(0, maxTitleConversionsPerRefresh);
-    const titleConversionSkippedByLimit = unconvertedItems.length - titleConversionItems.length;
+    const {
+      items: titleConversionItems,
+      skippedCount: titleConversionSkippedByLimit
+    } = selectTitleConversionItems(unconvertedItems, insertedItemIds);
     onProgress(
       titleConversionSkippedByLimit > 0
-        ? `スレタイ生成中...（最大${maxTitleConversionsPerRefresh}件 / 残り${titleConversionSkippedByLimit}件は次回以降）`
+        ? `スレタイ生成中...（新規${insertedItemIds.length}件を優先 / 残り${titleConversionSkippedByLimit}件は次回以降）`
         : "スレタイ生成中..."
     );
     const transformed = await transformTitlesToVipStyle(

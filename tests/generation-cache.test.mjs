@@ -295,6 +295,7 @@ test("RSSの記事内容が訂正されたら派生キャッシュを失効す�
   }]);
 
   assert.equal(result.updatedCount, 1);
+  assert.deepEqual(result.insertedItemIds, []);
   assert.equal(
     db.prepare("SELECT COUNT(*) AS count FROM vip_titles WHERE feed_item_id = ?")
       .get(originalItem.id).count,
@@ -310,6 +311,35 @@ test("RSSの記事内容が訂正されたら派生キャッシュを失効す�
       .get(originalItem.id).count,
     0
   );
+});
+
+test("RSS保存結果は今回新規追加した記事IDだけを返す", () => {
+  insertFeed("inserted-items");
+  insertItem({ id: "existing-item", feedId: "inserted-items" });
+
+  const result = upsertFeedItems("inserted-items", [
+    {
+      id: "existing-item",
+      feedId: "inserted-items",
+      guid: "existing-item",
+      title: "Title existing-item",
+      url: "https://example.com/articles/existing-item",
+      publishedAt: now,
+      rawSummary: "Summary existing-item"
+    },
+    {
+      id: "new-item",
+      feedId: "inserted-items",
+      guid: "new-item",
+      title: "新しい記事",
+      url: "https://example.com/articles/new-item",
+      publishedAt: now,
+      rawSummary: "新しい概要"
+    }
+  ]);
+
+  assert.equal(result.insertedCount, 1);
+  assert.deepEqual(result.insertedItemIds, ["new-item"]);
 });
 
 test("本文取得失敗時のプロンプトは推測による補完を禁止する", () => {
