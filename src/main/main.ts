@@ -4,8 +4,6 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
-  clearFeedResidentPrompt,
-  getFeedResidentPrompt,
   getArticleBody,
   getStatistics,
   initializeRepository,
@@ -15,11 +13,6 @@ import {
   listTitleGenerationAttempts,
   getReadingQueueSummary,
   countAllUnreadArticles,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveReplyFeedback,
-  saveFeedResidentPrompt,
   setThreadFavorite,
   listFavoriteThreads,
   setThreadRead,
@@ -35,6 +28,15 @@ import {
   reorderFeedSources,
   updateFeedTitleGenerationSetting
 } from "./db/feedRepository.js";
+import {
+  clearFeedResidentPrompt,
+  getFeedResidentPrompt,
+  listResidentPromptVersions,
+  reviewResidentPromptVersion,
+  rollbackResidentPromptVersion,
+  saveFeedResidentPrompt,
+  saveReplyFeedback
+} from "./db/residentPromptRepository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";

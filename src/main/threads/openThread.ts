@@ -3,7 +3,6 @@ import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
   getArticleSummary,
-  getFeedResidentPrompt,
   getThread,
   finishThreadGenerationAttempt,
   recordLlmRequestLog,
@@ -12,6 +11,7 @@ import {
   saveThreadResponsePosts,
   startThreadGenerationAttempt
 } from "../db/repository.js";
+import { getFeedResidentPrompt } from "../db/residentPromptRepository.js";
 import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
 import { getActiveModel } from "../settings/settingsService.js";

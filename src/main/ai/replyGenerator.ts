@@ -3,12 +3,14 @@ import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import { normalizePostBody } from "../../shared/postBody.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
 import {
+  getArticleBody,
+  getArticleSummary
+} from "../db/repository.js";
+import {
   ensureFeedResidents,
   getActiveResidentPromptVersion,
-  getArticleBody,
-  getArticleSummary,
   getFeedResidentPrompt
-} from "../db/repository.js";
+} from "../db/residentPromptRepository.js";
 import { VIP_ID_FORMAT_DESC } from "../prompts/vipCommonRules.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";

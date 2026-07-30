@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import {
+  recordLlmRequestLog
+} from "../db/repository.js";
+import {
   getActiveResidentPromptVersion,
   getFeedResidentPrompt,
   getPromptOptimizationEvidence,
-  recordLlmRequestLog,
   saveResidentPromptProposal
-} from "../db/repository.js";
+} from "../db/residentPromptRepository.js";
 import { generateJson } from "./genaiClient.js";
 import { getPromptOptimizerModel } from "../settings/settingsService.js";
 
