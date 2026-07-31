@@ -1,5 +1,6 @@
 import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
@@ -79,6 +80,10 @@ const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const rendererEntryUrl = isDev
   ? new URL(process.env.VITE_DEV_SERVER_URL as string).toString()
   : pathToFileURL(path.join(__dirname, "../renderer/index.html")).toString();
+const screenshotPathArg = process.argv.find((arg) => arg.startsWith("--screenshot-path="));
+const screenshotPath = screenshotPathArg
+  ? path.resolve(screenshotPathArg.substring("--screenshot-path=".length))
+  : null;
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
@@ -107,8 +112,8 @@ if (process.platform === "linux") {
 
 function createMainWindow(): void {
   const window = new BrowserWindow({
-    width: 1180,
-    height: 760,
+    width: screenshotPath ? 1600 : 1180,
+    height: screenshotPath ? 1000 : 760,
     minWidth: 920,
     minHeight: 600,
     title: appInfo.name,
@@ -150,6 +155,27 @@ function createMainWindow(): void {
   });
 
   void window.loadURL(rendererEntryUrl);
+  if (screenshotPath) {
+    window.webContents.once("did-finish-load", () => {
+      setTimeout(() => {
+        void window.webContents.executeJavaScript(`
+          (() => {
+            const rows = [...document.querySelectorAll('.thread-row')];
+            const generated = rows.find((row) => Number(row.querySelector('.thread-count')?.textContent ?? 0) > 0);
+            (generated ?? rows[0])?.click();
+          })();
+        `).then(() => new Promise((resolve) => setTimeout(resolve, 2500)))
+          .then(() => window.webContents.capturePage())
+          .then(async (image) => {
+            await writeFile(screenshotPath, image.toPNG());
+            app.quit();
+          }).catch((error) => {
+            console.error("スクリーンショットの保存に失敗しました:", error);
+            app.exit(1);
+          });
+      }, 1500);
+    });
+  }
 }
 
 ipcMain.handle("app:get-info", () => appInfo);
@@ -365,7 +391,7 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  initializeRepository();
+  initializeRepository(screenshotPath === null);
   articleSession = session.fromPartition("viper-reader-articles", { cache: false });
   articleSession.setUserAgent(CHROME_USER_AGENT);
   articleSession.setPermissionCheckHandler(() => false);

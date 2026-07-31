@@ -201,9 +201,9 @@ export type FeedItemInitialCacheSource = {
 
 const legacySeedThreadIds = ["qiita-1", "qiita-2", "qiita-4", "zenn-1", "personal-1"];
 
-export function initializeRepository(): void {
+export function initializeRepository(seedDefaultFeeds = true): void {
   const db = getDatabase();
-  seedDatabase(db);
+  if (seedDefaultFeeds) seedDatabase(db);
 }
 
 export function upsertFeedItems(
