@@ -50,7 +50,7 @@ export type ViperReaderApi = {
   retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
   getArticleBrowserState: () => Promise<ArticleBrowserState>;
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
-  regenerateVipTitle: (threadId: string) => Promise<ThreadDetail | null>;
+  regenerateThreadTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
   generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
@@ -118,7 +118,7 @@ const api: ViperReaderApi = {
     ipcRenderer.on("article-browser:state", listener);
     return () => ipcRenderer.removeListener("article-browser:state", listener);
   },
-  regenerateVipTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
+  regenerateThreadTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
   postMessage: (threadId, name, mail, body) => ipcRenderer.invoke("threads:post", threadId, name, mail, body),
   generateReplies: (threadId) => ipcRenderer.invoke("threads:generate-replies", threadId),

@@ -2,7 +2,7 @@
   "name": "viper-reader",
   "version": "0.1.0",
   "private": true,
-  "description": "VIP-style technical RSS reader desktop app",
+  "description": "Retro message-board-style technical RSS reader desktop app",
   "license": "MIT",
   "author": "k0f1sh",
   "repository": {

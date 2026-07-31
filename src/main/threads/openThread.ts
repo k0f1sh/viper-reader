@@ -12,7 +12,7 @@ import {
   startThreadGenerationAttempt
 } from "../db/repository.js";
 import { getFeedResidentPrompt } from "../db/residentPromptRepository.js";
-import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
+import { buildBoardThreadResponsePromptHash } from "../prompts/threadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -117,7 +117,7 @@ async function generateAndSaveThreadResponses(
   onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void
 ): Promise<{ status: "done" | "skipped" | "error"; errorMessage: string | null }> {
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
-  const promptHash = buildVipThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
+  const promptHash = buildBoardThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
   onProgress({ stage: "generating-posts", message: "AI住民が >>2 以降のレスを生成中..." });
   const generated = await generateThreadResponses(thread, {
     residentPrompt: residentPrompt?.prompt ?? null,

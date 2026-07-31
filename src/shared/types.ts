@@ -22,7 +22,7 @@ export type ThreadListItem = {
   feedId: string;
   originalTitle: string;
   url: string;
-  vipTitle: string;
+  threadTitle: string;
   source: string;
   publishedAt: string;
   responseCount: number;

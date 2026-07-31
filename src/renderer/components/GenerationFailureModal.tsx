@@ -35,7 +35,7 @@ export function GenerationFailureModal({
           <button className="modal-close-button" onClick={onClose} type="button">x</button>
         </div>
         <div className="generation-failure-content">
-          <div className="generation-failure-thread-title">{thread?.vipTitle ?? "スレッド"}</div>
+          <div className="generation-failure-thread-title">{thread?.threadTitle ?? "スレッド"}</div>
           {isLoading ? (
             <div className="stats-loading">履歴を読み込み中...</div>
           ) : latestFailure ? (

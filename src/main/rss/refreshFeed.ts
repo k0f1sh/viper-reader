@@ -1,20 +1,20 @@
 import crypto from "node:crypto";
 import Parser from "rss-parser";
 import type { RefreshFeedResult } from "../../shared/types.js";
-import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
+import { transformTitlesToBoardStyle } from "../ai/titleTransformer.js";
 import {
   listFeedItemsForInitialCaches,
   listUnconvertedFeedItems,
   recordLlmRequestLog,
   recordTitleGenerationAttempts,
   recordRssRefreshRun,
-  saveRawVipTitleFallbacks,
+  saveRawThreadTitleFallbacks,
   saveRssThreadSummaries,
-  saveVipTitles,
+  saveThreadTitles,
   upsertFeedItems
 } from "../db/repository.js";
 import { getFeedSource } from "../db/feedRepository.js";
-import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
@@ -85,9 +85,9 @@ async function refreshFeedOnce(
     const { insertedItemIds, ...result } = upsertFeedItems(feed.id, items);
     const modelToUse = getActiveModel();
     const titleModel = getTitleGenerationModel();
-    const titlePromptHash = buildVipTitlePromptHash(feed.generateTitleFromSummary);
+    const titlePromptHash = buildThreadTitlePromptHash(feed.generateTitleFromSummary);
     const initialCacheItems = listFeedItemsForInitialCaches(feed.id);
-    saveRawVipTitleFallbacks(initialCacheItems, titleModel);
+    saveRawThreadTitleFallbacks(initialCacheItems, titleModel);
     saveRssThreadSummaries(initialCacheItems, modelToUse);
 
     const unconvertedItems = listUnconvertedFeedItems(feed.id, titleModel, titlePromptHash);
@@ -100,13 +100,13 @@ async function refreshFeedOnce(
         ? `スレタイ生成中...（新規${insertedItemIds.length}件を優先 / 残り${titleConversionSkippedByLimit}件は次回以降）`
         : "スレタイ生成中..."
     );
-    const transformed = await transformTitlesToVipStyle(
+    const transformed = await transformTitlesToBoardStyle(
       feed.id,
       feed.title,
       titleConversionItems,
       feed.generateTitleFromSummary
     );
-    const convertedCount = saveVipTitles(transformed.titles, titleModel, titlePromptHash);
+    const convertedCount = saveThreadTitles(transformed.titles, titleModel, titlePromptHash);
     recordTitleGenerationAttempts(transformed.outcomes, titleModel, titlePromptHash);
 
     for (const log of transformed.logs) {

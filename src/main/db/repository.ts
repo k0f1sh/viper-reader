@@ -19,9 +19,9 @@ import type {
 } from "../../shared/types.js";
 import {
   defaultResidentPromptHash,
-  vipThreadResponsePromptHash
-} from "../prompts/vipThreadResponsePrompt.js";
-import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+  threadResponsePromptHash
+} from "../prompts/threadResponsePrompt.js";
+import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 import {
@@ -62,7 +62,7 @@ type ThreadRow = {
   feed_id: string;
   original_title: string;
   url: string;
-  vip_title: string;
+  thread_title: string;
   source: string;
   published_at: string | null;
   read_at: string | null;
@@ -152,7 +152,7 @@ export type FeedItemTitleGenerationSource = UnconvertedFeedItem & {
   feedTitle: string;
 };
 
-export type VipTitleWrite = {
+export type ThreadTitleWrite = {
   feedItemId: string;
   title: string;
 };
@@ -241,7 +241,7 @@ export function upsertFeedItems(
     WHERE id = ?
     `
   );
-  const deleteDerivedTitles = db.prepare("DELETE FROM vip_titles WHERE feed_item_id = ?");
+  const deleteDerivedTitles = db.prepare("DELETE FROM thread_titles WHERE feed_item_id = ?");
   const deleteDerivedSummaries = db.prepare("DELETE FROM thread_summaries WHERE feed_item_id = ?");
   const deleteArticleBodies = db.prepare("DELETE FROM article_bodies WHERE feed_item_id = ?");
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
@@ -344,7 +344,7 @@ export function listFeedItemsForInitialCaches(feedId: string): FeedItemInitialCa
   }));
 }
 
-export function saveRawVipTitleFallbacks(items: FeedItemInitialCacheSource[], model: string): number {
+export function saveRawThreadTitleFallbacks(items: FeedItemInitialCacheSource[], model: string): number {
   if (items.length === 0) {
     return 0;
   }
@@ -353,7 +353,7 @@ export function saveRawVipTitleFallbacks(items: FeedItemInitialCacheSource[], mo
   const generatedAt = new Date().toISOString();
   const insertTitle = db.prepare(
     `
-    INSERT OR IGNORE INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     `
   );
@@ -363,7 +363,7 @@ export function saveRawVipTitleFallbacks(items: FeedItemInitialCacheSource[], mo
   try {
     for (const item of items) {
       const result = insertTitle.run(
-        createVipTitleId(item.id, model, rawTitlePromptHash),
+        createThreadTitleId(item.id, model, rawTitlePromptHash),
         item.id,
         model,
         rawTitlePromptHash,
@@ -441,7 +441,7 @@ export function listUnconvertedFeedItems(
       `
       SELECT fi.id, fi.title, fi.url, fi.published_at, fi.raw_summary
       FROM feed_items fi
-      LEFT JOIN vip_titles vt
+      LEFT JOIN thread_titles vt
         ON vt.feed_item_id = fi.id
         AND vt.model = ?
         AND vt.prompt_hash = ?
@@ -513,7 +513,7 @@ export function getFeedItemForTitleGeneration(feedItemId: string): FeedItemTitle
   };
 }
 
-export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash: string): number {
+export function saveThreadTitles(titles: ThreadTitleWrite[], model: string, promptHash: string): number {
   if (titles.length === 0) {
     return 0;
   }
@@ -522,7 +522,7 @@ export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash
   const generatedAt = new Date().toISOString();
   const insertTitle = db.prepare(
     `
-    INSERT OR IGNORE INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     `
   );
@@ -532,7 +532,7 @@ export function saveVipTitles(titles: VipTitleWrite[], model: string, promptHash
   try {
     for (const title of titles) {
       const result = insertTitle.run(
-        createVipTitleId(title.feedItemId, model, promptHash),
+        createThreadTitleId(title.feedItemId, model, promptHash),
         title.feedItemId,
         model,
         promptHash,
@@ -614,19 +614,19 @@ export function listTitleGenerationAttempts(threadId: string, limit = 5): TitleG
   }));
 }
 
-export function replaceVipTitle(title: VipTitleWrite, model: string, promptHash: string): void {
+export function replaceThreadTitle(title: ThreadTitleWrite, model: string, promptHash: string): void {
   const db = getDatabase();
   const generatedAt = new Date().toISOString();
   db.prepare(
     `
-    INSERT INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(feed_item_id, model, prompt_hash) DO UPDATE SET
       title = excluded.title,
       generated_at = excluded.generated_at
     `
   ).run(
-    createVipTitleId(title.feedItemId, model, promptHash),
+    createThreadTitleId(title.feedItemId, model, promptHash),
     title.feedItemId,
     model,
     promptHash,
@@ -635,8 +635,8 @@ export function replaceVipTitle(title: VipTitleWrite, model: string, promptHash:
   );
 }
 
-function createVipTitleId(feedItemId: string, model: string, promptHash: string): string {
-  return `vip-title:${feedItemId}:${model}:${promptHash}`;
+function createThreadTitleId(feedItemId: string, model: string, promptHash: string): string {
+  return `thread-title:${feedItemId}:${model}:${promptHash}`;
 }
 
 export function recordRssRefreshRun(run: RssRefreshRunWrite): void {
@@ -922,8 +922,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
-  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
-  const plainTitlePromptHash = buildVipTitlePromptHash(false);
+  const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
+  const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const filterUnread = unreadOnly ? 1 : 0;
@@ -944,7 +944,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
@@ -959,14 +959,14 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
-      LEFT JOIN vip_titles generated_vt
+      LEFT JOIN thread_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
         AND generated_vt.prompt_hash = CASE
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
-      LEFT JOIN vip_titles raw_vt
+      LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
         AND raw_vt.prompt_hash = ?
@@ -999,7 +999,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       activeModel,
       rssSummaryPromptHash,
       activeModel,
-      vipThreadResponsePromptHash,
+      threadResponsePromptHash,
       defaultResidentPromptHash,
       feedId,
       feedId,
@@ -1025,8 +1025,8 @@ function listAllThreads(
   filterUnread: number,
   generationQueueMode: "none" | "unreviewed" | "reviewed" = "none"
 ): ThreadListPage {
-  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
-  const plainTitlePromptHash = buildVipTitlePromptHash(false);
+  const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
+  const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
   const generationCondition =
     generationQueueMode === "unreviewed"
@@ -1074,7 +1074,7 @@ function listAllThreads(
       fi.feed_id,
       fi.title AS original_title,
       fi.url,
-      COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+      COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
       source_names.source,
       fi.published_at,
       fi.read_at,
@@ -1090,14 +1090,14 @@ function listAllThreads(
     FROM ranked_items fi
     INNER JOIN feed_sources fs ON fs.id = fi.feed_id
     INNER JOIN source_names ON source_names.article_key = fi.article_key
-    LEFT JOIN vip_titles generated_vt
+    LEFT JOIN thread_titles generated_vt
       ON generated_vt.feed_item_id = fi.id
       AND generated_vt.model = ?
       AND generated_vt.prompt_hash = CASE
         WHEN fs.generate_title_from_summary = 1 THEN ?
         ELSE ?
       END
-    LEFT JOIN vip_titles raw_vt
+    LEFT JOIN thread_titles raw_vt
       ON raw_vt.feed_item_id = fi.id AND raw_vt.model = ? AND raw_vt.prompt_hash = ?
     LEFT JOIN thread_summaries rss_ts
       ON rss_ts.feed_item_id = fi.id AND rss_ts.model = ? AND rss_ts.prompt_hash = ?
@@ -1125,7 +1125,7 @@ function listAllThreads(
     activeModel,
     rssSummaryPromptHash,
     activeModel,
-    vipThreadResponsePromptHash,
+    threadResponsePromptHash,
     defaultResidentPromptHash,
     pageSize,
     page * pageSize
@@ -1367,8 +1367,8 @@ export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
-  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
-  const plainTitlePromptHash = buildVipTitlePromptHash(false);
+  const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
+  const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   markThreadRead(threadId);
 
   // 1. thread_posts から取得を試みる
@@ -1376,7 +1376,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     .prepare("SELECT no, name, mail, date, uid, body, is_user FROM thread_posts WHERE feed_item_id = ? ORDER BY no ASC")
     .all(threadId) as ThreadPostRow[];
 
-  // 基本的なスレッド情報（vipTitle など）を取得するクエリ
+  // 基本的なスレッド情報（threadTitle など）を取得するクエリ
   const threadInfoRow = db
     .prepare(`
       WITH source_names AS (
@@ -1396,7 +1396,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
         source_names.source,
         fi.published_at,
         fi.read_at,
@@ -1412,14 +1412,14 @@ export function getThread(threadId: string): ThreadDetail | null {
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
       INNER JOIN source_names
         ON source_names.article_key = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
-      LEFT JOIN vip_titles generated_vt
+      LEFT JOIN thread_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
         AND generated_vt.prompt_hash = CASE
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
-      LEFT JOIN vip_titles raw_vt
+      LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
         AND raw_vt.prompt_hash = ?
@@ -1437,7 +1437,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       feed_id: string;
       original_title: string;
       url: string;
-      vip_title: string;
+      thread_title: string;
       source: string;
       published_at: string | null;
       read_at: string | null;
@@ -1456,7 +1456,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     feedId: threadInfoRow.feed_id,
     originalTitle: threadInfoRow.original_title,
     url: threadInfoRow.url,
-    vipTitle: threadInfoRow.vip_title,
+    threadTitle: threadInfoRow.thread_title,
     source: threadInfoRow.source,
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
@@ -1511,7 +1511,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       activeModel,
       rssSummaryPromptHash,
       activeModel,
-      vipThreadResponsePromptHash,
+      threadResponsePromptHash,
       defaultResidentPromptHash,
       threadId
     ) as { posts_json?: string; response_posts_json?: string } | undefined;
@@ -1525,7 +1525,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       feed_id: threadInfoRow.feed_id,
       original_title: threadInfoRow.original_title,
       url: threadInfoRow.url,
-      vip_title: threadInfoRow.vip_title,
+      thread_title: threadInfoRow.thread_title,
       source: threadInfoRow.source,
       published_at: threadInfoRow.published_at,
       read_at: threadInfoRow.read_at,
@@ -1846,7 +1846,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     feedId: row.feed_id,
     originalTitle: row.original_title,
     url: row.url,
-    vipTitle: row.vip_title,
+    threadTitle: row.thread_title,
     source: row.source,
     publishedAt: row.published_at ?? "",
     isRead: row.read_at !== null,
@@ -1910,8 +1910,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
-  const summaryTitlePromptHash = buildVipTitlePromptHash(true);
-  const plainTitlePromptHash = buildVipTitlePromptHash(false);
+  const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
+  const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const rows = db
     .prepare(
       `
@@ -1920,7 +1920,7 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS vip_title,
+        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
@@ -1935,14 +1935,14 @@ export function listFavoriteThreads(): ThreadListItem[] {
         COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
-      LEFT JOIN vip_titles generated_vt
+      LEFT JOIN thread_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
         AND generated_vt.prompt_hash = CASE
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
-      LEFT JOIN vip_titles raw_vt
+      LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
         AND raw_vt.prompt_hash = ?
@@ -1969,7 +1969,7 @@ export function listFavoriteThreads(): ThreadListItem[] {
       activeModel,
       rssSummaryPromptHash,
       activeModel,
-      vipThreadResponsePromptHash,
+      threadResponsePromptHash,
       defaultResidentPromptHash
     ) as ThreadRow[];
 

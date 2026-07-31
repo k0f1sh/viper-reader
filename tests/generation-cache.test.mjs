@@ -23,14 +23,14 @@ const {
   setThreadGenerationState,
   upsertFeedItems,
   saveArticleBody,
-  saveRawVipTitleFallbacks,
+  saveRawThreadTitleFallbacks,
   saveRssThreadSummaries,
-  saveVipTitles
+  saveThreadTitles
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
 const { postThreadMessage } = await import("../dist/main/threads/postMessage.js");
-const { buildVipThreadResponsePrompt } = await import("../dist/main/prompts/vipThreadResponsePrompt.js");
-const { buildVipTitlePromptHash } = await import("../dist/main/prompts/vipTitlePrompt.js");
+const { buildBoardThreadResponsePrompt } = await import("../dist/main/prompts/threadResponsePrompt.js");
+const { buildThreadTitlePromptHash } = await import("../dist/main/prompts/threadTitlePrompt.js");
 const { runFeedRefreshSingleFlight } = await import("../dist/main/rss/feedRefreshSingleFlight.js");
 const {
   getRendererUserSetting,
@@ -80,9 +80,9 @@ test("スレタイ自動変換は未読かつ未変換の記事だけを対象�
   insertItem({ id: "read", feedId: "selection", readAt: now });
   insertItem({ id: "converted", feedId: "selection" });
   db.prepare(`
-    INSERT INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run("vip:converted", "converted", titleModel, "test-prompt", "変換済み", now);
+  `).run("thread:converted", "converted", titleModel, "test-prompt", "変換済み", now);
 
   const items = listUnconvertedFeedItems("selection", titleModel, "test-prompt");
 
@@ -118,7 +118,7 @@ test("同じcanonical URLの記事は全取得元をまとめて既読・未読�
 test("スレタイ変換の失敗・未変換を記事単位で保存し、成功時に状態表示を消す", () => {
   insertFeed("title-status");
   insertItem({ id: "title-status-item", feedId: "title-status" });
-  const promptHash = buildVipTitlePromptHash(false);
+  const promptHash = buildThreadTitlePromptHash(false);
   const currentTitleModel = getTitleGenerationModel();
 
   recordTitleGenerationAttempts([
@@ -135,14 +135,14 @@ test("スレタイ変換の失敗・未変換を記事単位で保存し、成�
   recordTitleGenerationAttempts([
     { feedItemId: "title-status-item", status: "completed", errorMessage: null }
   ], currentTitleModel, promptHash);
-  saveVipTitles([{ feedItemId: "title-status-item", title: "VIPタイトル" }], currentTitleModel, promptHash);
+  saveThreadTitles([{ feedItemId: "title-status-item", title: "掲示板風タイトル" }], currentTitleModel, promptHash);
   assert.equal(listThreads("title-status").items[0].titleGenerationStatus, null);
 });
 
 test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {
   assert.notEqual(
-    buildVipTitlePromptHash(false),
-    buildVipTitlePromptHash(true)
+    buildThreadTitlePromptHash(false),
+    buildThreadTitlePromptHash(true)
   );
 });
 
@@ -212,7 +212,7 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
     publishedAt: now,
     rawSummary: "Summary cached"
   };
-  saveRawVipTitleFallbacks([initialItem], titleModel);
+  saveRawThreadTitleFallbacks([initialItem], titleModel);
   saveRssThreadSummaries([initialItem], responseModel);
   saveArticleBody("cached", initialItem.url, "キャッシュ済みの技術記事本文");
 
@@ -281,7 +281,7 @@ test("RSSの記事内容が訂正されたら派生キャッシュを失効す�
     publishedAt: now,
     rawSummary: "Summary corrected-item"
   };
-  saveRawVipTitleFallbacks([originalItem], titleModel);
+  saveRawThreadTitleFallbacks([originalItem], titleModel);
   saveRssThreadSummaries([originalItem], responseModel);
   saveArticleBody(originalItem.id, originalItem.url, "元の記事本文");
 
@@ -297,7 +297,7 @@ test("RSSの記事内容が訂正されたら派生キャッシュを失効す�
   assert.equal(result.updatedCount, 1);
   assert.deepEqual(result.insertedItemIds, []);
   assert.equal(
-    db.prepare("SELECT COUNT(*) AS count FROM vip_titles WHERE feed_item_id = ?")
+    db.prepare("SELECT COUNT(*) AS count FROM thread_titles WHERE feed_item_id = ?")
       .get(originalItem.id).count,
     0
   );
@@ -343,8 +343,8 @@ test("RSS保存結果は今回新規追加した記事IDだけを返す", () => 
 });
 
 test("本文取得失敗時のプロンプトは推測による補完を禁止する", () => {
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: "テストスレ",
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "テストスレ",
     originalTitle: "テスト記事",
     url: "https://example.com/article",
     rssBody: "RSSの概要",
@@ -359,8 +359,8 @@ test("本文取得失敗時のプロンプトは推測による補完を禁止�
 });
 
 test("本文取得成功時のプロンプトは不要な不明点の付記を避ける", () => {
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: "テストスレ",
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "テストスレ",
     originalTitle: "テスト記事",
     url: "https://example.com/article",
     rssBody: "RSSの概要",
@@ -375,8 +375,8 @@ test("本文取得成功時のプロンプトは不要な不明点の付記を�
 });
 
 test("記事のプロンプトは主題と無関係な分野の語彙や視点を禁止する", () => {
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: "商店街の夏祭り開催決定ｗｗｗ",
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "商店街の夏祭り開催決定ｗｗｗ",
     originalTitle: "商店街で夏祭りを開催",
     url: "https://example.com/festival",
     rssBody: "",

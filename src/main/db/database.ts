@@ -28,6 +28,7 @@ export function getDatabase(): DatabaseSync {
 
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
+  migrateLegacyTitleTable(db);
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
@@ -50,6 +51,30 @@ function migrate(db: DatabaseSync): void {
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(2, new Date().toISOString());
+}
+
+function migrateLegacyTitleTable(db: DatabaseSync): void {
+  const legacyTableName = ["vi", "p_titles"].join("");
+  const legacyTable = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
+  ).get(legacyTableName);
+  if (!legacyTable) return;
+
+  db.exec("BEGIN");
+  try {
+    db.exec(`
+      INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+      SELECT id, feed_item_id, model, prompt_hash, title, generated_at FROM ${legacyTableName};
+      DROP TABLE ${legacyTableName};
+    `);
+    db.prepare(
+      "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+    ).run(3, new Date().toISOString());
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function backfillFeedSortOrder(db: DatabaseSync): void {

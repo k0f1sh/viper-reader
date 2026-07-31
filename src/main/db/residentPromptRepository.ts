@@ -214,7 +214,7 @@ export function rollbackResidentPromptVersion(feedId: string): void {
   }
 }
 
-const allowedFeedbackTags = new Set(["off_topic", "repetitive", "shallow", "weak_vip", "verbose"]);
+const allowedFeedbackTags = new Set(["off_topic", "repetitive", "shallow", "weak_style", "verbose"]);
 
 export function saveReplyFeedback(runId: string, rating: ReplyRating, tags: string[]): string {
   if (rating !== "good" && rating !== "poor") throw new Error("評価が不正です。");

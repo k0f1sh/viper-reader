@@ -203,11 +203,11 @@ export function FeedPane({
                     className={`favorite-row ${isSelected ? "is-selected" : ""}`}
                     key={thread.id}
                     onClick={() => onSelectFavoriteThread(thread)}
-                    title={thread.vipTitle}
+                    title={thread.threadTitle}
                     type="button"
                   >
                     <span className="favorite-item-star">★</span>
-                    <span className="favorite-item-title">{thread.vipTitle}</span>
+                    <span className="favorite-item-title">{thread.threadTitle}</span>
                     <span className="favorite-item-count">{thread.responseCount}</span>
                   </button>
                 );

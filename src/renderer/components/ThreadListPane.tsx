@@ -223,7 +223,7 @@ export function ThreadListPane({
                 </span>
               </span>
               <span className="thread-title">
-                {thread.vipTitle}
+                {thread.threadTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>

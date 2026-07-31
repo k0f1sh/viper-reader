@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS feed_items (
   UNIQUE (feed_id, url)
 );
 
-CREATE TABLE IF NOT EXISTS vip_titles (
+CREATE TABLE IF NOT EXISTS thread_titles (
   id TEXT PRIMARY KEY,
   feed_item_id TEXT NOT NULL,
   model TEXT NOT NULL,
@@ -259,7 +259,7 @@ CREATE TABLE IF NOT EXISTS resident_prompt_cycles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_feed_items_feed_id ON feed_items(feed_id);
-CREATE INDEX IF NOT EXISTS idx_vip_titles_feed_item_id ON vip_titles(feed_item_id);
+CREATE INDEX IF NOT EXISTS idx_thread_titles_feed_item_id ON thread_titles(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_thread_summaries_feed_item_id ON thread_summaries(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_rss_refresh_runs_feed_id ON rss_refresh_runs(feed_id);
 CREATE INDEX IF NOT EXISTS idx_llm_request_logs_feed_id ON llm_request_logs(feed_id);

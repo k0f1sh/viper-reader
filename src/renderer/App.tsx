@@ -1287,7 +1287,7 @@ export function App() {
     }
   }
 
-  async function regenerateSelectedVipTitle() {
+  async function regenerateSelectedThreadTitle() {
     if (!selectedThread || !window.viperReader || regeneratingTitleThreadId) {
       return;
     }
@@ -1297,7 +1297,7 @@ export function App() {
     setPostError("");
 
     try {
-      const result = await window.viperReader.regenerateVipTitle(threadId);
+      const result = await window.viperReader.regenerateThreadTitle(threadId);
       if (result) {
         if (selectedThreadIdRef.current === threadId) {
           setSelectedThread(result);
@@ -1893,7 +1893,7 @@ export function App() {
                   extractedPostId={extractedPostId}
                   replyBodyRef={replyBodyRef}
                   onToggleFavorite={() => void toggleFavorite()}
-                  onRegenerateVipTitle={() => void regenerateSelectedVipTitle()}
+                  onRegenerateThreadTitle={() => void regenerateSelectedThreadTitle()}
                   onGenerateResponses={(force) => void generateResponses(force)}
                   onGenerateReplies={() => void handleGenerateReplies()}
                   onPostMessage={handlePostMessage}

@@ -49,7 +49,7 @@ import {
 } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
-import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
+import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
 import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
@@ -240,7 +240,7 @@ ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => 
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
-  return regenerateVipTitle(threadId);
+  return regenerateThreadTitle(threadId);
 });
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
   assertIdentifier(threadId, "thread ID");

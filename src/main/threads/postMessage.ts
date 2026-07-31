@@ -65,14 +65,14 @@ export async function postThreadMessage(
     onStatus?.("writing");
 
     const nextNo = maxNo + 1;
-    const dateStr = formatVipDate(new Date());
-    const uid = getUserVipId();
+    const dateStr = formatBoardDate(new Date());
+    const uid = getUserBoardId();
 
     // ユーザーのレスをDBに保存
     postUserMessage({
       feedItemId: threadId,
       no: nextNo,
-      name: name.trim() ? name.trim() : "以下、名無しにかわりましてVIPがお送りします",
+      name: name.trim() ? name.trim() : "名無しさん",
       mail: mail.trim() ? mail.trim() : null,
       date: dateStr,
       uid,
@@ -122,13 +122,13 @@ async function completePostGeneration(
   }
 }
 
-function getUserVipId(): string {
+function getUserBoardId(): string {
   const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const hash = crypto.createHash("sha1").update(`${dateStr}:viper-user-salt`).digest("hex");
   return hash.slice(0, 8);
 }
 
-function formatVipDate(date: Date): string {
+function formatBoardDate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
@@ -258,7 +258,7 @@ function createOver1000Post(): ThreadDetail["posts"][number] {
     no: 1000,
     name: "１０００しかなかったよ",
     mail: "over1000",
-    date: formatVipDate(new Date()),
+    date: formatBoardDate(new Date()),
     id: "Over1000Id",
     body: "このスレッドは１０００を超えました。\nもう書けないので、新しいスレッドを立ててください。"
   };

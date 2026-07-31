@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import { normalizePostBody } from "../../shared/postBody.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
+import { buildBoardThreadResponsePrompt } from "../prompts/threadResponsePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
-import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
 
@@ -41,8 +41,8 @@ export async function generateThreadResponses(
     maxExcerptChars: MAX_BODY_EXCERPT_CHARS
   });
 
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: thread.vipTitle,
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: thread.threadTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
     rssBody: thread.posts[0]?.body ?? "",
@@ -73,7 +73,7 @@ export async function generateThreadResponses(
   const result = await generateJson<ThreadPost[]>({
     model: modelToUse,
     purpose: "thread_response",
-    systemInstruction: VIP_SYSTEM_INSTRUCTION,
+    systemInstruction: BOARD_SYSTEM_INSTRUCTION,
     contents: prompt,
     responseSchema: threadPostArraySchema,
     timeoutMs: 90000,
@@ -158,7 +158,7 @@ function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
     }
     posts.push({
       no: 2 + posts.length,
-      name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
+      name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id: normalizeId(item.id),

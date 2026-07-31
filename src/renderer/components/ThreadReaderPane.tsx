@@ -18,7 +18,7 @@ type ThreadReaderPaneProps = {
   extractedPostId: string | null;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   onToggleFavorite: () => void;
-  onRegenerateVipTitle: () => void;
+  onRegenerateThreadTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
   onGenerateReplies: () => void;
   onPostMessage: (event: FormEvent) => void;
@@ -55,7 +55,7 @@ export function ThreadReaderPane({
   extractedPostId,
   replyBodyRef,
   onToggleFavorite,
-  onRegenerateVipTitle,
+  onRegenerateThreadTitle,
   onGenerateResponses,
   onGenerateReplies,
   onPostMessage,
@@ -99,7 +99,7 @@ export function ThreadReaderPane({
         <section className="thread-reader-pane" aria-label="スレ本文">
           <div className="thread-header">
             <div>
-              <div className="thread-heading">{selectedThread.vipTitle}</div>
+              <div className="thread-heading">{selectedThread.threadTitle}</div>
               <div className="original-title">元記事: {selectedThread.originalTitle}</div>
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -125,7 +125,7 @@ export function ThreadReaderPane({
               </button>
               <button
                 className="deep-dive-button"
-                onClick={onRegenerateVipTitle}
+                onClick={onRegenerateThreadTitle}
                 disabled={isRegeneratingTitle}
                 type="button"
                 title="このスレだけスレタイを再生成"
@@ -396,7 +396,7 @@ const feedbackTagOptions = [
   ["off_topic", "話が噛み合わない"],
   ["repetitive", "同じノリ"],
   ["shallow", "技術的に薄い"],
-  ["weak_vip", "VIP感が弱い"],
+  ["weak_style", "掲示板らしさが弱い"],
   ["verbose", "くどい"]
 ] as const;
 

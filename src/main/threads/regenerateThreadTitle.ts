@@ -1,16 +1,16 @@
 import type { ThreadDetail } from "../../shared/types.js";
-import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
+import { transformTitlesToBoardStyle } from "../ai/titleTransformer.js";
 import {
   getFeedItemForTitleGeneration,
   getThread,
   recordLlmRequestLog,
-  replaceVipTitle
+  replaceThreadTitle
 } from "../db/repository.js";
 import { getFeedSource } from "../db/feedRepository.js";
-import { buildVipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getTitleGenerationModel } from "../settings/settingsService.js";
 
-export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail | null> {
+export async function regenerateThreadTitle(threadId: string): Promise<ThreadDetail | null> {
   const item = getFeedItemForTitleGeneration(threadId);
   if (!item) {
     throw new Error(`Thread not found: ${threadId}`);
@@ -18,7 +18,7 @@ export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail
 
   const modelToUse = getTitleGenerationModel();
   const feed = getFeedSource(item.feedId);
-  const result = await transformTitlesToVipStyle(item.feedId, item.feedTitle, [
+  const result = await transformTitlesToBoardStyle(item.feedId, item.feedTitle, [
     {
       id: item.id,
       title: item.title,
@@ -37,10 +37,10 @@ export async function regenerateVipTitle(threadId: string): Promise<ThreadDetail
     throw new Error("スレタイ再生成に失敗しました。APIキーやログを確認してください。");
   }
 
-  replaceVipTitle(
+  replaceThreadTitle(
     nextTitle,
     modelToUse,
-    buildVipTitlePromptHash(feed?.generateTitleFromSummary ?? false)
+    buildThreadTitlePromptHash(feed?.generateTitleFromSummary ?? false)
   );
   return getThread(threadId);
 }

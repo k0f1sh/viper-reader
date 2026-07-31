@@ -11,13 +11,13 @@ import {
   getActiveResidentPromptVersion,
   getFeedResidentPrompt
 } from "../db/residentPromptRepository.js";
-import { VIP_ID_FORMAT_DESC } from "../prompts/vipCommonRules.js";
+import { BOARD_ID_FORMAT_DESC } from "../prompts/boardCommonRules.js";
 import { getActiveModel } from "../settings/settingsService.js";
-import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
 
-const vipReplyPromptVersion = "vip-reply-v4";
+const boardReplyPromptVersion = "board-reply-v4";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -63,8 +63,8 @@ export async function generateReplyPosts(
   const recentOtherPosts = otherPosts.slice(-15);
   const trimmedHistory = firstPost ? [firstPost, ...recentOtherPosts] : recentOtherPosts;
 
-  const contents = buildVipReplyContents({
-    vipTitle: thread.vipTitle,
+  const contents = buildBoardReplyContents({
+    threadTitle: thread.threadTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
     scrapedBody,
@@ -79,7 +79,7 @@ export async function generateReplyPosts(
 
   const promptHash = crypto
     .createHash("sha1")
-    .update(`${vipReplyPromptVersion}\n${VIP_SYSTEM_INSTRUCTION}\n${contents}`)
+    .update(`${boardReplyPromptVersion}\n${BOARD_SYSTEM_INSTRUCTION}\n${contents}`)
     .digest("hex")
     .slice(0, 16);
 
@@ -110,7 +110,7 @@ export async function generateReplyPosts(
   const result = await generateJson<ThreadPost[]>({
     model: modelToUse,
     purpose: "thread_reply",
-    systemInstruction: VIP_SYSTEM_INSTRUCTION,
+    systemInstruction: BOARD_SYSTEM_INSTRUCTION,
     contents,
     responseSchema: threadPostArraySchema,
     timeoutMs,
@@ -147,10 +147,10 @@ export async function generateReplyPosts(
 
 /**
  * replyGenerator 用の可変入力コンテンツを組み立てる。
- * 固定ルール（VIP 文体・NG 事項・安全制約）は systemInstruction に移動済み。
+ * 固定ルール（匿名掲示板文体・NG 事項・安全制約）は systemInstruction に移動済み。
  */
-function buildVipReplyContents(params: {
-  vipTitle: string;
+function buildBoardReplyContents(params: {
+  threadTitle: string;
   originalTitle: string;
   url: string;
   scrapedBody: string | null;
@@ -221,17 +221,17 @@ ${latestReplyRule}
 6. 最新のユーザー書き込みが記事内容の質問なら、その分野に詳しい住民のうち1人以上が、アンカーを付けて質問へ直接かつ十分に回答してください。雑談だけで流したり、複数人が同じ答えを言い換えて水増ししたりしないでください。
 7. 回答は最初に結論を示し、必要に応じて理由、背景、具体例、注意点の順で説明してください。専門用語は質問者が理解できる言葉へかみ砕き、コードや数値は正確な説明に役立つ場合だけ使ってください。
 8. 元記事に書かれた事実と、回答のために補う確立した一般知識を区別してください。記事や履歴だけでは断定できない状況依存の事項は、何が分かれば判断できるかを短く伝えてください。知ったかぶりや架空の情報による補完は禁止です。
-9. 質問者を「そんなことも知らないのか」と扱わず、勘違いがあれば責めずに訂正してください。当時のVIPらしい軽いツッコミや草を混ぜつつ、「聞けば誰かがちゃんと教えてくれる」ヌクモリティのある雰囲気にしてください。回答の正確さを損なうほどふざけないでください。
+9. 質問者を「そんなことも知らないのか」と扱わず、勘違いがあれば責めずに訂正してください。当時の匿名掲示板らしい軽いツッコミや草を混ぜつつ、「聞けば誰かがちゃんと教えてくれる」ヌクモリティのある雰囲気にしてください。回答の正確さを損なうほどふざけないでください。
 10. body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
 【出力 JSON スキーマ例】
 [
   {
     "no": ${params.startNo},
-    "name": "以下、名無しにかわりましてVIPがお送りします",
+    "name": "名無しさん",
     "mail": "sage",
     "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS",
-    "id": "${VIP_ID_FORMAT_DESC}",
+    "id": "${BOARD_ID_FORMAT_DESC}",
     "speakerKey": "veteran または anon1 のような話者キー",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
   },
@@ -274,7 +274,7 @@ function validateGeneratedReplyPosts(
     }
     posts.push({
       no: startNo + posts.length,
-      name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
+      name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
       date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
       id,

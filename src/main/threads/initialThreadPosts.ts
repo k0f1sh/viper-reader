@@ -13,8 +13,8 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
   return [
     {
       no: 1,
-      name: "以下、名無しにかわりましてVIPが記事をお送りします",
-      date: formatVipDate(fetchedAt),
+      name: "記事をお送りします＠名無しさん",
+      date: formatBoardDate(fetchedAt),
       id: "RssFetch00",
       body: createFirstPostBody(item.title, item.url, item.rawSummary)
     }
@@ -45,7 +45,7 @@ function normalizeRssBody(rawSummary: string | null): string {
     .trim();
 }
 
-function formatVipDate(value: string): string {
+function formatBoardDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
