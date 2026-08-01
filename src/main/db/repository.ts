@@ -15,7 +15,7 @@ export {
   markAllFeedsRead,
   markFeedRead,
   reorderFeedSources,
-  updateFeedTitleGenerationSetting
+  updateFeedSettings
 } from "./feedRepository.js";
 export {
   clearFeedResidentPrompt,

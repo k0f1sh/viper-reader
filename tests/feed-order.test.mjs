@@ -11,7 +11,8 @@ const { getDatabase } = await import("../dist/main/db/database.js");
 const {
   addFeedSource,
   listFeeds,
-  reorderFeedSources
+  reorderFeedSources,
+  updateFeedSettings
 } = await import("../dist/main/db/repository.js");
 
 const db = getDatabase();
@@ -36,4 +37,13 @@ test("一部の板だけを指定した不正な並び順は保存しない", ()
 
   assert.throws(() => reorderFeedSources(currentOrder.slice(1)), /並び順が不正/);
   assert.deepEqual(listFeeds().map((feed) => feed.id), currentOrder);
+});
+
+test("板の設定からタイトルとスレタイ生成方法を更新できる", () => {
+  const feed = listFeeds()[0];
+  const updated = updateFeedSettings(feed.id, "  新しい板タイトル  ", true);
+
+  assert.equal(updated.title, "新しい板タイトル");
+  assert.equal(updated.generateTitleFromSummary, true);
+  assert.equal(listFeeds().find((candidate) => candidate.id === feed.id)?.title, "新しい板タイトル");
 });

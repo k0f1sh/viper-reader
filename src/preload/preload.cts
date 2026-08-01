@@ -78,7 +78,7 @@ export type ViperReaderApi = {
   addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
   reorderFeedSources: (feedIds: string[]) => Promise<void>;
-  updateFeedTitleGenerationSetting: (feedId: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
+  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
 };
 
 const api: ViperReaderApi = {
@@ -174,8 +174,8 @@ const api: ViperReaderApi = {
   addFeedSource: (title, url, generateTitleFromSummary) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
   reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
-  updateFeedTitleGenerationSetting: (feedId, generateTitleFromSummary) =>
-    ipcRenderer.invoke("feeds:update-title-generation-setting", feedId, generateTitleFromSummary)
+  updateFeedSettings: (feedId, title, generateTitleFromSummary) =>
+    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary)
 };
 
 contextBridge.exposeInMainWorld("viperReader", api);

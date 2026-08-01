@@ -27,7 +27,7 @@ import {
   markAllFeedsRead,
   markFeedRead,
   reorderFeedSources,
-  updateFeedTitleGenerationSetting
+  updateFeedSettings
 } from "./db/feedRepository.js";
 import {
   clearFeedResidentPrompt,
@@ -348,10 +348,11 @@ ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
   assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
 });
-ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) => {
+ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean) => {
   assertIdentifier(feedId, "feed ID");
+  assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertBoolean(generateTitleFromSummary, "title generation flag");
-  return updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary);
+  return updateFeedSettings(feedId, title, generateTitleFromSummary);
 });
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   assertHttpUrl(url, "external URL");

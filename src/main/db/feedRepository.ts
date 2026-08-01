@@ -160,14 +160,19 @@ export function deleteFeedSource(feedId: string): void {
   getDatabase().prepare("DELETE FROM feed_sources WHERE id = ?").run(feedId);
 }
 
-export function updateFeedTitleGenerationSetting(
+export function updateFeedSettings(
   feedId: string,
+  title: string,
   generateTitleFromSummary: boolean
 ): FeedSource {
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle || normalizedTitle.length > 200) {
+    throw new Error("板タイトルが不正です。");
+  }
   const db = getDatabase();
   const result = db.prepare(
-    "UPDATE feed_sources SET generate_title_from_summary = ?, updated_at = ? WHERE id = ?"
-  ).run(generateTitleFromSummary ? 1 : 0, new Date().toISOString(), feedId);
+    "UPDATE feed_sources SET title = ?, generate_title_from_summary = ?, updated_at = ? WHERE id = ?"
+  ).run(normalizedTitle, generateTitleFromSummary ? 1 : 0, new Date().toISOString(), feedId);
   if (result.changes === 0) {
     throw new Error(`Feed not found: ${feedId}`);
   }

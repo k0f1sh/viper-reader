@@ -128,6 +128,7 @@ export function App() {
   const [addFeedError, setAddFeedError] = useState("");
   const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
   const [settingsFeed, setSettingsFeed] = useState<FeedSource | null>(null);
+  const [settingsFeedTitle, setSettingsFeedTitle] = useState("");
   const [settingsGenerateTitleFromSummary, setSettingsGenerateTitleFromSummary] = useState(false);
   const [isFeedSettingsSaving, setIsFeedSettingsSaving] = useState(false);
   const [feedSettingsError, setFeedSettingsError] = useState("");
@@ -922,6 +923,7 @@ export function App() {
 
   function openFeedSettings(feed: FeedSource) {
     setSettingsFeed(feed);
+    setSettingsFeedTitle(feed.title);
     setSettingsGenerateTitleFromSummary(feed.generateTitleFromSummary);
     setFeedSettingsError("");
   }
@@ -931,8 +933,9 @@ export function App() {
     setIsFeedSettingsSaving(true);
     setFeedSettingsError("");
     try {
-      const updated = await window.viperReader.updateFeedTitleGenerationSetting(
+      const updated = await window.viperReader.updateFeedSettings(
         settingsFeed.id,
+        settingsFeedTitle,
         settingsGenerateTitleFromSummary
       );
       setFeedList((current) => current.map((feed) => feed.id === updated.id ? updated : feed));
@@ -1968,9 +1971,11 @@ export function App() {
       {settingsFeed ? (
         <FeedSettingsModal
           feed={settingsFeed}
+          title={settingsFeedTitle}
           generateTitleFromSummary={settingsGenerateTitleFromSummary}
           isSaving={isFeedSettingsSaving}
           error={feedSettingsError}
+          onTitleChange={setSettingsFeedTitle}
           onGenerateTitleFromSummaryChange={setSettingsGenerateTitleFromSummary}
           onSave={() => void saveFeedSettings()}
           onClose={() => setSettingsFeed(null)}
