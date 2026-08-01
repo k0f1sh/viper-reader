@@ -76,7 +76,7 @@ for (const id of allItemIds.slice(1, 5)) setThreadRead(id, true);
 for (const id of [allItemIds[0], allItemIds[5], allItemIds[10]]) setThreadFavorite(id, true);
 
 db.prepare("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)")
-  .run("threadListHeight", "42", new Date().toISOString());
+  .run("threadListHeight", "32", new Date().toISOString());
 db.close();
 process.stdout.write(`${databasePath}\n`);
 
