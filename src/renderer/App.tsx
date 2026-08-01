@@ -584,6 +584,8 @@ export function App() {
 
       if (document.querySelector("[role='dialog']")) return;
 
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+
       if (event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "j" || event.key === "k")) {
         if (!document.querySelector("[role='dialog']")) {
           scrollPosts(event.key === "j" ? 1 : -1);
@@ -592,7 +594,7 @@ export function App() {
         return;
       }
 
-      if (target?.matches("input, textarea, select, [contenteditable='true']") || primaryModifier || event.altKey) return;
+      if (primaryModifier || event.altKey) return;
       const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
       if (event.key === " " && threadViewMode !== "replies") {
         event.preventDefault();

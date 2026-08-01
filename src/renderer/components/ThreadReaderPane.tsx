@@ -288,7 +288,8 @@ export function ThreadReaderPane({
                       ? "レス生成中は書き込めません"
                       : "本文（Ctrl+Enterで書き込み）"
                   }
-                  disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
+                  readOnly={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
+                  aria-disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                       onPostMessage(event as unknown as FormEvent);
