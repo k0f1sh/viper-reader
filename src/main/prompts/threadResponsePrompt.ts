@@ -20,7 +20,7 @@ import { BOARD_ID_FORMAT_DESC, BOARD_NG_RULES, BOARD_STYLE_RULES } from "./board
 
 export const threadResponsePromptHash = crypto
   .createHash("sha256")
-  .update(`board-thread-response-v19\n${BOARD_SYSTEM_INSTRUCTION}`)
+  .update(`board-thread-response-v20\n${BOARD_SYSTEM_INSTRUCTION}`)
   .digest("hex")
   .slice(0, 16);
 export const defaultResidentPromptHash = "default";
