@@ -10,3 +10,8 @@ export function createSequentialBoardDates(count: number, base = new Date()): st
     formatBoardDate(new Date(base.getTime() + index * 1000))
   );
 }
+
+export function formatLocalDateKey(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

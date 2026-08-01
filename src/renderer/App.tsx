@@ -138,6 +138,7 @@ export function App() {
   const [replyBody, setReplyBody] = useState("");
   const replyDraftsRef = useRef<Map<string, string>>(new Map());
   const [isPosting, setIsPosting] = useState(false);
+  const postingThreadIdRef = useRef<string | null>(null);
   const [postError, setPostError] = useState("");
   const [postStatus, setPostStatus] = useState<"idle" | "writing" | "generating" | "done" | "error">("idle");
   const [popupData, setPopupData] = useState<{
@@ -322,7 +323,13 @@ export function App() {
   useEffect(() => {
     if (!window.viperReader) return;
     return window.viperReader.onPostStatus((data) => {
-      if (data.status === "done" || data.status === "error") setIsPosting(false);
+      if (
+        (data.status === "done" || data.status === "error")
+        && data.threadId === postingThreadIdRef.current
+      ) {
+        postingThreadIdRef.current = null;
+        setIsPosting(false);
+      }
       if (data.threadId !== selectedThreadId) return;
       setPostStatus(data.status);
       if (data.status === "done" || data.status === "error") {
@@ -1330,6 +1337,7 @@ export function App() {
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
     setIsPosting(true);
+    postingThreadIdRef.current = threadId;
     setPostError("");
     setPostStatus("idle");
 
@@ -1364,7 +1372,10 @@ export function App() {
       if (selectedThreadIdRef.current === threadId) {
         setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
       }
-      setIsPosting(false);
+      if (postingThreadIdRef.current === threadId) {
+        postingThreadIdRef.current = null;
+        setIsPosting(false);
+      }
       if (selectedThreadIdRef.current === threadId) {
         setPostStatus("idle");
       }
@@ -1379,6 +1390,7 @@ export function App() {
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
     setIsPosting(true);
+    postingThreadIdRef.current = threadId;
     setPostError("");
 
     const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
@@ -1412,7 +1424,10 @@ export function App() {
       }
     } finally {
       unsubscribePostStatus();
-      setIsPosting(false);
+      if (postingThreadIdRef.current === threadId) {
+        postingThreadIdRef.current = null;
+        setIsPosting(false);
+      }
       setPostStatus("idle");
     }
   }

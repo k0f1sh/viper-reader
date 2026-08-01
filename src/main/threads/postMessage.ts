@@ -14,7 +14,7 @@ import {
 } from "../db/repository.js";
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
-import { formatBoardDate } from "./boardDate.js";
+import { formatBoardDate, formatLocalDateKey } from "./boardDate.js";
 
 type PostStatusCallback = (
   status: "writing" | "generating" | "done" | "error",
@@ -124,7 +124,7 @@ async function completePostGeneration(
 }
 
 function getUserBoardId(): string {
-  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateStr = formatLocalDateKey(new Date());
   const hash = crypto.createHash("sha1").update(`${dateStr}:viper-user-salt`).digest("hex");
   return hash.slice(0, 8);
 }

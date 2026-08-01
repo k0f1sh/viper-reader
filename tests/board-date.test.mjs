@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { createSequentialBoardDates, formatBoardDate } = await import("../dist/main/threads/boardDate.js");
+const { createSequentialBoardDates, formatBoardDate, formatLocalDateKey } = await import("../dist/main/threads/boardDate.js");
 
 test("掲示板日時は実際の曜日と百分の一秒を表示する", () => {
   const date = new Date(2026, 7, 1, 12, 34, 56, 789);
@@ -15,4 +15,8 @@ test("生成レスの日時は基準となる現在時刻からレス順に進�
     "2026/08/01(土) 12:34:57.00",
     "2026/08/01(土) 12:34:58.00"
   ]);
+});
+
+test("日替わりIDの日付キーはローカル日付を使う", () => {
+  assert.equal(formatLocalDateKey(new Date(2026, 7, 1, 0, 0, 0)), "2026-08-01");
 });
