@@ -16,8 +16,9 @@ import { getActiveModel } from "../settings/settingsService.js";
 import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
+import { createSequentialBoardDates } from "../threads/boardDate.js";
 
-const boardReplyPromptVersion = "board-reply-v4";
+const boardReplyPromptVersion = "board-reply-v5";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
@@ -230,7 +231,6 @@ ${latestReplyRule}
     "no": ${params.startNo},
     "name": "名無しさん",
     "mail": "sage",
-    "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS",
     "id": "${BOARD_ID_FORMAT_DESC}",
     "speakerKey": "veteran または anon1 のような話者キー",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
@@ -247,6 +247,7 @@ function validateGeneratedReplyPosts(
   residents: Array<{ key: string; stableUid: string }>
 ): ThreadPost[] {
   const posts: ThreadPost[] = [];
+  const dates = createSequentialBoardDates(maxPosts);
   const residentIds = new Map(residents.map((resident) => [resident.key, resident.stableUid]));
   const anonymousIds = new Map<string, string>();
   let regularCount = 0;
@@ -276,7 +277,7 @@ function validateGeneratedReplyPosts(
       no: startNo + posts.length,
       name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
-      date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
+      date: dates[posts.length],
       id,
       body
     });
@@ -361,11 +362,6 @@ function createLlmLog(params: {
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createFallbackDate(): string {
-  const now = new Date();
-  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}(火) ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}.00`;
 }
 
 function createFallbackId(): string {

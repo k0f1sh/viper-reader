@@ -1,4 +1,5 @@
 import type { ThreadPost } from "../../shared/types.js";
+import { formatBoardDate } from "./boardDate.js";
 
 export const rawTitlePromptHash = "raw-title-v1";
 export const rssSummaryPromptHash = "rss-summary-v1";
@@ -14,7 +15,7 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
     {
       no: 1,
       name: "記事をお送りします＠名無しさん",
-      date: formatBoardDate(fetchedAt),
+      date: formatFetchedAt(fetchedAt),
       id: "RssFetch00",
       body: createFirstPostBody(item.title, item.url, item.rawSummary)
     }
@@ -45,18 +46,10 @@ function normalizeRssBody(rawSummary: string | null): string {
     .trim();
 }
 
-function formatBoardDate(value: string): string {
+function formatFetchedAt(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const pad = (number: number, length = 2) => String(number).padStart(length, "0");
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${
-    weekdays[date.getDay()]
-  }) ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
-    date.getMilliseconds(),
-    3
-  )}`;
+  return formatBoardDate(date);
 }

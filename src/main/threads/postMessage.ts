@@ -14,6 +14,7 @@ import {
 } from "../db/repository.js";
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
+import { formatBoardDate } from "./boardDate.js";
 
 type PostStatusCallback = (
   status: "writing" | "generating" | "done" | "error",
@@ -126,19 +127,6 @@ function getUserBoardId(): string {
   const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const hash = crypto.createHash("sha1").update(`${dateStr}:viper-user-salt`).digest("hex");
   return hash.slice(0, 8);
-}
-
-function formatBoardDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const days = ["日", "月", "火", "水", "木", "金", "土"];
-  const day = days[date.getDay()];
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const ss = String(date.getSeconds()).padStart(2, "0");
-  const ms = String(Math.floor(date.getMilliseconds() / 10)).padStart(2, "0");
-  return `${y}/${m}/${d}(${day}) ${hh}:${mm}:${ss}.${ms}`;
 }
 
 export async function generateRepliesOnly(
