@@ -2,8 +2,6 @@ import type { DatabaseSync } from "node:sqlite";
 import { seedFeeds } from "../../shared/seedData.js";
 import { getDatabase } from "./database.js";
 
-const legacySeedThreadIds = ["qiita-1", "qiita-2", "qiita-4", "zenn-1", "personal-1"];
-
 export function initializeRepository(seedDefaultFeeds = true): void {
   const db = getDatabase();
   if (seedDefaultFeeds) seedDatabase(db);
@@ -109,16 +107,10 @@ function seedDatabase(db: DatabaseSync): void {
     `
   );
 
-  const deleteLegacyThread = db.prepare("DELETE FROM feed_items WHERE id = ?");
-
   db.exec("BEGIN");
   try {
     for (const [index, feed] of seedFeeds.entries()) {
       insertFeed.run(feed.id, feed.title, feed.url, now, now, feed.lastFetchedAt, index);
-    }
-
-    for (const threadId of legacySeedThreadIds) {
-      deleteLegacyThread.run(threadId);
     }
 
     db.exec("COMMIT");
