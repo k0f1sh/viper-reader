@@ -29,6 +29,7 @@ import {
 } from "../threads/initialThreadPosts.js";
 import { getDatabase } from "./database.js";
 import { listReplyGenerationRuns, saveGeneratedThreadPosts } from "./threadPostRepository.js";
+import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
 
 export {
   addFeedSource,
@@ -76,6 +77,12 @@ export {
   saveThreadResponsePosts
 } from "./threadPostRepository.js";
 export type { ThreadResponseWrite } from "./threadPostRepository.js";
+export {
+  countAllUnreadArticles,
+  markThreadRead,
+  setThreadFavorite,
+  setThreadRead
+} from "./threadStateRepository.js";
 
 type ThreadRow = {
   id: string;
@@ -1188,15 +1195,6 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
   };
 }
 
-export function countAllUnreadArticles(): number {
-  const row = getDatabase().prepare(`
-    SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
-    FROM feed_items
-    WHERE read_at IS NULL
-  `).get() as { count: number };
-  return Number(row.count);
-}
-
 function rowToRssRefreshRunSummary(row: RssRunRow): RssRefreshRunSummary {
   return {
     id: row.id,
@@ -1460,30 +1458,6 @@ export function getThread(threadId: string): ThreadDetail | null {
   };
 }
 
-export function markThreadRead(threadId: string): void {
-  const db = getDatabase();
-  const now = new Date().toISOString();
-  db.prepare(`
-    UPDATE feed_items
-    SET read_at = COALESCE(read_at, ?), updated_at = ?
-    WHERE COALESCE(NULLIF(canonical_url, ''), url) = (
-      SELECT COALESCE(NULLIF(canonical_url, ''), url) FROM feed_items WHERE id = ?
-    )
-  `).run(now, now, threadId);
-}
-
-export function setThreadRead(threadId: string, isRead: boolean): void {
-  const db = getDatabase();
-  const now = new Date().toISOString();
-  db.prepare(`
-    UPDATE feed_items
-    SET read_at = ?, updated_at = ?
-    WHERE COALESCE(NULLIF(canonical_url, ''), url) = (
-      SELECT COALESCE(NULLIF(canonical_url, ''), url) FROM feed_items WHERE id = ?
-    )
-  `).run(isRead ? now : null, now, threadId);
-}
-
 function seedDatabase(db: DatabaseSync): void {
   const now = new Date().toISOString();
 
@@ -1575,12 +1549,6 @@ function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts
     ),
     ...responsePosts
   ];
-}
-
-export function setThreadFavorite(threadId: string, isFavorite: boolean): void {
-  const db = getDatabase();
-  db.prepare("UPDATE feed_items SET is_favorite = ?, updated_at = ? WHERE id = ?")
-    .run(isFavorite ? 1 : 0, new Date().toISOString(), threadId);
 }
 
 export function listFavoriteThreads(): ThreadListItem[] {
