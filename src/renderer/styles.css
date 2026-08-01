@@ -1687,60 +1687,6 @@ body.is-article-pane-resizing * {
   min-height: 0;
 }
 
-.prompt-versions {
-  max-height: 230px;
-  overflow: auto;
-  padding: 8px;
-  border: 1px solid #808080;
-  background: #efeffc;
-  font-size: 12px;
-}
-
-.prompt-versions-title,
-.prompt-version-heading {
-  font-weight: bold;
-}
-
-.prompt-version-label {
-  margin-top: 6px;
-  color: #000080;
-  font-weight: bold;
-}
-
-.prompt-version {
-  margin-top: 7px;
-  padding: 7px;
-  border: 1px solid #808080;
-  background: #ffffff;
-}
-
-.prompt-version.is-pending {
-  border-color: #000080;
-  background: #ffffe1;
-}
-
-.prompt-version pre {
-  margin: 6px 0;
-  white-space: pre-wrap;
-  font: inherit;
-}
-
-.prompt-version ul {
-  margin: 5px 0 5px 20px;
-  padding: 0;
-}
-
-.prompt-version-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.prompt-version-empty {
-  margin-top: 5px;
-  color: #505050;
-}
-
 .resident-prompts-modal label {
   font-weight: bold;
   color: #000000;
@@ -2094,36 +2040,6 @@ body.is-article-pane-resizing * {
 
 .post-submit-btn:disabled {
   color: #808080;
-}
-
-.reply-run-feedback {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 3px 12px 10px 26px;
-  padding: 4px 6px;
-  border-top: 1px dotted #808080;
-  color: #505050;
-  font-size: 11px;
-}
-
-.reply-run-feedback button {
-  padding: 1px 7px;
-  border: 1px solid #808080;
-  background: #d4d0c8;
-  color: #000000;
-  font: inherit;
-}
-
-.reply-run-feedback button.is-selected {
-  border-color: #000080;
-  background: #000080;
-  color: #ffffff;
-}
-
-.reply-run-feedback .feedback-tag {
-  background: #ffffff;
 }
 
 .post-no {

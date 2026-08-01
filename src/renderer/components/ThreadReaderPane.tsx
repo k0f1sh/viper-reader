@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import type { ReplyRating, ThreadDetail } from "../../shared/types";
+import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
 
 type ThreadReaderPaneProps = {
@@ -25,7 +25,6 @@ type ThreadReaderPaneProps = {
   onReplyNameChange: (value: string) => void;
   onReplyMailChange: (value: string) => void;
   onReplyBodyChange: (value: string) => void;
-  onRateReplyRun: (runId: string, rating: ReplyRating, tags: string[]) => void;
   onReplyToPost: (postNo: number) => void;
   onScrollToPost: (postNo: number) => void;
   onPostNoMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
@@ -62,7 +61,6 @@ export function ThreadReaderPane({
   onReplyNameChange,
   onReplyMailChange,
   onReplyBodyChange,
-  onRateReplyRun,
   onReplyToPost,
   onScrollToPost,
   onPostNoMouseEnter,
@@ -187,12 +185,6 @@ export function ThreadReaderPane({
                     onAnchorMouseLeave={onAnchorMouseLeave}
                     onReplyToPost={onReplyToPost}
                   />
-                  {selectedThread.replyRuns.find((run) => run.endNo === post.no) ? (
-                    <ReplyRunFeedback
-                      run={selectedThread.replyRuns.find((run) => run.endNo === post.no)!}
-                      onRate={onRateReplyRun}
-                    />
-                  ) : null}
                 </Fragment>
               );
             })}
@@ -390,35 +382,6 @@ function FragmentPost({
         </div>
       ) : null}
     </>
-  );
-}
-
-const feedbackTagOptions = [
-  ["off_topic", "話が噛み合わない"],
-  ["repetitive", "同じノリ"],
-  ["shallow", "技術的に薄い"],
-  ["weak_style", "掲示板らしさが弱い"],
-  ["verbose", "くどい"]
-] as const;
-
-function ReplyRunFeedback({
-  run,
-  onRate
-}: {
-  run: ThreadDetail["replyRuns"][number];
-  onRate: (runId: string, rating: ReplyRating, tags: string[]) => void;
-}) {
-  return (
-    <div className="reply-run-feedback" aria-label="生成されたレスを評価">
-      <span>この流れ:</span>
-      <button className={run.rating === "good" ? "is-selected" : ""} onClick={() => onRate(run.id, "good", [])} type="button">良い</button>
-      <button className={run.rating === "poor" ? "is-selected" : ""} onClick={() => onRate(run.id, "poor", run.feedbackTags)} type="button">微妙</button>
-      {run.rating === "poor" ? feedbackTagOptions.map(([value, label]) => {
-        const selected = run.feedbackTags.includes(value);
-        const nextTags = selected ? run.feedbackTags.filter((tag) => tag !== value) : [...run.feedbackTags, value];
-        return <button className={`feedback-tag ${selected ? "is-selected" : ""}`} key={value} onClick={() => onRate(run.id, "poor", nextTags)} type="button">{label}</button>;
-      }) : null}
-    </div>
   );
 }
 

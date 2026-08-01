@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, ReplyRating, ResidentPromptVersion, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -110,8 +110,6 @@ export function App() {
   const [promptText, setPromptText] = useState("");
   const [isPromptLoading, setIsPromptLoading] = useState(false);
   const [promptStatusMessage, setPromptStatusMessage] = useState("");
-  const [promptVersions, setPromptVersions] = useState<ResidentPromptVersion[]>([]);
-  const [hasPromptProposal, setHasPromptProposal] = useState(false);
   const [threadListHeight, setThreadListHeight] = useState(42);
   const [feedPaneWidth, setFeedPaneWidth] = useState(248);
   const [feedTreeHeight, setFeedTreeHeight] = useState(300);
@@ -148,7 +146,6 @@ export function App() {
   } | null>(null);
   const [replyModel, setReplyModel] = useState("gemini-3.6-flash");
   const [titleModel, setTitleModel] = useState("gemini-3.5-flash-lite");
-  const [optimizerModel, setOptimizerModel] = useState("gemini-3.6-flash");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
@@ -348,17 +345,6 @@ export function App() {
   }, [selectedThreadId]);
 
   useEffect(() => {
-    if (!window.viperReader) return;
-    return window.viperReader.onPromptProposalReady((data) => {
-      setHasPromptProposal(true);
-      setPromptStatusMessage("新しい住民プロンプト改善案ができました");
-      if (isResidentPromptsOpen && data.feedId === promptTargetFeedId) {
-        void window.viperReader?.listResidentPromptVersions(data.feedId).then(setPromptVersions);
-      }
-    });
-  }, [isResidentPromptsOpen, promptTargetFeedId]);
-
-  useEffect(() => {
     if (!window.viperReader) {
       return;
     }
@@ -436,8 +422,6 @@ export function App() {
     ]);
     setFeedList(nextFeeds);
     setAllUnreadCount(nextAllUnreadCount);
-    const versionGroups = await Promise.all(nextFeeds.map((feed) => window.viperReader!.listResidentPromptVersions(feed.id)));
-    setHasPromptProposal(versionGroups.some((versions) => versions.some((version) => version.status === "pending")));
     void reloadQueueSummary();
 
     setSelectedFeedId((currentFeedId) =>
@@ -678,13 +662,12 @@ export function App() {
     }
 
     try {
-      const [height, widthsV3Json, widthsV2Json, model, savedTitleModel, savedOptimizerModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
+      const [height, widthsV3Json, widthsV2Json, model, savedTitleModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidthsV3"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
         window.viperReader.getUserSetting("replyModel"),
         window.viperReader.getUserSetting("titleModel"),
-        window.viperReader.getUserSetting("optimizerModel"),
         window.viperReader.getUserSetting("feedPaneWidth"),
         window.viperReader.getUserSetting("feedTreeHeight"),
         window.viperReader.getUserSetting("articlePaneWidth"),
@@ -702,10 +685,6 @@ export function App() {
       if (savedTitleModel) {
         setTitleModel(savedTitleModel);
       }
-      if (savedOptimizerModel) {
-        setOptimizerModel(savedOptimizerModel);
-      }
-
       if (savedFeedPaneWidth) {
         const width = Number.parseFloat(savedFeedPaneWidth);
         if (Number.isFinite(width)) {
@@ -739,18 +718,16 @@ export function App() {
     }
   }
 
-  async function saveModelSettings(models: { titleModel: string; replyModel: string; optimizerModel: string }) {
+  async function saveModelSettings(models: { titleModel: string; replyModel: string }) {
     if (!window.viperReader) return;
     setIsModelSettingsSaving(true);
     try {
       await Promise.all([
         window.viperReader.saveUserSetting("titleModel", models.titleModel),
-        window.viperReader.saveUserSetting("replyModel", models.replyModel),
-        window.viperReader.saveUserSetting("optimizerModel", models.optimizerModel)
+        window.viperReader.saveUserSetting("replyModel", models.replyModel)
       ]);
       setTitleModel(models.titleModel);
       setReplyModel(models.replyModel);
-      setOptimizerModel(models.optimizerModel);
       setIsModelSettingsOpen(false);
     } catch (err) {
       console.error("モデル設定の保存に失敗しました:", err);
@@ -990,14 +967,9 @@ export function App() {
 
     setIsPromptLoading(true);
     setPromptStatusMessage("");
-    void Promise.all([
-      window.viperReader.getFeedResidentPrompt(promptTargetFeedId),
-      window.viperReader.listResidentPromptVersions(promptTargetFeedId)
-    ])
-      .then(([res, versions]) => {
+    void window.viperReader.getFeedResidentPrompt(promptTargetFeedId)
+      .then((res) => {
         setPromptText(res?.prompt ?? "");
-        setPromptVersions(versions);
-        setHasPromptProposal(versions.some((version) => version.status === "pending"));
       })
       .catch((err) => {
         setPromptStatusMessage(err instanceof Error ? `読込失敗: ${err.message}` : "読込失敗");
@@ -1028,8 +1000,6 @@ export function App() {
         await window.viperReader.saveFeedResidentPrompt(promptTargetFeedId, promptText);
         setPromptStatusMessage("保存しました");
       }
-      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
-      setHasPromptProposal(false);
       await reloadFeeds();
     } catch (err) {
       setPromptStatusMessage(err instanceof Error ? `保存失敗: ${err.message}` : "保存失敗");
@@ -1049,54 +1019,11 @@ export function App() {
       await window.viperReader.clearFeedResidentPrompt(promptTargetFeedId);
       setPromptText("");
       setPromptStatusMessage("クリアしました（デフォルトに戻りました）");
-      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
-      setHasPromptProposal(false);
       await reloadFeeds();
     } catch (err) {
       setPromptStatusMessage(err instanceof Error ? `クリア失敗: ${err.message}` : "クリア失敗");
     } finally {
       setIsPromptLoading(false);
-    }
-  }
-
-  async function reviewPromptVersion(id: string, decision: "active" | "rejected") {
-    if (!window.viperReader || !promptTargetFeedId) return;
-    setIsPromptLoading(true);
-    try {
-      await window.viperReader.reviewResidentPromptVersion(id, decision);
-      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
-      await reloadFeeds();
-      setPromptStatusMessage(decision === "active" ? "改善案を採用しました" : "改善案を却下しました");
-    } catch (err) {
-      setPromptStatusMessage(err instanceof Error ? err.message : "改善案の更新に失敗しました");
-    } finally { setIsPromptLoading(false); }
-  }
-
-  async function rollbackPromptVersion() {
-    if (!window.viperReader || !promptTargetFeedId) return;
-    setIsPromptLoading(true);
-    try {
-      await window.viperReader.rollbackResidentPromptVersion(promptTargetFeedId);
-      setPromptVersions(await window.viperReader.listResidentPromptVersions(promptTargetFeedId));
-      setPromptStatusMessage("一つ前の改善版に戻しました");
-    } catch (err) {
-      setPromptStatusMessage(err instanceof Error ? err.message : "ロールバックに失敗しました");
-    } finally { setIsPromptLoading(false); }
-  }
-
-  async function rateReplyRun(runId: string, rating: ReplyRating, tags: string[]) {
-    if (!window.viperReader || !selectedThread) return;
-    const threadId = selectedThread.id;
-    try {
-      await window.viperReader.rateReplyRun(runId, rating, tags);
-      setSelectedThread((current) => current?.id === threadId ? {
-        ...current,
-        replyRuns: current.replyRuns.map((run) => run.id === runId ? { ...run, rating, feedbackTags: tags } : run)
-      } : current);
-    } catch (err) {
-      if (selectedThreadIdRef.current === threadId) {
-        setPostError(err instanceof Error ? err.message : "レス評価の保存に失敗しました。");
-      }
     }
   }
 
@@ -1795,7 +1722,6 @@ export function App() {
         onOpenModelSettings={() => setIsModelSettingsOpen(true)}
         onOpenStatistics={openStatistics}
         onOpenResidentPrompts={openResidentPrompts}
-        hasPromptProposal={hasPromptProposal}
       />
 
       <div
@@ -1917,7 +1843,6 @@ export function App() {
                   onReplyNameChange={setReplyName}
                   onReplyMailChange={setReplyMail}
                   onReplyBodyChange={setReplyBody}
-                  onRateReplyRun={(runId, rating, tags) => void rateReplyRun(runId, rating, tags)}
                   onReplyToPost={replyToPost}
                   onScrollToPost={scrollToPost}
                   onPostNoMouseEnter={handlePostNoMouseEnter}
@@ -2004,7 +1929,6 @@ export function App() {
         <ModelSettingsModal
           titleModel={titleModel}
           replyModel={replyModel}
-          optimizerModel={optimizerModel}
           isSaving={isModelSettingsSaving}
           onSave={(models) => void saveModelSettings(models)}
           onClose={() => setIsModelSettingsOpen(false)}
@@ -2018,13 +1942,10 @@ export function App() {
           promptText={promptText}
           isPromptLoading={isPromptLoading}
           promptStatusMessage={promptStatusMessage}
-          promptVersions={promptVersions}
           onPromptTargetFeedIdChange={setPromptTargetFeedId}
           onPromptTextChange={setPromptText}
           onSavePrompt={() => void savePrompt()}
           onClearPrompt={() => void clearPrompt()}
-          onReviewPromptVersion={(id, decision) => void reviewPromptVersion(id, decision)}
-          onRollbackPromptVersion={() => void rollbackPromptVersion()}
           onClose={() => setIsResidentPromptsOpen(false)}
         />
       ) : null}

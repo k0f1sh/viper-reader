@@ -32,11 +32,7 @@ import {
 import {
   clearFeedResidentPrompt,
   getFeedResidentPrompt,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveFeedResidentPrompt,
-  saveReplyFeedback
+  saveFeedResidentPrompt
 } from "./db/residentPromptRepository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
@@ -51,11 +47,10 @@ import {
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
-import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
 import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
-import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
+import type { ArticleBrowserBounds, ShowArticleBrowserRequest } from "../shared/types.js";
 import { sendIfAvailable } from "./ipc/safeSender.js";
 import {
   assertArticleBrowserBounds,
@@ -63,8 +58,6 @@ import {
   assertHttpUrl,
   assertIdentifier,
   assertPage,
-  assertPromptDecision,
-  assertReplyRating,
   assertShowArticleBrowserRequest,
   assertString,
   assertStringArray
@@ -325,30 +318,6 @@ ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: st
 ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
   return clearFeedResidentPrompt(feedId);
-});
-ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
-  assertIdentifier(runId, "reply run ID");
-  assertReplyRating(rating);
-  assertStringArray(tags, "feedback tags", { maxItems: 50, maxItemLength: 100 });
-  const feedId = saveReplyFeedback(runId, rating, tags);
-  void maybeCreatePromptProposal(feedId).then((versionId) => {
-    if (versionId) {
-      sendIfAvailable(event.sender, "feeds:prompt-proposal-ready", { feedId, versionId });
-    }
-  }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
-});
-ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => {
-  assertIdentifier(feedId, "feed ID");
-  return listResidentPromptVersions(feedId);
-});
-ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => {
-  assertIdentifier(id, "prompt version ID");
-  assertPromptDecision(decision);
-  return reviewResidentPromptVersion(id, decision);
-});
-ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => {
-  assertIdentifier(feedId, "feed ID");
-  return rollbackResidentPromptVersion(feedId);
 });
 ipcMain.handle("settings:get", (_event, key: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });

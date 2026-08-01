@@ -4,7 +4,6 @@ type MenuBarProps = {
   onOpenModelSettings: () => void;
   onOpenStatistics: () => void;
   onOpenResidentPrompts: () => void;
-  hasPromptProposal: boolean;
 };
 
 export function MenuBar({
@@ -12,8 +11,7 @@ export function MenuBar({
   onOpenBrowserSettings,
   onOpenModelSettings,
   onOpenStatistics,
-  onOpenResidentPrompts,
-  hasPromptProposal
+  onOpenResidentPrompts
 }: MenuBarProps) {
   return (
     <nav className="menu-bar" aria-label="メニュー">
@@ -30,7 +28,7 @@ export function MenuBar({
         統計情報
       </button>
       <button className="menu-item" onClick={onOpenResidentPrompts} type="button">
-        住民設定{hasPromptProposal ? " (改善案あり)" : ""}
+        住民設定
       </button>
     </nav>
   );

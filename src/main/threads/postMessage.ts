@@ -8,9 +8,7 @@ import {
   saveGeneratedThreadPosts,
   getArticleBody,
   getArticleSummary,
-  saveArticleSummary,
-  markLatestReplyRunContinued,
-  recordReplyGenerationRun
+  saveArticleSummary
 } from "../db/repository.js";
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -79,7 +77,6 @@ export async function postThreadMessage(
       uid,
       body: body
     });
-    markLatestReplyRunContinued(threadId, "user");
 
     // 最新状態を取得
     const updatedThread = getThread(threadId);
@@ -156,7 +153,6 @@ export async function generateRepliesOnly(
     }
 
     onStatus?.("generating");
-    markLatestReplyRunContinued(threadId, "thread");
     await generateAndSaveReplies(threadId, thread, "continue_thread");
     onStatus?.("done");
   } catch (error) {
@@ -216,17 +212,6 @@ async function generateAndSaveReplies(
   const postsToSave = fitPostsUnderLimit(aiResult.posts, maxNo);
   if (postsToSave.length > 0) {
     saveGeneratedThreadPosts(threadId, postsToSave);
-    recordReplyGenerationRun({
-      id: `reply-run:${crypto.randomUUID()}`,
-      feedId: thread.feedId,
-      threadId,
-      mode,
-      model: aiResult.model,
-      promptVersionId: aiResult.promptVersionId,
-      promptHash: aiResult.promptHash,
-      startNo: postsToSave[0].no,
-      endNo: postsToSave[postsToSave.length - 1].no
-    });
   }
 }
 

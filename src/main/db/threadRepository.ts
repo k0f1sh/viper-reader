@@ -18,7 +18,7 @@ import {
   rssSummaryPromptHash
 } from "../threads/initialThreadPosts.js";
 import { getDatabase } from "./database.js";
-import { listReplyGenerationRuns, saveGeneratedThreadPosts } from "./threadPostRepository.js";
+import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
 type ThreadRow = {
   id: string;
@@ -427,8 +427,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     return {
       ...listItem,
       responseCount: posts.length,
-      posts,
-      replyRuns: listReplyGenerationRuns(threadId)
+      posts
     };
   }
 
@@ -490,8 +489,7 @@ export function getThread(threadId: string): ThreadDetail | null {
   return {
     ...listItem,
     responseCount: initialPosts.length,
-    posts: initialPosts,
-    replyRuns: listReplyGenerationRuns(threadId)
+    posts: initialPosts
   };
 }
 

@@ -3,9 +3,8 @@ import { useState } from "react";
 type ModelSettingsModalProps = {
   titleModel: string;
   replyModel: string;
-  optimizerModel: string;
   isSaving: boolean;
-  onSave: (models: { titleModel: string; replyModel: string; optimizerModel: string }) => void;
+  onSave: (models: { titleModel: string; replyModel: string }) => void;
   onClose: () => void;
 };
 
@@ -19,14 +18,12 @@ const modelOptions = [
 export function ModelSettingsModal({
   titleModel,
   replyModel,
-  optimizerModel,
   isSaving,
   onSave,
   onClose
 }: ModelSettingsModalProps) {
   const [draftTitleModel, setDraftTitleModel] = useState(titleModel);
   const [draftReplyModel, setDraftReplyModel] = useState(replyModel);
-  const [draftOptimizerModel, setDraftOptimizerModel] = useState(optimizerModel);
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -41,8 +38,7 @@ export function ModelSettingsModal({
             event.preventDefault();
             onSave({
               titleModel: draftTitleModel,
-              replyModel: draftReplyModel,
-              optimizerModel: draftOptimizerModel
+              replyModel: draftReplyModel
             });
           }}
         >
@@ -50,7 +46,6 @@ export function ModelSettingsModal({
             <legend>用途ごとの Gemini モデル</legend>
             <ModelSelect label="スレタイ生成" value={draftTitleModel} onChange={setDraftTitleModel} />
             <ModelSelect label="レス生成" value={draftReplyModel} onChange={setDraftReplyModel} />
-            <ModelSelect label="自動改善" value={draftOptimizerModel} onChange={setDraftOptimizerModel} />
             <p className="settings-help">変更後に新しく実行する生成から適用されます。生成済みキャッシュはそのまま保持されます。</p>
           </fieldset>
           <div className="settings-buttons">

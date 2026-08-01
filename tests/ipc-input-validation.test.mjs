@@ -7,8 +7,6 @@ const {
   assertHttpUrl,
   assertIdentifier,
   assertPage,
-  assertPromptDecision,
-  assertReplyRating,
   assertShowArticleBrowserRequest,
   assertString,
   assertStringArray
@@ -45,7 +43,7 @@ test("外部URLは認証情報のないHTTPまたはHTTPSだけを許可する",
   }
 });
 
-test("IPCの配列と列挙値に件数・長さ・候補制限を適用する", () => {
+test("IPCの配列に件数・長さ制限を適用する", () => {
   assert.doesNotThrow(() =>
     assertStringArray(["a", "b"], "tags", { maxItems: 2, maxItemLength: 1 })
   );
@@ -57,10 +55,6 @@ test("IPCの配列と列挙値に件数・長さ・候補制限を適用する",
     () => assertStringArray(["ab"], "tags", { maxItems: 2, maxItemLength: 1 }),
     /Invalid tags/
   );
-  assert.doesNotThrow(() => assertReplyRating("good"));
-  assert.throws(() => assertReplyRating("average"), /Invalid reply rating/);
-  assert.doesNotThrow(() => assertPromptDecision("active"));
-  assert.throws(() => assertPromptDecision("pending"), /Invalid prompt decision/);
 });
 
 test("記事ブラウザ要求はURL・ID・矩形・フラグをまとめて検証する", () => {

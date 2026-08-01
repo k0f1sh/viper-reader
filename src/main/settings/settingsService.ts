@@ -6,15 +6,12 @@ const activeModelSettingKey = "replyModel";
 const defaultActiveModel = "gemini-3.6-flash";
 const titleModelSettingKey = "titleModel";
 const defaultTitleModel = "gemini-3.5-flash-lite";
-const optimizerModelSettingKey = "optimizerModel";
-const defaultOptimizerModel = "gemini-3.6-flash";
 const geminiApiKeySettingKey = "geminiApiKey";
 const encryptedSettingPrefix = "safe-storage:v1:";
 const plainTextSettingPrefix = "plain-text:v1:";
 const rendererSettingKeys = new Set([
   "replyModel",
   "titleModel",
-  "optimizerModel",
   "threadColumnWidths",
   "threadColumnWidthsV2",
   "threadColumnWidthsV3",
@@ -104,10 +101,6 @@ export function getActiveModel(): string {
 
 export function getTitleGenerationModel(): string {
   return getUserSetting(titleModelSettingKey) || defaultTitleModel;
-}
-
-export function getPromptOptimizerModel(): string {
-  return getUserSetting(optimizerModelSettingKey) || defaultOptimizerModel;
 }
 
 function readStoredGeminiApiKey(storedValue: string): string {

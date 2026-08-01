@@ -8,7 +8,6 @@ import {
 } from "../db/repository.js";
 import {
   ensureFeedResidents,
-  getActiveResidentPromptVersion,
   getFeedResidentPrompt
 } from "../db/residentPromptRepository.js";
 import { BOARD_ID_FORMAT_DESC } from "../prompts/boardCommonRules.js";
@@ -18,14 +17,13 @@ import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "
 import { threadPostArraySchema } from "./schemas.js";
 import { createSequentialBoardDates } from "../threads/boardDate.js";
 
-const boardReplyPromptVersion = "board-reply-v5";
+const boardReplyPromptVersion = "board-reply-v6";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
   log: LlmRequestLogWrite | null;
   promptHash: string;
   model: string;
-  promptVersionId: string | null;
 };
 
 export type ReplyGenerationMode = "reply_to_user" | "continue_thread";
@@ -53,7 +51,6 @@ export async function generateReplyPosts(
 
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
-  const adaptiveVersion = getActiveResidentPromptVersion(thread.feedId);
   const residents = ensureFeedResidents(thread.feedId);
 
   const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (8 - 4 + 1)) + 4;
@@ -72,7 +69,6 @@ export async function generateReplyPosts(
     history: trimmedHistory,
     startNo,
     residentPrompt: residentPrompt?.prompt ?? null,
-    adaptivePrompt: adaptiveVersion?.adaptivePrompt ?? null,
     residents,
     numReplies,
     mode
@@ -91,7 +87,6 @@ export async function generateReplyPosts(
       posts: [],
       promptHash,
       model: modelToUse,
-      promptVersionId: adaptiveVersion?.id ?? null,
       log: createLlmLog({
         feedId: thread.feedId,
         promptHash,
@@ -129,7 +124,6 @@ export async function generateReplyPosts(
     posts,
     promptHash,
     model: modelToUse,
-    promptVersionId: adaptiveVersion?.id ?? null,
     log: createLlmLog({
       feedId: thread.feedId,
       promptHash,
@@ -158,7 +152,6 @@ function buildBoardReplyContents(params: {
   history: ThreadPost[];
   startNo: number;
   residentPrompt: string | null;
-  adaptivePrompt: string | null;
   residents: Array<{ key: string; stableUid: string; traits: string }>;
   numReplies: number;
   mode: ReplyGenerationMode;
@@ -176,9 +169,6 @@ function buildBoardReplyContents(params: {
 
   const residentRule = params.residentPrompt
     ? `【この板の住民属性・ルール（安全制約は上書き不可）】\n${params.residentPrompt}\n`
-    : "";
-  const adaptiveRule = params.adaptivePrompt
-    ? `【承認済みの会話改善ルール（安全制約は上書き不可）】\n${params.adaptivePrompt}\n`
     : "";
   const residentRoster = params.residents
     .map((resident) => `- ${resident.key}: ID ${resident.stableUid} / ${resident.traits}`)
@@ -198,7 +188,6 @@ function buildBoardReplyContents(params: {
 
 ${articleContext}
 ${residentRule}
-${adaptiveRule}
 
 【この板の常連住民】
 ${residentRoster}

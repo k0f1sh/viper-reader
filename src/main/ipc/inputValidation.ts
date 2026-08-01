@@ -1,6 +1,5 @@
 import type {
   ArticleBrowserBounds,
-  ReplyRating,
   ShowArticleBrowserRequest
 } from "../../shared/types.js";
 
@@ -64,20 +63,6 @@ export function assertStringArray(
     || value.some((item) => typeof item !== "string" || item.length > options.maxItemLength)
   ) {
     throw new Error(`Invalid ${fieldName}.`);
-  }
-}
-
-export function assertReplyRating(value: unknown): asserts value is ReplyRating {
-  if (value !== "good" && value !== "poor") {
-    throw new Error("Invalid reply rating.");
-  }
-}
-
-export function assertPromptDecision(
-  value: unknown
-): asserts value is "active" | "rejected" {
-  if (value !== "active" && value !== "rejected") {
-    throw new Error("Invalid prompt decision.");
   }
 }
 

@@ -20,15 +20,8 @@ export {
 export {
   clearFeedResidentPrompt,
   ensureFeedResidents,
-  getActiveResidentPromptVersion,
   getFeedResidentPrompt,
-  getPromptOptimizationEvidence,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveFeedResidentPrompt,
-  saveReplyFeedback,
-  saveResidentPromptProposal
+  saveFeedResidentPrompt
 } from "./residentPromptRepository.js";
 export type { FeedResident } from "./residentPromptRepository.js";
 export {
@@ -45,10 +38,7 @@ export {
   startThreadGenerationAttempt
 } from "./threadGenerationRepository.js";
 export {
-  listReplyGenerationRuns,
-  markLatestReplyRunContinued,
   postUserMessage,
-  recordReplyGenerationRun,
   saveGeneratedThreadPosts,
   saveThreadResponsePosts
 } from "./threadPostRepository.js";
