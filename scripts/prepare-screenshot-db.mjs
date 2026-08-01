@@ -77,6 +77,8 @@ for (const id of [allItemIds[0], allItemIds[5], allItemIds[10]]) setThreadFavori
 
 db.prepare("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)")
   .run("threadListHeight", "32", new Date().toISOString());
+db.prepare("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)")
+  .run("threadColumnWidthsV3", JSON.stringify([44, 480, 130, 220, 54, 126, 180]), new Date().toISOString());
 db.close();
 process.stdout.write(`${databasePath}\n`);
 
