@@ -1,6 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM, VirtualConsole } from "jsdom";
-import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
+import { ARTICLE_FETCH_USER_AGENT } from "../network/httpIdentity.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { checkRobotsTxt } from "./robotsTxtChecker.js";
 
@@ -43,7 +43,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
   try {
     const response = await safeFetch(targetUrl, {
       headers: {
-        "User-Agent": CHROME_USER_AGENT
+        "User-Agent": ARTICLE_FETCH_USER_AGENT
       },
       timeoutMs: 10_000
     });

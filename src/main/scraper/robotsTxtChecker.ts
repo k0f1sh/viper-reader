@@ -1,5 +1,5 @@
 import _robotsParser from "robots-parser";
-import { CHROME_USER_AGENT } from "../network/httpIdentity.js";
+import { ARTICLE_FETCH_USER_AGENT } from "../network/httpIdentity.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 
 // CommonJSのデフォルトエクスポート型定義を補正
@@ -29,7 +29,7 @@ export async function checkRobotsTxt(targetUrl: string): Promise<RobotsCheckResu
     try {
       response = await safeFetch(robotsUrl, {
         headers: {
-          "User-Agent": CHROME_USER_AGENT
+          "User-Agent": ARTICLE_FETCH_USER_AGENT
         },
         timeoutMs: 5_000
       });

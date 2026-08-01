@@ -54,7 +54,7 @@ import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
 import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
-import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
+import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
 import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
 import { sendIfAvailable } from "./ipc/safeSender.js";
 import {
@@ -393,7 +393,7 @@ void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   initializeRepository(screenshotPath === null);
   articleSession = session.fromPartition("viper-reader-articles", { cache: false });
-  articleSession.setUserAgent(CHROME_USER_AGENT);
+  articleSession.setUserAgent(ARTICLE_BROWSER_USER_AGENT);
   articleSession.setPermissionCheckHandler(() => false);
   articleSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   articleBlocker = new ArticleBlocker(articleSession);
