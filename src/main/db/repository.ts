@@ -56,6 +56,12 @@ export {
   saveResidentPromptProposal
 } from "./residentPromptRepository.js";
 export type { FeedResident } from "./residentPromptRepository.js";
+export {
+  getArticleBody,
+  getArticleSummary,
+  saveArticleBody,
+  saveArticleSummary
+} from "./articleRepository.js";
 
 type ThreadRow = {
   id: string;
@@ -1715,72 +1721,6 @@ export function postUserMessage(params: {
     params.body,
     now
   );
-}
-
-export function getArticleBody(feedItemId: string): string | null {
-  const db = getDatabase();
-  const row = db
-    .prepare(`
-      SELECT ab.content_text
-      FROM article_bodies ab
-      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
-      INNER JOIN feed_items target_item ON target_item.id = ?
-      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
-        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
-      LIMIT 1
-    `)
-    .get(feedItemId) as { content_text: string } | undefined;
-  return row ? row.content_text : null;
-}
-
-export function saveArticleBody(feedItemId: string, url: string, contentText: string): void {
-  const db = getDatabase();
-  const contentHash = crypto.createHash("sha1").update(contentText).digest("hex");
-  const id = `article-body:${feedItemId}:${contentHash.slice(0, 10)}`;
-  const fetchedAt = new Date().toISOString();
-
-  db.prepare(
-    `
-    INSERT OR REPLACE INTO article_bodies (id, feed_item_id, url, content_text, content_hash, fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    `
-  ).run(id, feedItemId, url, contentText, contentHash, fetchedAt);
-}
-
-export function getArticleSummary(feedItemId: string): string | null {
-  const db = getDatabase();
-  const row = db
-    .prepare(`
-      SELECT ab.summary_text
-      FROM article_bodies ab
-      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
-      INNER JOIN feed_items target_item ON target_item.id = ?
-      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
-        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-        AND ab.summary_text IS NOT NULL
-      ORDER BY ab.fetched_at DESC
-      LIMIT 1
-    `)
-    .get(feedItemId) as { summary_text: string | null } | undefined;
-  return row ? row.summary_text : null;
-}
-
-export function saveArticleSummary(feedItemId: string, summaryText: string): void {
-  const db = getDatabase();
-  db.prepare(`
-    UPDATE article_bodies SET summary_text = ? WHERE id = (
-      SELECT ab.id
-      FROM article_bodies ab
-      INNER JOIN feed_items source_item ON source_item.id = ab.feed_item_id
-      INNER JOIN feed_items target_item ON target_item.id = ?
-      WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
-        = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
-      LIMIT 1
-    )
-  `)
-    .run(summaryText, feedItemId);
 }
 
 export function markThreadRead(threadId: string): void {
