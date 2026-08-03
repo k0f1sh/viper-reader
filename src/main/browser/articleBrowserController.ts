@@ -1,5 +1,5 @@
 import { BrowserWindow, Menu, WebContentsView, shell } from "electron";
-import type { Rectangle, Session } from "electron";
+import type { NativeImage, Rectangle, Session } from "electron";
 import type {
   ArticleBrowserBounds,
   ArticleBrowserState,
@@ -29,7 +29,8 @@ export class ArticleBrowserController {
   constructor(
     private readonly owner: BrowserWindow,
     private readonly articleSession: Session,
-    private readonly blocker: ArticleBlocker
+    private readonly blocker: ArticleBlocker,
+    private readonly screenshotMode = false
   ) {
     this.state = { ...emptyState, blockerStatus: blocker.getStatus() };
     blocker.on("status-changed", () => {
@@ -49,7 +50,7 @@ export class ArticleBrowserController {
 
   show(request: ShowArticleBrowserRequest): ArticleBrowserState {
     const bounds = clampBounds(request.bounds, this.owner.getContentBounds());
-    const safeUrl = parseInternalArticleUrl(request.url);
+    const safeUrl = parseInternalArticleUrl(request.url, this.screenshotMode);
     const isSameThread = this.state.threadId === request.threadId;
     this.isVisible = true;
     this.state = {
@@ -83,7 +84,7 @@ export class ArticleBrowserController {
       return this.state;
     }
 
-    if (!this.blocker.isReady() && !request.allowUnprotected) {
+    if (!this.screenshotMode && !this.blocker.isReady() && !request.allowUnprotected) {
       this.pendingRequest = { ...request, url: safeUrl.toString(), bounds };
       this.hideNativeView();
       this.state = {
@@ -176,6 +177,15 @@ export class ArticleBrowserController {
 
   getState(): ArticleBrowserState {
     return this.state;
+  }
+
+  async capturePageForScreenshot(): Promise<NativeImage> {
+    if (!this.screenshotMode || !this.view || !this.isVisible || this.state.error) {
+      throw new Error("撮影できる内蔵ブラウザ画面がありません。");
+    }
+    const image = await this.view.webContents.capturePage();
+    this.hideNativeView();
+    return image;
   }
 
   destroy(): void {
@@ -281,21 +291,21 @@ export class ArticleBrowserController {
       }
     });
     contents.setWindowOpenHandler((details) => {
-      const safeUrl = parseInternalArticleUrl(details.url);
+      const safeUrl = parseInternalArticleUrl(details.url, this.screenshotMode);
       if (safeUrl && (details.disposition === "foreground-tab" || details.disposition === "background-tab" || details.disposition === "default")) {
         setImmediate(() => void contents.loadURL(safeUrl.toString()));
       }
       return { action: "deny" };
     });
     contents.on("will-navigate", (event, url) => {
-      if (!parseInternalArticleUrl(url)) {
+      if (!parseInternalArticleUrl(url, this.screenshotMode)) {
         event.preventDefault();
         this.state = { ...this.state, error: "HTTPS以外のリンクはアプリ内で開けません。" };
         this.sendState();
       }
     });
     contents.on("will-redirect", (event, url) => {
-      if (!parseInternalArticleUrl(url)) {
+      if (!parseInternalArticleUrl(url, this.screenshotMode)) {
         event.preventDefault();
         this.state = { ...this.state, error: "安全でないリダイレクトを停止しました。" };
         this.hideNativeView();
@@ -415,10 +425,17 @@ export class ArticleBrowserController {
   }
 }
 
-function parseInternalArticleUrl(value: string): URL | null {
+function parseInternalArticleUrl(value: string, allowLoopbackHttp = false): URL | null {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" ? url : null;
+    if (url.protocol === "https:") {
+      return url;
+    }
+    return allowLoopbackHttp
+      && url.protocol === "http:"
+      && (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]")
+      ? url
+      : null;
   } catch {
     return null;
   }

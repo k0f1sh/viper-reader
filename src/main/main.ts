@@ -77,6 +77,13 @@ const screenshotPathArg = process.argv.find((arg) => arg.startsWith("--screensho
 const screenshotPath = screenshotPathArg
   ? path.resolve(screenshotPathArg.substring("--screenshot-path=".length))
   : null;
+const articleBrowserScreenshotPathArg = process.argv.find((arg) =>
+  arg.startsWith("--article-browser-screenshot-path=")
+);
+const articleBrowserScreenshotPath = articleBrowserScreenshotPathArg
+  ? path.resolve(articleBrowserScreenshotPathArg.substring("--article-browser-screenshot-path=".length))
+  : null;
+const isScreenshotMode = screenshotPath !== null || articleBrowserScreenshotPath !== null;
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
@@ -105,8 +112,8 @@ if (process.platform === "linux") {
 
 function createMainWindow(): void {
   const window = new BrowserWindow({
-    width: screenshotPath ? 1600 : 1180,
-    height: screenshotPath ? 1000 : 760,
+    width: isScreenshotMode ? 1600 : 1180,
+    height: isScreenshotMode ? 1000 : 760,
     minWidth: 920,
     minHeight: 600,
     title: appInfo.name,
@@ -123,7 +130,12 @@ function createMainWindow(): void {
   if (!articleSession || !articleBlocker) {
     throw new Error("Article browser services are not initialized.");
   }
-  const articleBrowser = new ArticleBrowserController(window, articleSession, articleBlocker);
+  const articleBrowser = new ArticleBrowserController(
+    window,
+    articleSession,
+    articleBlocker,
+    articleBrowserScreenshotPath !== null
+  );
   const rendererWebContentsId = window.webContents.id;
   articleBrowserControllers.set(rendererWebContentsId, articleBrowser);
   window.once("close", () => {
@@ -148,7 +160,7 @@ function createMainWindow(): void {
   });
 
   void window.loadURL(rendererEntryUrl);
-  if (screenshotPath) {
+  if (isScreenshotMode) {
     window.webContents.once("did-finish-load", () => {
       setTimeout(() => {
         void window.webContents.executeJavaScript(`
@@ -157,10 +169,36 @@ function createMainWindow(): void {
             const generated = rows.find((row) => Number(row.querySelector('.thread-count')?.textContent ?? 0) > 0);
             (generated ?? rows[0])?.click();
           })();
-        `).then(() => new Promise((resolve) => setTimeout(resolve, 2500)))
-          .then(() => window.webContents.capturePage())
-          .then(async (image) => {
-            await writeFile(screenshotPath, image.toPNG());
+        `).then(() => delay(2500))
+          .then(async () => {
+            if (screenshotPath) {
+              const image = await window.capturePage();
+              await writeFile(screenshotPath, image.toPNG());
+            }
+            if (articleBrowserScreenshotPath) {
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const buttons = [...document.querySelectorAll('button')];
+                  buttons.find((button) => button.textContent?.trim() === '元記事')?.click();
+                })();
+              `);
+              await waitForArticleBrowser(articleBrowser);
+              const articleImage = await articleBrowser.capturePageForScreenshot();
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const viewport = document.querySelector('.article-browser-viewport');
+                  if (!viewport) throw new Error('内蔵ブラウザの表示領域が見つかりません。');
+                  const image = document.createElement('img');
+                  image.src = ${JSON.stringify(articleImage.toDataURL())};
+                  image.alt = '';
+                  image.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;object-position:top left';
+                  viewport.replaceChildren(image);
+                })();
+              `);
+              await delay(100);
+              const image = await window.capturePage();
+              await writeFile(articleBrowserScreenshotPath, image.toPNG());
+            }
             app.quit();
           }).catch((error) => {
             console.error("スクリーンショットの保存に失敗しました:", error);
@@ -361,7 +399,7 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  initializeRepository(screenshotPath === null);
+  initializeRepository(!isScreenshotMode);
   articleSession = session.fromPartition("viper-reader-articles", { cache: false });
   articleSession.setUserAgent(ARTICLE_BROWSER_USER_AGENT);
   articleSession.setPermissionCheckHandler(() => false);
@@ -379,6 +417,23 @@ void app.whenReady().then(() => {
     }
   });
 });
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForArticleBrowser(controller: ArticleBrowserController): Promise<void> {
+  const timeoutAt = Date.now() + 10_000;
+  while (Date.now() < timeoutAt) {
+    const state = controller.getState();
+    if (state.threadId && !state.isLoading && !state.error) {
+      await delay(500);
+      return;
+    }
+    await delay(100);
+  }
+  throw new Error("内蔵ブラウザの読み込みがタイムアウトしました。");
+}
 
 function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserController {
   const controller = articleBrowserControllers.get(event.sender.id);
