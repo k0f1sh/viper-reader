@@ -36,7 +36,16 @@ npm install
 npm run dev:app
 ```
 
-Gemini APIキーは、起動後に「設定」から登録できます。環境変数 `GEMINI_API_KEY` または `GOOGLE_API_KEY` も利用できます。
+## Gemini APIキー
+
+スレタイ生成やレス生成などのテキスト生成には Google Gemini（@google/genai）を利用します。キーは次のいずれかで設定してください。
+
+- 環境変数：GEMINI_API_KEY または GOOGLE_API_KEY
+  - macOS / Linux (bash/zsh): `export GEMINI_API_KEY="your_api_key"`
+  - Windows (PowerShell): `setx GEMINI_API_KEY "your_api_key"`
+- アプリ上部の「設定」から登録
+
+キーが未設定だと生成機能は利用できませんが、RSS取得や閲覧など基本機能は引き続き使用できます。
 
 ```bash
 npm test          # テスト
@@ -56,8 +65,8 @@ viper-reader
 - アプリ内データとキャッシュはローカルのSQLiteへ保存します。
 - APIキーはmacOS・WindowsではElectronの `safeStorage` で暗号化します。LinuxではSQLiteへ平文保存するため、共有端末では環境変数を利用してください。
 - 記事本文の取得前にキャッシュを確認し、`robots.txt` による制限を尊重します。
-- Geminiを利用する処理では、記事タイトル・本文・要約、スレッド履歴、ユーザーの書き込み、住民プロンプト、評価対象の生成レスがGoogleのGemini APIへ送信される場合があります。機密情報や個人情報を含む記事・書き込みには使用しないでください。
-- Gemini APIに送信されたデータの取り扱いは、利用するサービスや契約によって異なります。[Gemini APIの利用規約](https://ai.google.dev/gemini-api/terms)と[不正利用監視に関する説明](https://ai.google.dev/gemini-api/docs/usage-policies)を確認してください。APIの利用料金・割り当ては、ユーザー自身のGoogleアカウントとAPIキーに適用されます。
+- Geminiを利用する処理では、記事タイトル・本文・要約、スレッド履歴、ユーザーの書き込み、住民プロンプト、評価対象の生成レスがGoogleのGemin[...]
+- Gemini APIに送信されたデータの取り扱いは、利用するサービスや契約によって異なります。[Gemini APIの利用規約](https://ai.google.dev/gemini-api/terms)と[��[...] 
 - AIが生成する要約や技術解説には誤りが含まれる可能性があります。重要な判断では、元記事や製品の公式資料を確認してください。
 - 本アプリは個人利用を想定した非公式のパロディツールです。特定の掲示板、まとめサイト、および関連サービスとは関係ありません。
 
