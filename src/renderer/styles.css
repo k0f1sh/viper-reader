@@ -10,13 +10,13 @@
 
 *::-webkit-scrollbar-track {
   background-color: #d4d0c8;
-  background-image:
-    linear-gradient(45deg, #ffffff 25%, transparent 25%),
-    linear-gradient(-45deg, #ffffff 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ffffff 75%),
-    linear-gradient(-45deg, transparent 75%, #ffffff 75%);
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
-  background-size: 8px 8px;
+  background-image: conic-gradient(
+    #ffffff 25%,
+    #d4d0c8 0 50%,
+    #ffffff 0 75%,
+    #d4d0c8 0
+  );
+  background-size: 4px 4px;
   box-shadow: inset 1px 1px #808080;
 }
 
@@ -40,26 +40,33 @@
 }
 
 *::-webkit-scrollbar-button {
-  display: block;
+  display: none;
   width: 16px;
   height: 16px;
   background-repeat: no-repeat;
   background-position: center;
 }
 
-*::-webkit-scrollbar-button:vertical:decrement {
+*::-webkit-scrollbar-button:vertical:decrement:start,
+*::-webkit-scrollbar-button:vertical:increment:end,
+*::-webkit-scrollbar-button:horizontal:decrement:start,
+*::-webkit-scrollbar-button:horizontal:increment:end {
+  display: block;
+}
+
+*::-webkit-scrollbar-button:vertical:decrement:start {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 6h8L4 2z' fill='%23000'/%3E%3C/svg%3E");
 }
 
-*::-webkit-scrollbar-button:vertical:increment {
+*::-webkit-scrollbar-button:vertical:increment:end {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 2h8L4 6z' fill='%23000'/%3E%3C/svg%3E");
 }
 
-*::-webkit-scrollbar-button:horizontal:decrement {
+*::-webkit-scrollbar-button:horizontal:decrement:start {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M6 0v8L2 4z' fill='%23000'/%3E%3C/svg%3E");
 }
 
-*::-webkit-scrollbar-button:horizontal:increment {
+*::-webkit-scrollbar-button:horizontal:increment:end {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M2 0v8l4-4z' fill='%23000'/%3E%3C/svg%3E");
 }
 
