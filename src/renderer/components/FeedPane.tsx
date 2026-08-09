@@ -81,7 +81,7 @@ export function FeedPane({
   useEffect(() => {
     const selectedRow = feedTreeRef.current?.querySelector<HTMLElement>(".feed-row.is-selected");
     selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [selectedFeedId, feeds]);
+  }, [activeSmartView, selectedFeedId, feeds]);
 
   useEffect(() => {
     if (!contextMenu) return;
