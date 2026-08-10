@@ -4,10 +4,12 @@ type FeedSettingsModalProps = {
   feed: FeedSource;
   title: string;
   generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
   isSaving: boolean;
   error: string;
   onTitleChange: (title: string) => void;
   onGenerateTitleFromSummaryChange: (enabled: boolean) => void;
+  onSkipTitleConversionChange: (enabled: boolean) => void;
   onSave: () => void;
   onClose: () => void;
 };
@@ -16,10 +18,12 @@ export function FeedSettingsModal({
   feed,
   title,
   generateTitleFromSummary,
+  skipTitleConversion,
   isSaving,
   error,
   onTitleChange,
   onGenerateTitleFromSummaryChange,
+  onSkipTitleConversionChange,
   onSave,
   onClose
 }: FeedSettingsModalProps) {
@@ -45,8 +49,20 @@ export function FeedSettingsModal({
           <label className="add-feed-checkbox">
             <input
               type="checkbox"
-              checked={generateTitleFromSummary}
+              checked={skipTitleConversion}
               disabled={isSaving}
+              onChange={(event) => onSkipTitleConversionChange(event.target.checked)}
+            />
+            <span>スレタイ変換しない</span>
+          </label>
+          <div className="add-feed-checkbox-help">
+            Geminiによる変換を行わず、RSSの元タイトルをそのまま表示します。
+          </div>
+          <label className="add-feed-checkbox">
+            <input
+              type="checkbox"
+              checked={generateTitleFromSummary}
+              disabled={isSaving || skipTitleConversion}
               onChange={(event) => onGenerateTitleFromSummaryChange(event.target.checked)}
             />
             <span>タイトルではなく本文からスレタイ生成</span>

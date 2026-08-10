@@ -372,11 +372,12 @@ ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => {
   return saveGeminiApiKey(apiKey);
 });
 ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) => {
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => {
   assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertHttpUrl(url, "feed URL");
   assertBoolean(generateTitleFromSummary, "title generation flag");
-  return addFeedSource(title, url, generateTitleFromSummary);
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  return addFeedSource(title, url, generateTitleFromSummary, skipTitleConversion);
 });
 ipcMain.handle("feeds:delete", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
@@ -386,11 +387,12 @@ ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
   assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
 });
-ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean) => {
+ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => {
   assertIdentifier(feedId, "feed ID");
   assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertBoolean(generateTitleFromSummary, "title generation flag");
-  return updateFeedSettings(feedId, title, generateTitleFromSummary);
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  return updateFeedSettings(feedId, title, generateTitleFromSummary, skipTitleConversion);
 });
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   assertHttpUrl(url, "external URL");

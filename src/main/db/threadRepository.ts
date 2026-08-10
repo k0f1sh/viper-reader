@@ -67,14 +67,14 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
         CASE
-          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
           ELSE 'skipped'
         END AS title_generation_status,
@@ -197,14 +197,14 @@ function listAllThreads(
       fi.feed_id,
       fi.title AS original_title,
       fi.url,
-      COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
+      CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
       source_names.source,
       fi.published_at,
       fi.read_at,
       fi.is_favorite,
       fi.generation_status,
       CASE
-        WHEN generated_vt.id IS NOT NULL THEN NULL
+        WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
         WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
         ELSE 'skipped'
       END AS title_generation_status,
@@ -340,14 +340,14 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
         source_names.source,
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
         CASE
-          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
           ELSE 'skipped'
         END AS title_generation_status,
@@ -567,14 +567,14 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        COALESCE(generated_vt.title, raw_vt.title, fi.title) AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
         CASE
-          WHEN generated_vt.id IS NOT NULL THEN NULL
+          WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
           ELSE 'skipped'
         END AS title_generation_status,

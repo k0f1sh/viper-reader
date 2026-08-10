@@ -125,11 +125,13 @@ export function App() {
   const [addFeedTitle, setAddFeedTitle] = useState("");
   const [addFeedUrl, setAddFeedUrl] = useState("");
   const [addFeedGenerateTitleFromSummary, setAddFeedGenerateTitleFromSummary] = useState(false);
+  const [addFeedSkipTitleConversion, setAddFeedSkipTitleConversion] = useState(false);
   const [addFeedError, setAddFeedError] = useState("");
   const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
   const [settingsFeed, setSettingsFeed] = useState<FeedSource | null>(null);
   const [settingsFeedTitle, setSettingsFeedTitle] = useState("");
   const [settingsGenerateTitleFromSummary, setSettingsGenerateTitleFromSummary] = useState(false);
+  const [settingsSkipTitleConversion, setSettingsSkipTitleConversion] = useState(false);
   const [isFeedSettingsSaving, setIsFeedSettingsSaving] = useState(false);
   const [feedSettingsError, setFeedSettingsError] = useState("");
   const [replyName, setReplyName] = useState("");
@@ -181,7 +183,7 @@ export function App() {
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
-    ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false }
+    ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false, skipTitleConversion: false }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
@@ -868,7 +870,8 @@ export function App() {
       const newFeed = await window.viperReader.addFeedSource(
         addFeedTitle.trim(),
         addFeedUrl.trim(),
-        addFeedGenerateTitleFromSummary
+        addFeedGenerateTitleFromSummary,
+        addFeedSkipTitleConversion
       );
       setFeedList((current) => [...current, newFeed]);
       setSelectedFeedId(newFeed.id);
@@ -876,6 +879,7 @@ export function App() {
       setAddFeedTitle("");
       setAddFeedUrl("");
       setAddFeedGenerateTitleFromSummary(false);
+      setAddFeedSkipTitleConversion(false);
     } catch (err) {
       setAddFeedError(err instanceof Error ? err.message : "追加に失敗しました。");
     } finally {
@@ -925,6 +929,7 @@ export function App() {
     setSettingsFeed(feed);
     setSettingsFeedTitle(feed.title);
     setSettingsGenerateTitleFromSummary(feed.generateTitleFromSummary);
+    setSettingsSkipTitleConversion(feed.skipTitleConversion);
     setFeedSettingsError("");
   }
 
@@ -936,9 +941,14 @@ export function App() {
       const updated = await window.viperReader.updateFeedSettings(
         settingsFeed.id,
         settingsFeedTitle,
-        settingsGenerateTitleFromSummary
+        settingsGenerateTitleFromSummary,
+        settingsSkipTitleConversion
       );
       setFeedList((current) => current.map((feed) => feed.id === updated.id ? updated : feed));
+      await reloadCurrentThreadList(selectedThreadIdRef.current);
+      if (selectedThreadIdRef.current) {
+        setSelectedThread(await window.viperReader.getThread(selectedThreadIdRef.current));
+      }
       setSettingsFeed(null);
     } catch (err) {
       setFeedSettingsError(err instanceof Error ? err.message : "設定の保存に失敗しました。");
@@ -1829,6 +1839,7 @@ export function App() {
                   isSelectedThreadGenerating={isSelectedThreadGenerating}
                   generationProgressMessage={selectedThread ? threadGenerationProgress.get(selectedThread.id) ?? "" : ""}
                   isRegeneratingTitle={isRegeneratingSelectedTitle}
+                  skipTitleConversion={feedList.find((feed) => feed.id === selectedThread?.feedId)?.skipTitleConversion ?? false}
                   isPosting={isPosting}
                   postStatus={postStatus}
                   postError={postError}
@@ -1959,10 +1970,12 @@ export function App() {
           addFeedUrl={addFeedUrl}
           addFeedError={addFeedError}
           generateTitleFromSummary={addFeedGenerateTitleFromSummary}
+          skipTitleConversion={addFeedSkipTitleConversion}
           isAddFeedLoading={isAddFeedLoading}
           onTitleChange={setAddFeedTitle}
           onUrlChange={setAddFeedUrl}
           onGenerateTitleFromSummaryChange={setAddFeedGenerateTitleFromSummary}
+          onSkipTitleConversionChange={setAddFeedSkipTitleConversion}
           onAddFeed={() => void addFeed()}
           onClose={() => setIsAddFeedOpen(false)}
         />
@@ -1973,10 +1986,12 @@ export function App() {
           feed={settingsFeed}
           title={settingsFeedTitle}
           generateTitleFromSummary={settingsGenerateTitleFromSummary}
+          skipTitleConversion={settingsSkipTitleConversion}
           isSaving={isFeedSettingsSaving}
           error={feedSettingsError}
           onTitleChange={setSettingsFeedTitle}
           onGenerateTitleFromSummaryChange={setSettingsGenerateTitleFromSummary}
+          onSkipTitleConversionChange={setSettingsSkipTitleConversion}
           onSave={() => void saveFeedSettings()}
           onClose={() => setSettingsFeed(null)}
         />

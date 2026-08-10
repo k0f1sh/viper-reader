@@ -8,6 +8,7 @@ type ThreadReaderPaneProps = {
   isSelectedThreadGenerating: boolean;
   generationProgressMessage: string;
   isRegeneratingTitle: boolean;
+  skipTitleConversion: boolean;
   isPosting: boolean;
   postStatus: "idle" | "writing" | "generating" | "done" | "error";
   postError: string;
@@ -44,6 +45,7 @@ export function ThreadReaderPane({
   isSelectedThreadGenerating,
   generationProgressMessage,
   isRegeneratingTitle,
+  skipTitleConversion,
   isPosting,
   postStatus,
   postError,
@@ -121,15 +123,17 @@ export function ThreadReaderPane({
               >
                 {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
               </button>
-              <button
-                className="deep-dive-button"
-                onClick={onRegenerateThreadTitle}
-                disabled={isRegeneratingTitle}
-                type="button"
-                title="このスレだけスレタイを再生成"
-              >
-                {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
-              </button>
+              {!skipTitleConversion ? (
+                <button
+                  className="deep-dive-button"
+                  onClick={onRegenerateThreadTitle}
+                  disabled={isRegeneratingTitle}
+                  type="button"
+                  title="このスレだけスレタイを再生成"
+                >
+                  {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
+                </button>
+              ) : null}
               {selectedThread.posts.length <= 1 ? (
                 <button
                   className="deep-dive-button"

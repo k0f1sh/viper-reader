@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS feed_sources (
   updated_at TEXT NOT NULL,
   last_fetched_at TEXT,
   generate_title_from_summary INTEGER NOT NULL DEFAULT 0,
+  skip_title_conversion INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER
 );
 

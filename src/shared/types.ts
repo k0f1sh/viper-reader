@@ -5,6 +5,7 @@ export type FeedSource = {
   unreadCount: number;
   lastFetchedAt: string | null;
   generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
 };
 
 export type ThreadPost = {

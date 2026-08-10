@@ -7,6 +7,7 @@ export const seedFeeds: FeedSource[] = [
     url: "https://b.hatena.ne.jp/hotentry/it.rss",
     unreadCount: 0,
     generateTitleFromSummary: false,
+    skipTitleConversion: false,
     lastFetchedAt: null
   },
   {
@@ -15,6 +16,7 @@ export const seedFeeds: FeedSource[] = [
     url: "https://news.ycombinator.com/rss",
     unreadCount: 0,
     generateTitleFromSummary: false,
+    skipTitleConversion: false,
     lastFetchedAt: null
   },
 ];

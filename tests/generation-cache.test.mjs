@@ -139,6 +139,21 @@ test("スレタイ変換の失敗・未変換を記事単位で保存し、成�
   assert.equal(listThreads("title-status").items[0].titleGenerationStatus, null);
 });
 
+test("スレタイ変換しない板は既存の変換キャッシュがあっても元タイトルを表示する", () => {
+  insertFeed("raw-title-board");
+  insertItem({ id: "raw-title-item", feedId: "raw-title-board" });
+  const promptHash = buildThreadTitlePromptHash(false);
+  const currentTitleModel = getTitleGenerationModel();
+  saveThreadTitles([{ feedItemId: "raw-title-item", title: "変換済みタイトル" }], currentTitleModel, promptHash);
+
+  assert.equal(listThreads("raw-title-board").items[0].threadTitle, "変換済みタイトル");
+  db.prepare("UPDATE feed_sources SET skip_title_conversion = 1 WHERE id = ?").run("raw-title-board");
+
+  const item = listThreads("raw-title-board").items[0];
+  assert.equal(item.threadTitle, "Title raw-title-item");
+  assert.equal(item.titleGenerationStatus, null);
+});
+
 test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {
   assert.notEqual(
     buildThreadTitlePromptHash(false),

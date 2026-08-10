@@ -9,6 +9,7 @@ type FeedRow = {
   unread_count: number;
   last_fetched_at: string | null;
   generate_title_from_summary: number;
+  skip_title_conversion: number;
 };
 
 type FeedSourceRow = {
@@ -17,6 +18,7 @@ type FeedSourceRow = {
   url: string;
   last_fetched_at: string | null;
   generate_title_from_summary: number;
+  skip_title_conversion: number;
 };
 
 export function listFeeds(): FeedSource[] {
@@ -27,6 +29,7 @@ export function listFeeds(): FeedSource[] {
       fs.url,
       fs.last_fetched_at,
       fs.generate_title_from_summary,
+      fs.skip_title_conversion,
       COUNT(CASE WHEN fi.read_at IS NULL THEN 1 END) AS unread_count
     FROM feed_sources fs
     LEFT JOIN feed_items fi ON fi.feed_id = fs.id
@@ -40,14 +43,15 @@ export function listFeeds(): FeedSource[] {
     url: row.url,
     unreadCount: Number(row.unread_count),
     lastFetchedAt: row.last_fetched_at,
-    generateTitleFromSummary: Boolean(row.generate_title_from_summary)
+    generateTitleFromSummary: Boolean(row.generate_title_from_summary),
+    skipTitleConversion: Boolean(row.skip_title_conversion)
   }));
 }
 
 export function getFeedSource(feedId: string): FeedSource | null {
   const db = getDatabase();
   const row = db.prepare(`
-    SELECT id, title, url, last_fetched_at, generate_title_from_summary
+    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion
     FROM feed_sources
     WHERE id = ?
   `).get(feedId) as FeedSourceRow | undefined;
@@ -64,7 +68,8 @@ export function getFeedSource(feedId: string): FeedSource | null {
     url: row.url,
     unreadCount: Number(unreadRow?.unread_count ?? 0),
     lastFetchedAt: row.last_fetched_at,
-    generateTitleFromSummary: Boolean(row.generate_title_from_summary)
+    generateTitleFromSummary: Boolean(row.generate_title_from_summary),
+    skipTitleConversion: Boolean(row.skip_title_conversion)
   };
 }
 
@@ -82,13 +87,17 @@ export function markFeedRead(feedId: string): void {
 export function addFeedSource(
   title: string,
   url: string,
-  generateTitleFromSummary = false
+  generateTitleFromSummary = false,
+  skipTitleConversion = false
 ): FeedSource {
   if (typeof title !== "string" || !title.trim() || title.length > 200 || typeof url !== "string" || url.length > 2048) {
     throw new Error("RSSフィードの入力が不正です。");
   }
   if (typeof generateTitleFromSummary !== "boolean") {
     throw new Error("タイトル生成設定が不正です。");
+  }
+  if (typeof skipTitleConversion !== "boolean") {
+    throw new Error("スレタイ変換設定が不正です。");
   }
 
   let parsedUrl: URL;
@@ -118,9 +127,9 @@ export function addFeedSource(
   ).get() as { next_sort_order: number };
 
   db.prepare(`
-    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0, nextSortOrder.next_sort_order);
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary, skip_title_conversion, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, nextSortOrder.next_sort_order);
 
   return {
     id,
@@ -128,7 +137,8 @@ export function addFeedSource(
     url,
     unreadCount: 0,
     lastFetchedAt: null,
-    generateTitleFromSummary
+    generateTitleFromSummary,
+    skipTitleConversion
   };
 }
 
@@ -163,16 +173,20 @@ export function deleteFeedSource(feedId: string): void {
 export function updateFeedSettings(
   feedId: string,
   title: string,
-  generateTitleFromSummary: boolean
+  generateTitleFromSummary: boolean,
+  skipTitleConversion: boolean
 ): FeedSource {
+  if (typeof generateTitleFromSummary !== "boolean" || typeof skipTitleConversion !== "boolean") {
+    throw new Error("スレタイ生成設定が不正です。");
+  }
   const normalizedTitle = title.trim();
   if (!normalizedTitle || normalizedTitle.length > 200) {
     throw new Error("板タイトルが不正です。");
   }
   const db = getDatabase();
   const result = db.prepare(
-    "UPDATE feed_sources SET title = ?, generate_title_from_summary = ?, updated_at = ? WHERE id = ?"
-  ).run(normalizedTitle, generateTitleFromSummary ? 1 : 0, new Date().toISOString(), feedId);
+    "UPDATE feed_sources SET title = ?, generate_title_from_summary = ?, skip_title_conversion = ?, updated_at = ? WHERE id = ?"
+  ).run(normalizedTitle, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, new Date().toISOString(), feedId);
   if (result.changes === 0) {
     throw new Error(`Feed not found: ${feedId}`);
   }

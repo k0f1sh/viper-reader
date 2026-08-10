@@ -75,10 +75,10 @@ export type ViperReaderApi = {
   getGeminiApiKeyStatus: () => Promise<GeminiApiKeyStatus>;
   saveGeminiApiKey: (apiKey: string) => Promise<GeminiApiKeyStatus>;
   clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
-  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
+  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
   reorderFeedSources: (feedIds: string[]) => Promise<void>;
-  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
+  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => Promise<FeedSource>;
 };
 
 const api: ViperReaderApi = {
@@ -171,11 +171,11 @@ const api: ViperReaderApi = {
   getGeminiApiKeyStatus: () => ipcRenderer.invoke("settings:get-gemini-api-key-status"),
   saveGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings:save-gemini-api-key", apiKey),
   clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),
-  addFeedSource: (title, url, generateTitleFromSummary) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary),
+  addFeedSource: (title, url, generateTitleFromSummary, skipTitleConversion) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary, skipTitleConversion),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
   reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
-  updateFeedSettings: (feedId, title, generateTitleFromSummary) =>
-    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary)
+  updateFeedSettings: (feedId, title, generateTitleFromSummary, skipTitleConversion) =>
+    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion)
 };
 
 contextBridge.exposeInMainWorld("viperReader", api);

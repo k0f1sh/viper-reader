@@ -40,6 +40,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "llm_request_logs", "cached_content_token_count", "INTEGER");
   addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   addColumnIfMissing(db, "feed_sources", "generate_title_from_summary", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "skip_title_conversion", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_sources", "sort_order", "INTEGER");
   backfillFeedSortOrder(db);
   backfillCanonicalUrls(db);
