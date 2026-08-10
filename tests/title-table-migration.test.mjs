@@ -53,3 +53,10 @@ test("旧タイトルテーブルのデータを汎用名称のテーブルへ�
     undefined
   );
 });
+
+test("既存の板を最上位へ移行し、従来の順序値を補完する", () => {
+  const row = db.prepare("SELECT parent_folder_id, sort_order FROM feed_sources WHERE id = 'feed'").get();
+  assert.equal(row.parent_folder_id, null);
+  assert.equal(row.sort_order, 0);
+  assert.deepEqual(db.prepare("SELECT id FROM feed_folders").all(), []);
+});

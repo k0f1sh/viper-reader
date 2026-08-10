@@ -425,3 +425,8 @@ test("ペインとカラムのレイアウト設定を保存できる", () => {
     "[38,500,170,300,54,126,260]"
   );
 });
+
+test("板フォルダの開閉状態をSQLiteへ保存できる", () => {
+  saveRendererUserSetting("collapsedFeedFolderIds", '["folder:development"]');
+  assert.equal(getRendererUserSetting("collapsedFeedFolderIds"), '["folder:development"]');
+});

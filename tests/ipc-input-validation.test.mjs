@@ -4,8 +4,10 @@ import test from "node:test";
 const {
   assertArticleBrowserBounds,
   assertBoolean,
+  assertFeedTreePlacements,
   assertHttpUrl,
   assertIdentifier,
+  assertNullableIdentifier,
   assertPage,
   assertShowArticleBrowserRequest,
   assertString,
@@ -20,6 +22,16 @@ test("IPCの識別子と文字列に型・空文字・長さ制限を適用す�
     () => assertString("too long", "short value", { maxLength: 3 }),
     /Invalid short value/
   );
+});
+
+test("板ツリー配置のノード種別・ID・親IDを検証する", () => {
+  assert.doesNotThrow(() => assertNullableIdentifier(null, "parent folder ID"));
+  assert.doesNotThrow(() => assertFeedTreePlacements([
+    { type: "folder", id: "folder:1", parentFolderId: null },
+    { type: "feed", id: "feed:1", parentFolderId: "folder:1" }
+  ]));
+  assert.throws(() => assertFeedTreePlacements([{ type: "unknown", id: "x", parentFolderId: null }]), /Invalid feed tree placements/);
+  assert.throws(() => assertFeedTreePlacements([{ type: "feed", id: "x", parentFolderId: 1 }]), /Invalid parent folder ID/);
 });
 
 test("IPCのページ番号と真偽値を厳密に検証する", () => {

@@ -1,5 +1,6 @@
 import type {
   ArticleBrowserBounds,
+  FeedTreePlacement,
   ShowArticleBrowserRequest
 } from "../../shared/types.js";
 
@@ -7,6 +8,21 @@ const maxIdentifierLength = 512;
 
 export function assertIdentifier(value: unknown, fieldName: string): asserts value is string {
   assertString(value, fieldName, { minLength: 1, maxLength: maxIdentifierLength });
+}
+
+export function assertNullableIdentifier(value: unknown, fieldName: string): asserts value is string | null {
+  if (value !== null) assertIdentifier(value, fieldName);
+}
+
+export function assertFeedTreePlacements(value: unknown): asserts value is FeedTreePlacement[] {
+  if (!Array.isArray(value) || value.length > 10_000) throw new Error("Invalid feed tree placements.");
+  for (const item of value) {
+    if (!item || typeof item !== "object") throw new Error("Invalid feed tree placements.");
+    const placement = item as Partial<FeedTreePlacement>;
+    if (placement.type !== "feed" && placement.type !== "folder") throw new Error("Invalid feed tree placements.");
+    assertIdentifier(placement.id, "feed tree node ID");
+    assertNullableIdentifier(placement.parentFolderId, "parent folder ID");
+  }
 }
 
 export function assertString(

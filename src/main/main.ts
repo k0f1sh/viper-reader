@@ -30,6 +30,13 @@ import {
   updateFeedSettings
 } from "./db/feedRepository.js";
 import {
+  createFeedFolder,
+  deleteFeedFolder,
+  listFeedFolders,
+  renameFeedFolder,
+  saveFeedTreeLayout
+} from "./db/feedFolderRepository.js";
+import {
   clearFeedResidentPrompt,
   getFeedResidentPrompt,
   saveFeedResidentPrompt
@@ -50,13 +57,15 @@ import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
 import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
-import type { ArticleBrowserBounds, ShowArticleBrowserRequest } from "../shared/types.js";
+import type { ArticleBrowserBounds, FeedTreePlacement, ShowArticleBrowserRequest } from "../shared/types.js";
 import { sendIfAvailable } from "./ipc/safeSender.js";
 import {
   assertArticleBrowserBounds,
   assertBoolean,
+  assertFeedTreePlacements,
   assertHttpUrl,
   assertIdentifier,
+  assertNullableIdentifier,
   assertPage,
   assertShowArticleBrowserRequest,
   assertString,
@@ -372,12 +381,13 @@ ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => {
   return saveGeminiApiKey(apiKey);
 });
 ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => {
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => {
   assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertHttpUrl(url, "feed URL");
   assertBoolean(generateTitleFromSummary, "title generation flag");
   assertBoolean(skipTitleConversion, "skip title conversion flag");
-  return addFeedSource(title, url, generateTitleFromSummary, skipTitleConversion);
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return addFeedSource(title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId);
 });
 ipcMain.handle("feeds:delete", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
@@ -386,6 +396,25 @@ ipcMain.handle("feeds:delete", (_event, feedId: string) => {
 ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
   assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
+});
+ipcMain.handle("feed-folders:list", () => listFeedFolders());
+ipcMain.handle("feed-folders:create", (_event, name: string, parentFolderId: string | null) => {
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return createFeedFolder(name, parentFolderId);
+});
+ipcMain.handle("feed-folders:rename", (_event, folderId: string, name: string) => {
+  assertIdentifier(folderId, "folder ID");
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  return renameFeedFolder(folderId, name);
+});
+ipcMain.handle("feed-folders:delete", (_event, folderId: string) => {
+  assertIdentifier(folderId, "folder ID");
+  deleteFeedFolder(folderId);
+});
+ipcMain.handle("feed-tree:save-layout", (_event, placements: FeedTreePlacement[]) => {
+  assertFeedTreePlacements(placements);
+  saveFeedTreeLayout(placements);
 });
 ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => {
   assertIdentifier(feedId, "feed ID");

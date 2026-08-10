@@ -10,6 +10,8 @@ type FeedRow = {
   last_fetched_at: string | null;
   generate_title_from_summary: number;
   skip_title_conversion: number;
+  parent_folder_id: string | null;
+  sort_order: number | null;
 };
 
 type FeedSourceRow = {
@@ -19,6 +21,8 @@ type FeedSourceRow = {
   last_fetched_at: string | null;
   generate_title_from_summary: number;
   skip_title_conversion: number;
+  parent_folder_id: string | null;
+  sort_order: number | null;
 };
 
 export function listFeeds(): FeedSource[] {
@@ -30,11 +34,13 @@ export function listFeeds(): FeedSource[] {
       fs.last_fetched_at,
       fs.generate_title_from_summary,
       fs.skip_title_conversion,
-      COUNT(CASE WHEN fi.read_at IS NULL THEN 1 END) AS unread_count
+      fs.parent_folder_id,
+      fs.sort_order,
+      COUNT(CASE WHEN fi.id IS NOT NULL AND fi.read_at IS NULL THEN 1 END) AS unread_count
     FROM feed_sources fs
     LEFT JOIN feed_items fi ON fi.feed_id = fs.id
     GROUP BY fs.id
-    ORDER BY fs.sort_order ASC, fs.created_at ASC
+    ORDER BY fs.parent_folder_id ASC, fs.sort_order ASC, fs.created_at ASC
   `).all() as FeedRow[];
 
   return rows.map((row) => ({
@@ -44,14 +50,16 @@ export function listFeeds(): FeedSource[] {
     unreadCount: Number(row.unread_count),
     lastFetchedAt: row.last_fetched_at,
     generateTitleFromSummary: Boolean(row.generate_title_from_summary),
-    skipTitleConversion: Boolean(row.skip_title_conversion)
+    skipTitleConversion: Boolean(row.skip_title_conversion),
+    parentFolderId: row.parent_folder_id,
+    sortOrder: Number(row.sort_order ?? 0)
   }));
 }
 
 export function getFeedSource(feedId: string): FeedSource | null {
   const db = getDatabase();
   const row = db.prepare(`
-    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion
+    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion, parent_folder_id, sort_order
     FROM feed_sources
     WHERE id = ?
   `).get(feedId) as FeedSourceRow | undefined;
@@ -69,7 +77,9 @@ export function getFeedSource(feedId: string): FeedSource | null {
     unreadCount: Number(unreadRow?.unread_count ?? 0),
     lastFetchedAt: row.last_fetched_at,
     generateTitleFromSummary: Boolean(row.generate_title_from_summary),
-    skipTitleConversion: Boolean(row.skip_title_conversion)
+    skipTitleConversion: Boolean(row.skip_title_conversion),
+    parentFolderId: row.parent_folder_id,
+    sortOrder: Number(row.sort_order ?? 0)
   };
 }
 
@@ -88,7 +98,8 @@ export function addFeedSource(
   title: string,
   url: string,
   generateTitleFromSummary = false,
-  skipTitleConversion = false
+  skipTitleConversion = false,
+  parentFolderId: string | null = null
 ): FeedSource {
   if (typeof title !== "string" || !title.trim() || title.length > 200 || typeof url !== "string" || url.length > 2048) {
     throw new Error("RSSフィードの入力が不正です。");
@@ -115,6 +126,9 @@ export function addFeedSource(
   }
 
   const db = getDatabase();
+  if (parentFolderId !== null && !db.prepare("SELECT id FROM feed_folders WHERE id = ?").get(parentFolderId)) {
+    throw new Error("配置先フォルダが見つかりません。");
+  }
   const createdAt = new Date().toISOString();
   if (db.prepare("SELECT id FROM feed_sources WHERE url = ?").get(url)) {
     throw new Error("このRSSフィードは既に登録されています。");
@@ -122,14 +136,12 @@ export function addFeedSource(
 
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 16);
   const id = `feed:${hash}`;
-  const nextSortOrder = db.prepare(
-    "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort_order FROM feed_sources"
-  ).get() as { next_sort_order: number };
+  const nextSortOrder = getNextChildSortOrder(db, parentFolderId);
 
   db.prepare(`
-    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary, skip_title_conversion, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, nextSortOrder.next_sort_order);
+    INSERT INTO feed_sources (id, title, url, created_at, updated_at, generate_title_from_summary, skip_title_conversion, parent_folder_id, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, url, createdAt, createdAt, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, parentFolderId, nextSortOrder);
 
   return {
     id,
@@ -138,8 +150,20 @@ export function addFeedSource(
     unreadCount: 0,
     lastFetchedAt: null,
     generateTitleFromSummary,
-    skipTitleConversion
+    skipTitleConversion,
+    parentFolderId,
+    sortOrder: nextSortOrder
   };
+}
+
+function getNextChildSortOrder(db: ReturnType<typeof getDatabase>, parentFolderId: string | null): number {
+  const feedMax = db.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) AS value FROM feed_sources WHERE parent_folder_id IS ?"
+  ).get(parentFolderId) as { value: number };
+  const folderMax = db.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) AS value FROM feed_folders WHERE parent_folder_id IS ?"
+  ).get(parentFolderId) as { value: number };
+  return Math.max(Number(feedMax.value), Number(folderMax.value)) + 1;
 }
 
 export function reorderFeedSources(feedIds: string[]): void {

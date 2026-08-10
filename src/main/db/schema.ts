@@ -4,6 +4,16 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS feed_folders (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_folder_id TEXT,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (parent_folder_id) REFERENCES feed_folders(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS feed_sources (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -13,7 +23,9 @@ CREATE TABLE IF NOT EXISTS feed_sources (
   last_fetched_at TEXT,
   generate_title_from_summary INTEGER NOT NULL DEFAULT 0,
   skip_title_conversion INTEGER NOT NULL DEFAULT 0,
-  sort_order INTEGER
+  parent_folder_id TEXT,
+  sort_order INTEGER,
+  FOREIGN KEY (parent_folder_id) REFERENCES feed_folders(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS feed_items (

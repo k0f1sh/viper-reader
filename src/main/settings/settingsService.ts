@@ -19,6 +19,7 @@ const rendererSettingKeys = new Set([
   "threadTabs",
   "feedPaneWidth",
   "feedTreeHeight",
+  "collapsedFeedFolderIds",
   "articlePaneWidth",
   "articlePaneVisible",
   "articleBrowserBlockingEnabled"

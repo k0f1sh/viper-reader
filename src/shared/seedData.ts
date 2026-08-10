@@ -8,6 +8,8 @@ export const seedFeeds: FeedSource[] = [
     unreadCount: 0,
     generateTitleFromSummary: false,
     skipTitleConversion: false,
+    parentFolderId: null,
+    sortOrder: 0,
     lastFetchedAt: null
   },
   {
@@ -17,6 +19,8 @@ export const seedFeeds: FeedSource[] = [
     unreadCount: 0,
     generateTitleFromSummary: false,
     skipTitleConversion: false,
+    parentFolderId: null,
+    sortOrder: 1,
     lastFetchedAt: null
   },
 ];

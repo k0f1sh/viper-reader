@@ -18,6 +18,13 @@ export {
   updateFeedSettings
 } from "./feedRepository.js";
 export {
+  createFeedFolder,
+  deleteFeedFolder,
+  listFeedFolders,
+  renameFeedFolder,
+  saveFeedTreeLayout
+} from "./feedFolderRepository.js";
+export {
   clearFeedResidentPrompt,
   ensureFeedResidents,
   getFeedResidentPrompt,

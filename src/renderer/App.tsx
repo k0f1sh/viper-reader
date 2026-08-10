@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, ArticleBodyContent, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
 import { BrowserSettingsModal } from "./components/BrowserSettingsModal";
 import { FeedPane } from "./components/FeedPane";
+import type { FeedTreeSelection } from "./components/FeedPane";
+import { FolderNameModal } from "./components/FolderNameModal";
 import { FeedSettingsModal } from "./components/FeedSettingsModal";
 import { GenerationFailureModal } from "./components/GenerationFailureModal";
 import { MenuBar } from "./components/MenuBar";
@@ -74,6 +76,9 @@ function scrollReadMarkerToTop() {
 
 export function App() {
   const [feedList, setFeedList] = useState<FeedSource[]>([]);
+  const [feedFolders, setFeedFolders] = useState<FeedFolder[]>([]);
+  const [selectedTreeNode, setSelectedTreeNode] = useState<FeedTreeSelection>(null);
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set());
   const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
   const [threadListPage, setThreadListPage] = useState(0);
   const [threadListTotalCount, setThreadListTotalCount] = useState(0);
@@ -128,6 +133,11 @@ export function App() {
   const [addFeedSkipTitleConversion, setAddFeedSkipTitleConversion] = useState(false);
   const [addFeedError, setAddFeedError] = useState("");
   const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
+  const [folderModalMode, setFolderModalMode] = useState<"create" | "rename" | null>(null);
+  const [folderModalTargetId, setFolderModalTargetId] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderError, setFolderError] = useState("");
+  const [isFolderSaving, setIsFolderSaving] = useState(false);
   const [settingsFeed, setSettingsFeed] = useState<FeedSource | null>(null);
   const [settingsFeedTitle, setSettingsFeedTitle] = useState("");
   const [settingsGenerateTitleFromSummary, setSettingsGenerateTitleFromSummary] = useState(false);
@@ -183,7 +193,7 @@ export function App() {
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
 
   const selectedFeed = selectedFeedId === allFeedsId
-    ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false, skipTitleConversion: false }
+    ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false, skipTitleConversion: false, parentFolderId: null, sortOrder: -1 }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
@@ -195,6 +205,7 @@ export function App() {
     || isModelSettingsOpen
     || isResidentPromptsOpen
     || isAddFeedOpen
+    || folderModalMode !== null
     || settingsFeed !== null
     || generationFailureThreadId !== null
     || titleGenerationThreadId !== null;
@@ -419,11 +430,14 @@ export function App() {
       return;
     }
 
-    const [nextFeeds, nextAllUnreadCount] = await Promise.all([
+    const [nextFeeds, nextFolders, nextAllUnreadCount] = await Promise.all([
       window.viperReader.listFeeds(),
+      window.viperReader.listFeedFolders(),
       window.viperReader.countUnreadArticles()
     ]);
     setFeedList(nextFeeds);
+    setFeedFolders(nextFolders);
+    setCollapsedFolderIds((current) => new Set([...current].filter((id) => nextFolders.some((folder) => folder.id === id))));
     setAllUnreadCount(nextAllUnreadCount);
     void reloadQueueSummary();
 
@@ -665,7 +679,7 @@ export function App() {
     }
 
     try {
-      const [height, widthsV3Json, widthsV2Json, model, savedTitleModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled] = await Promise.all([
+      const [height, widthsV3Json, widthsV2Json, model, savedTitleModel, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedArticleBrowserBlockingEnabled, savedCollapsedFolders] = await Promise.all([
         window.viperReader.getUserSetting("threadListHeight"),
         window.viperReader.getUserSetting("threadColumnWidthsV3"),
         window.viperReader.getUserSetting("threadColumnWidthsV2"),
@@ -675,7 +689,8 @@ export function App() {
         window.viperReader.getUserSetting("feedTreeHeight"),
         window.viperReader.getUserSetting("articlePaneWidth"),
         window.viperReader.getUserSetting("articlePaneVisible"),
-        window.viperReader.getUserSetting("articleBrowserBlockingEnabled")
+        window.viperReader.getUserSetting("articleBrowserBlockingEnabled"),
+        window.viperReader.getUserSetting("collapsedFeedFolderIds")
       ]);
 
       if (height) {
@@ -715,6 +730,10 @@ export function App() {
       }
       setIsArticlePaneVisible(savedArticlePaneVisible === "true");
       setArticleBrowserBlockingEnabled(savedArticleBrowserBlockingEnabled !== "false");
+      if (savedCollapsedFolders) {
+        const parsed = JSON.parse(savedCollapsedFolders) as unknown;
+        if (Array.isArray(parsed)) setCollapsedFolderIds(new Set(parsed.filter((id): id is string => typeof id === "string")));
+      }
 
     } catch (err) {
       console.error("ユーザー設定の読込に失敗しました:", err);
@@ -819,13 +838,28 @@ export function App() {
     reviewCurrentGeneratedThread();
     setSmartView(null);
     setSelectedFeedId(feedId);
+    setSelectedTreeNode(feedId === allFeedsId ? null : { type: "feed", id: feedId });
     setRefreshMessage("");
+  }
+
+  function selectFolder(folderId: string) {
+    setSelectedTreeNode({ type: "folder", id: folderId });
+  }
+
+  function toggleFolder(folderId: string) {
+    setCollapsedFolderIds((current) => {
+      const next = new Set(current);
+      next.has(folderId) ? next.delete(folderId) : next.add(folderId);
+      void window.viperReader?.saveUserSetting("collapsedFeedFolderIds", JSON.stringify([...next]));
+      return next;
+    });
   }
 
   function selectSmartView(view: SmartView) {
     function activateView() {
       setSmartView(view);
       setSelectedFeedId(allFeedsId);
+      setSelectedTreeNode(null);
       setSelectedThreadId(undefined);
       setSelectedThread(null);
       setRefreshMessage("");
@@ -846,15 +880,12 @@ export function App() {
     void window.viperReader.markThreadGenerationReviewed(selectedThreadId).then(reloadQueueSummary);
   }
 
-  async function reorderFeeds(feedIds: string[]) {
+  async function saveFeedTreeLayout(placements: FeedTreePlacement[]) {
     if (!window.viperReader) return;
-    const previousFeeds = feedList;
-    const feedsById = new Map(previousFeeds.map((feed) => [feed.id, feed]));
-    setFeedList(feedIds.map((feedId) => feedsById.get(feedId)).filter((feed): feed is FeedSource => Boolean(feed)));
     try {
-      await window.viperReader.reorderFeedSources(feedIds);
+      await window.viperReader.saveFeedTreeLayout(placements);
+      await reloadFeeds();
     } catch {
-      setFeedList(previousFeeds);
       alert("板一覧の並び替えに失敗しました。");
     }
   }
@@ -871,10 +902,16 @@ export function App() {
         addFeedTitle.trim(),
         addFeedUrl.trim(),
         addFeedGenerateTitleFromSummary,
-        addFeedSkipTitleConversion
+        addFeedSkipTitleConversion,
+        selectedTreeNode?.type === "folder"
+          ? selectedTreeNode.id
+          : selectedTreeNode?.type === "feed"
+            ? feedList.find((feed) => feed.id === selectedTreeNode.id)?.parentFolderId ?? null
+            : null
       );
-      setFeedList((current) => [...current, newFeed]);
+      await reloadFeeds();
       setSelectedFeedId(newFeed.id);
+      setSelectedTreeNode({ type: "feed", id: newFeed.id });
       setIsAddFeedOpen(false);
       setAddFeedTitle("");
       setAddFeedUrl("");
@@ -887,42 +924,82 @@ export function App() {
     }
   }
 
-  async function deleteSelectedFeed() {
-    if (!selectedFeedId || selectedFeedId === allFeedsId || !window.viperReader) {
-      return;
-    }
+  function openCreateFolder() {
+    setFolderModalMode("create");
+    setFolderModalTargetId(null);
+    setFolderName("");
+    setFolderError("");
+  }
 
-    const feedToDelete = feedList.find((f) => f.id === selectedFeedId);
-    if (!feedToDelete) {
-      return;
-    }
+  function openRenameFolder(folder: FeedFolder) {
+    setFolderModalMode("rename");
+    setFolderModalTargetId(folder.id);
+    setFolderName(folder.name);
+    setFolderError("");
+  }
 
-    if (
-      !confirm(
-        `板「${feedToDelete.title}」を削除しますか？\n（この板に含まれるすべての記事やキャッシュも消去されます）`
-      )
-    ) {
-      return;
-    }
-
+  async function saveFolder() {
+    if (!window.viperReader || !folderModalMode || !folderName.trim()) return;
+    setIsFolderSaving(true);
+    setFolderError("");
     try {
-      await window.viperReader.deleteFeedSource(selectedFeedId);
-      if (selectedThread?.feedId === selectedFeedId) {
-        setSelectedThreadId(undefined);
-        setSelectedThread(null);
-      }
-      setFeedList((current) => {
-        const next = current.filter((feed) => feed.id !== selectedFeedId);
-        if (next.length > 0) {
-          setSelectedFeedId(next[0].id);
-        } else {
-          setSelectedFeedId("");
+      if (folderModalMode === "rename" && folderModalTargetId) {
+        await window.viperReader.renameFeedFolder(folderModalTargetId, folderName);
+      } else {
+        const selectedFeed = selectedTreeNode?.type === "feed" ? feedList.find((feed) => feed.id === selectedTreeNode.id) : null;
+        const parentFolderId = selectedTreeNode?.type === "folder" ? selectedTreeNode.id : selectedFeed?.parentFolderId ?? null;
+        const folder = await window.viperReader.createFeedFolder(folderName, parentFolderId);
+        if (selectedFeed) {
+          const placements = [
+            ...feedList.map((feed) => ({ type: "feed" as const, id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder })),
+            ...feedFolders.map((item) => ({ type: "folder" as const, id: item.id, parentFolderId: item.parentFolderId, sortOrder: item.sortOrder })),
+            { type: "folder" as const, id: folder.id, parentFolderId: folder.parentFolderId, sortOrder: folder.sortOrder }
+          ].sort((a, b) => (a.parentFolderId ?? "").localeCompare(b.parentFolderId ?? "") || a.sortOrder - b.sortOrder);
+          const createdIndex = placements.findIndex((item) => item.type === "folder" && item.id === folder.id);
+          const [created] = placements.splice(createdIndex, 1);
+          const selectedIndex = placements.findIndex((item) => item.type === "feed" && item.id === selectedFeed.id);
+          placements.splice(selectedIndex + 1, 0, created);
+          await window.viperReader.saveFeedTreeLayout(placements.map(({ type, id, parentFolderId: parent }) => ({ type, id, parentFolderId: parent })));
         }
-        return next;
-      });
-    } catch (err) {
-      alert("削除に失敗しました。");
+        if (parentFolderId && collapsedFolderIds.has(parentFolderId)) toggleFolder(parentFolderId);
+        setSelectedTreeNode({ type: "folder", id: folder.id });
+      }
+      await reloadFeeds();
+      setFolderModalMode(null);
+    } catch (error) {
+      setFolderError(error instanceof Error ? error.message : "フォルダを保存できませんでした。");
+    } finally {
+      setIsFolderSaving(false);
     }
+  }
+
+  async function deleteSelectedTreeNode() {
+    if (!selectedTreeNode || !window.viperReader) return;
+    if (selectedTreeNode.type === "feed") {
+      await deleteFeedById(selectedTreeNode.id);
+      return;
+    }
+    const folder = feedFolders.find((candidate) => candidate.id === selectedTreeNode.id);
+    if (!folder || !confirm(`フォルダ「${folder.name}」を削除しますか？`)) return;
+    try {
+      await window.viperReader.deleteFeedFolder(folder.id);
+      setSelectedTreeNode(null);
+      await reloadFeeds();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "フォルダを削除できませんでした。");
+    }
+  }
+
+  async function deleteFeedById(feedId: string) {
+    if (!window.viperReader) return;
+    const feedToDelete = feedList.find((feed) => feed.id === feedId);
+    if (!feedToDelete || !confirm(`板「${feedToDelete.title}」を削除しますか？\n（この板に含まれるすべての記事やキャッシュも消去されます）`)) return;
+    try {
+      await window.viperReader.deleteFeedSource(feedId);
+      if (selectedThread?.feedId === feedId) { setSelectedThreadId(undefined); setSelectedThread(null); }
+      setSelectedTreeNode(null);
+      await reloadFeeds();
+    } catch { alert("削除に失敗しました。"); }
   }
 
   function openFeedSettings(feed: FeedSource) {
@@ -1744,17 +1821,24 @@ export function App() {
       >
         <FeedPane
           feeds={feedList}
+          folders={feedFolders}
+          collapsedFolderIds={collapsedFolderIds}
+          selectedTreeNode={selectedTreeNode}
           favoriteThreads={favoriteThreads}
           logs={logs}
           selectedFeedId={selectedFeedId}
           selectedThreadId={selectedThreadId}
           isFavoriteCollapsed={isFavoriteCollapsed}
           onSelectFeed={selectFeed}
+          onSelectFolder={selectFolder}
+          onToggleFolder={toggleFolder}
           onRefreshFeed={(feedId) => void refreshFeed(feedId)}
           onAddFeed={() => setIsAddFeedOpen(true)}
-          onDeleteSelectedFeed={() => void deleteSelectedFeed()}
+          onAddFolder={openCreateFolder}
+          onDeleteSelectedNode={() => void deleteSelectedTreeNode()}
           onOpenFeedSettings={openFeedSettings}
-          onReorderFeeds={(feedIds) => void reorderFeeds(feedIds)}
+          onRenameFolder={openRenameFolder}
+          onSaveTreeLayout={(placements) => void saveFeedTreeLayout(placements)}
           onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
           onSelectFavoriteThread={handleSelectFavoriteThread}
           allFeedsId={allFeedsId}
@@ -1978,6 +2062,18 @@ export function App() {
           onSkipTitleConversionChange={setAddFeedSkipTitleConversion}
           onAddFeed={() => void addFeed()}
           onClose={() => setIsAddFeedOpen(false)}
+        />
+      ) : null}
+
+      {folderModalMode ? (
+        <FolderNameModal
+          mode={folderModalMode}
+          name={folderName}
+          error={folderError}
+          isSaving={isFolderSaving}
+          onNameChange={setFolderName}
+          onSave={() => void saveFolder()}
+          onClose={() => setFolderModalMode(null)}
         />
       ) : null}
 

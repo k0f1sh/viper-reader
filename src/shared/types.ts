@@ -6,6 +6,21 @@ export type FeedSource = {
   lastFetchedAt: string | null;
   generateTitleFromSummary: boolean;
   skipTitleConversion: boolean;
+  parentFolderId: string | null;
+  sortOrder: number;
+};
+
+export type FeedFolder = {
+  id: string;
+  name: string;
+  parentFolderId: string | null;
+  sortOrder: number;
+};
+
+export type FeedTreePlacement = {
+  type: "feed" | "folder";
+  id: string;
+  parentFolderId: string | null;
 };
 
 export type ThreadPost = {

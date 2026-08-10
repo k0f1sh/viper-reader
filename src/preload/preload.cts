@@ -7,6 +7,8 @@ import type {
   ArticleBodyContent,
   FeedResidentPrompt,
   FeedSource,
+  FeedFolder,
+  FeedTreePlacement,
   GeminiApiKeyStatus,
   RefreshFeedResult,
   RefreshProgress,
@@ -75,10 +77,15 @@ export type ViperReaderApi = {
   getGeminiApiKeyStatus: () => Promise<GeminiApiKeyStatus>;
   saveGeminiApiKey: (apiKey: string) => Promise<GeminiApiKeyStatus>;
   clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
-  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => Promise<FeedSource>;
+  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
   reorderFeedSources: (feedIds: string[]) => Promise<void>;
   updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => Promise<FeedSource>;
+  listFeedFolders: () => Promise<FeedFolder[]>;
+  createFeedFolder: (name: string, parentFolderId: string | null) => Promise<FeedFolder>;
+  renameFeedFolder: (folderId: string, name: string) => Promise<FeedFolder>;
+  deleteFeedFolder: (folderId: string) => Promise<void>;
+  saveFeedTreeLayout: (placements: FeedTreePlacement[]) => Promise<void>;
 };
 
 const api: ViperReaderApi = {
@@ -171,11 +178,16 @@ const api: ViperReaderApi = {
   getGeminiApiKeyStatus: () => ipcRenderer.invoke("settings:get-gemini-api-key-status"),
   saveGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings:save-gemini-api-key", apiKey),
   clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),
-  addFeedSource: (title, url, generateTitleFromSummary, skipTitleConversion) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary, skipTitleConversion),
+  addFeedSource: (title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
   reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
   updateFeedSettings: (feedId, title, generateTitleFromSummary, skipTitleConversion) =>
-    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion)
+    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion),
+  listFeedFolders: () => ipcRenderer.invoke("feed-folders:list"),
+  createFeedFolder: (name, parentFolderId) => ipcRenderer.invoke("feed-folders:create", name, parentFolderId),
+  renameFeedFolder: (folderId, name) => ipcRenderer.invoke("feed-folders:rename", folderId, name),
+  deleteFeedFolder: (folderId) => ipcRenderer.invoke("feed-folders:delete", folderId),
+  saveFeedTreeLayout: (placements) => ipcRenderer.invoke("feed-tree:save-layout", placements)
 };
 
 contextBridge.exposeInMainWorld("viperReader", api);

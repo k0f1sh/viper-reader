@@ -718,6 +718,31 @@ body.is-article-pane-resizing * {
   border-bottom-color: #000080;
 }
 
+.feed-row.is-drop-inside,
+.rss-tree-root.is-drop-inside {
+  outline: 2px solid #000080;
+  outline-offset: -2px;
+  background: #d8e4f8;
+}
+
+.folder-row {
+  font-weight: 700;
+}
+
+.folder-disclosure {
+  display: inline-block;
+  width: 16px;
+  font-size: 10px;
+}
+
+.rss-tree-root {
+  border: 1px solid transparent;
+}
+
+.folder-name-modal {
+  width: min(420px, calc(100vw - 32px));
+}
+
 .feed-name,
 .thread-title,
 .thread-original-title,
