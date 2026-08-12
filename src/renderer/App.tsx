@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, TitleGenerationAttempt } from "../shared/types";
 import { AppDialogs } from "./components/AppDialogs";
-import { ArticleBodyPane } from "./components/ArticleBodyPane";
-import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
-import { FeedPane } from "./components/FeedPane";
-import { MenuBar } from "./components/MenuBar";
-import { ThreadListPane } from "./components/ThreadListPane";
-import { ThreadReaderPane } from "./components/ThreadReaderPane";
+import { AppWorkspace } from "./components/AppWorkspace";
 import { useAddFeedForm, useFeedSettingsForm, useFolderForm } from "./hooks/useAppForms";
 import { usePaneLayout } from "./hooks/usePaneLayout";
 import { useThreadSelection } from "./hooks/useThreadSelection";
@@ -514,193 +508,134 @@ export function App() {
     selectThread(thread);
   }
 
+  const menuProps = {
+    onOpenSettings: () => void apiSettings.open(),
+    onOpenBrowserSettings: browserSettings.open,
+    onOpenModelSettings: modelSettings.open,
+    onOpenStatistics: () => void statisticsSettings.open(),
+    onOpenResidentPrompts: promptSettings.open
+  };
+  const feedPaneProps = {
+    feeds: feedList,
+    folders: feedFolders,
+    collapsedFolderIds,
+    selectedTreeNode,
+    favoriteThreads,
+    logs,
+    selectedFeedId,
+    selectedThreadId,
+    isFavoriteCollapsed,
+    onSelectFeed: selectFeed,
+    onSelectFolder: selectFolder,
+    onToggleFolder: toggleFolder,
+    onRefreshFeed: (feedId: string) => void refreshFeed(feedId),
+    onAddFeed: () => setIsAddFeedOpen(true),
+    onAddFolder: openCreateFolder,
+    onDeleteSelectedNode: () => void deleteSelectedTreeNode(),
+    onOpenFeedSettings: openFeedSettings,
+    onRenameFolder: openRenameFolder,
+    onSaveTreeLayout: saveFeedTreeLayout,
+    onToggleFavoriteCollapsed: () => setIsFavoriteCollapsed((current) => !current),
+    onSelectFavoriteThread: handleSelectFavoriteThread,
+    allFeedsId,
+    allUnreadCount,
+    queueSummary,
+    activeSmartView: smartView,
+    onSelectSmartView: selectSmartView,
+    feedTreeHeight,
+    onStartFeedTreeResize: startFeedTreeResize
+  };
+  const threadListProps = {
+    selectedFeed,
+    selectedThreadId,
+    threads: visibleThreads,
+    generatingThreadIds,
+    completedThreadIds: completedGenerationThreadIds,
+    isRefreshing,
+    refreshMessage,
+    showUnreadOnly: effectiveShowUnreadOnly,
+    isUnreadOnlyLocked,
+    threadColumnLabels,
+    threadGridColumns,
+    threadListMinWidth,
+    onRefresh: () => void refreshSelectedFeed(),
+    onSelectThread: selectThreadById,
+    onShowGenerationFailure: (threadId: string) => void showGenerationFailure(threadId),
+    onShowTitleGenerationStatus: (threadId: string) => void showTitleGenerationStatus(threadId),
+    onToggleUnreadOnly: () => {
+      if (!isUnreadOnlyLocked) setShowUnreadOnly((current) => !current);
+    },
+    onMarkAllRead: () => void markAllThreadsRead(),
+    onStartColumnResize: startThreadColumnResize,
+    canRefresh: selectedFeedId !== allFeedsId || feedList.length > 0,
+    refreshLabel: selectedFeedId === allFeedsId ? "全板更新" : "更新",
+    page: threadListPage,
+    pageSize: 100,
+    totalCount: threadListTotalCount,
+    onPreviousPage: () => changeThreadListPage(threadListPage - 1),
+    onNextPage: () => changeThreadListPage(threadListPage + 1),
+    smartView,
+    queueSummary,
+    onOpenGeneratedQueue: () => selectSmartView("generated")
+  };
+  const threadReaderProps = {
+    selectedThread,
+    isSelectedThreadGenerating,
+    generationProgressMessage: selectedThread ? threadGenerationProgress.get(selectedThread.id) ?? "" : "",
+    isRegeneratingTitle: isRegeneratingSelectedTitle,
+    skipTitleConversion: feedList.find((feed) => feed.id === selectedThread?.feedId)?.skipTitleConversion ?? false,
+    isPosting,
+    postStatus,
+    postError,
+    replyName,
+    replyMail,
+    replyBody,
+    readMarkerNo,
+    extractedPostId,
+    replyBodyRef,
+    onToggleFavorite: () => void toggleFavorite(),
+    onRegenerateThreadTitle: () => void regenerateSelectedThreadTitle(),
+    onGenerateResponses: (force = false) => void generateResponses(force),
+    onGenerateReplies: () => void handleGenerateReplies(),
+    onPostMessage: handlePostMessage,
+    onReplyNameChange: (name: string) => updateReplyComposer({ name }),
+    onReplyMailChange: (mail: string) => updateReplyComposer({ mail }),
+    onReplyBodyChange: setReplyBody,
+    onReplyToPost: replyToPost,
+    onScrollToPost: scrollToPost,
+    onPostNoMouseEnter: handlePostNoMouseEnter,
+    onPostNoMouseLeave: handleMouseLeaveWithDelay,
+    onPostIdClick: handleExtractPostId,
+    onPostIdMouseEnter: handlePostIdMouseEnter,
+    onPostIdMouseLeave: handleMouseLeaveWithDelay,
+    onAnchorMouseEnter: handleAnchorMouseEnter,
+    onAnchorMouseLeave: handleMouseLeaveWithDelay,
+    isArticlePaneVisible: shouldShowArticlePane,
+    onToggleArticlePane: toggleArticlePane,
+    onShowArticleBrowser: () => setThreadViewMode("browser")
+  };
+
   return (
     <main className="app-frame">
-      <MenuBar
-        onOpenSettings={() => void apiSettings.open()}
-        onOpenBrowserSettings={browserSettings.open}
-        onOpenModelSettings={modelSettings.open}
-        onOpenStatistics={() => void statisticsSettings.open()}
-        onOpenResidentPrompts={promptSettings.open}
+      <AppWorkspace
+        menu={menuProps}
+        feedPane={feedPaneProps}
+        threadList={threadListProps}
+        articleBrowser={{ selectedThread, isActive: true, isSuspended: isArticleBrowserSuspended, onShowReplies: () => setThreadViewMode("replies") }}
+        threadReader={threadReaderProps}
+        articleBody={{ selectedThread, articleBody, isLoading: isArticleBodyLoading, onClose: toggleArticlePane }}
+        threadViewMode={threadViewMode}
+        showArticlePane={shouldShowArticlePane}
+        feedPaneWidth={feedPaneWidth}
+        threadListHeight={threadListHeight}
+        articlePaneWidth={articlePaneWidth}
+        appShellRef={appShellRef}
+        contentPaneRef={contentPaneRef}
+        threadContentRef={threadContentRef}
+        onStartFeedPaneResize={startFeedPaneResize}
+        onStartVerticalResize={startVerticalResize}
+        onStartArticlePaneResize={startArticlePaneResize}
       />
-
-      <div
-        className="app-shell"
-        ref={appShellRef}
-        style={{ "--feed-pane-width": `${feedPaneWidth}px` } as CSSProperties}
-      >
-        <FeedPane
-          feeds={feedList}
-          folders={feedFolders}
-          collapsedFolderIds={collapsedFolderIds}
-          selectedTreeNode={selectedTreeNode}
-          favoriteThreads={favoriteThreads}
-          logs={logs}
-          selectedFeedId={selectedFeedId}
-          selectedThreadId={selectedThreadId}
-          isFavoriteCollapsed={isFavoriteCollapsed}
-          onSelectFeed={selectFeed}
-          onSelectFolder={selectFolder}
-          onToggleFolder={toggleFolder}
-          onRefreshFeed={(feedId) => void refreshFeed(feedId)}
-          onAddFeed={() => setIsAddFeedOpen(true)}
-          onAddFolder={openCreateFolder}
-          onDeleteSelectedNode={() => void deleteSelectedTreeNode()}
-          onOpenFeedSettings={openFeedSettings}
-          onRenameFolder={openRenameFolder}
-          onSaveTreeLayout={(placements) => void saveFeedTreeLayout(placements)}
-          onToggleFavoriteCollapsed={() => setIsFavoriteCollapsed((current) => !current)}
-          onSelectFavoriteThread={handleSelectFavoriteThread}
-          allFeedsId={allFeedsId}
-          allUnreadCount={allUnreadCount}
-          queueSummary={queueSummary}
-          activeSmartView={smartView}
-          onSelectSmartView={selectSmartView}
-          feedTreeHeight={feedTreeHeight}
-          onStartFeedTreeResize={startFeedTreeResize}
-        />
-
-        <div
-          aria-label="板一覧とコンテンツの境界"
-          aria-orientation="vertical"
-          className="feed-pane-splitter"
-          onMouseDown={startFeedPaneResize}
-          role="separator"
-        />
-
-        <section
-          className="content-pane"
-          ref={contentPaneRef}
-          style={{ "--thread-list-height": `${threadListHeight}%` } as CSSProperties}
-        >
-          <ThreadListPane
-            selectedFeed={selectedFeed}
-            selectedThreadId={selectedThreadId}
-            threads={visibleThreads}
-            generatingThreadIds={generatingThreadIds}
-            completedThreadIds={completedGenerationThreadIds}
-            isRefreshing={isRefreshing}
-            refreshMessage={refreshMessage}
-            showUnreadOnly={effectiveShowUnreadOnly}
-            isUnreadOnlyLocked={isUnreadOnlyLocked}
-            threadColumnLabels={threadColumnLabels}
-            threadGridColumns={threadGridColumns}
-            threadListMinWidth={threadListMinWidth}
-            onRefresh={() => void refreshSelectedFeed()}
-            onSelectThread={selectThreadById}
-            onShowGenerationFailure={(threadId) => void showGenerationFailure(threadId)}
-            onShowTitleGenerationStatus={(threadId) => void showTitleGenerationStatus(threadId)}
-            onToggleUnreadOnly={() => {
-              if (!isUnreadOnlyLocked) setShowUnreadOnly((current) => !current);
-            }}
-            onMarkAllRead={() => void markAllThreadsRead()}
-            onStartColumnResize={startThreadColumnResize}
-            canRefresh={selectedFeedId !== allFeedsId || feedList.length > 0}
-            refreshLabel={selectedFeedId === allFeedsId ? "全板更新" : "更新"}
-            page={threadListPage}
-            pageSize={100}
-            totalCount={threadListTotalCount}
-            onPreviousPage={() => changeThreadListPage(threadListPage - 1)}
-            onNextPage={() => changeThreadListPage(threadListPage + 1)}
-            smartView={smartView}
-            queueSummary={queueSummary}
-            onOpenGeneratedQueue={() => selectSmartView("generated")}
-          />
-
-          <div
-            aria-label="スレタイ一覧とスレ本文の境界"
-            className="pane-splitter"
-            onMouseDown={startVerticalResize}
-            role="separator"
-          />
-
-          <section className="thread-workspace">
-            {threadViewMode === "browser" ? (
-              <ArticleBrowserPane
-                selectedThread={selectedThread}
-                isActive
-                isSuspended={isArticleBrowserSuspended}
-                onShowReplies={() => setThreadViewMode("replies")}
-              />
-            ) : (
-              <section
-                className={`thread-content ${shouldShowArticlePane ? "has-article-pane" : ""}`}
-                ref={threadContentRef}
-                style={{ "--article-pane-width": `${articlePaneWidth}px` } as CSSProperties}
-              >
-                <ThreadReaderPane
-                  selectedThread={selectedThread}
-                  isSelectedThreadGenerating={isSelectedThreadGenerating}
-                  generationProgressMessage={selectedThread ? threadGenerationProgress.get(selectedThread.id) ?? "" : ""}
-                  isRegeneratingTitle={isRegeneratingSelectedTitle}
-                  skipTitleConversion={feedList.find((feed) => feed.id === selectedThread?.feedId)?.skipTitleConversion ?? false}
-                  isPosting={isPosting}
-                  postStatus={postStatus}
-                  postError={postError}
-                  replyName={replyName}
-                  replyMail={replyMail}
-                  replyBody={replyBody}
-                  readMarkerNo={readMarkerNo}
-                  extractedPostId={extractedPostId}
-                  replyBodyRef={replyBodyRef}
-                  onToggleFavorite={() => void toggleFavorite()}
-                  onRegenerateThreadTitle={() => void regenerateSelectedThreadTitle()}
-                  onGenerateResponses={(force) => void generateResponses(force)}
-                  onGenerateReplies={() => void handleGenerateReplies()}
-                  onPostMessage={handlePostMessage}
-                  onReplyNameChange={(name) => updateReplyComposer({ name })}
-                  onReplyMailChange={(mail) => updateReplyComposer({ mail })}
-                  onReplyBodyChange={setReplyBody}
-                  onReplyToPost={replyToPost}
-                  onScrollToPost={scrollToPost}
-                  onPostNoMouseEnter={handlePostNoMouseEnter}
-                  onPostNoMouseLeave={handleMouseLeaveWithDelay}
-                  onPostIdClick={handleExtractPostId}
-                  onPostIdMouseEnter={handlePostIdMouseEnter}
-                  onPostIdMouseLeave={handleMouseLeaveWithDelay}
-                  onAnchorMouseEnter={handleAnchorMouseEnter}
-                  onAnchorMouseLeave={handleMouseLeaveWithDelay}
-                  isArticlePaneVisible={shouldShowArticlePane}
-                  onToggleArticlePane={toggleArticlePane}
-                  onShowArticleBrowser={() => setThreadViewMode("browser")}
-                />
-                {shouldShowArticlePane ? (
-                  <>
-                    <div
-                      aria-label="レス一覧と記事本文の境界"
-                      aria-orientation="vertical"
-                      className="article-pane-splitter"
-                      onMouseDown={startArticlePaneResize}
-                      role="separator"
-                    />
-                    <ArticleBodyPane
-                      selectedThread={selectedThread}
-                      articleBody={articleBody}
-                      isLoading={isArticleBodyLoading}
-                      onClose={toggleArticlePane}
-                    />
-                  </>
-                ) : null}
-              </section>
-            )}
-          </section>
-        </section>
-      </div>
-
-      <footer className="shortcut-bar" aria-label="キーボードショートカット">
-        <span><kbd>P</kbd>/<kbd>N</kbd> レス／元記事スクロール</span>
-        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
-        <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
-        <span><kbd>I</kbd> 先頭スレ</span>
-        <span><kbd>O</kbd> レス／元記事</span>
-        <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
-        <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
-        <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
-        <span><kbd>W</kbd> 書き込み</span>
-        <span><kbd>R</kbd>/<kbd>Y</kbd> 更新</span>
-        <span><kbd>B</kbd> お気に入り</span>
-        <span><kbd>Shift</kbd>+<kbd>U</kbd> 既読切替</span>
-      </footer>
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
