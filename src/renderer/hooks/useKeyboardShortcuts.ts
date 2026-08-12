@@ -13,6 +13,7 @@ type UseKeyboardShortcutsOptions = {
   selectedFeedId: string;
   smartView: SmartView | null;
   threadViewMode: ThreadViewMode;
+  isArticleBrowserExpanded: boolean;
   extractedPostId: string | null;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   onSelectThread: (thread: ThreadListItem, feedSelection?: string) => void;
@@ -24,6 +25,7 @@ type UseKeyboardShortcutsOptions = {
   onToggleFavorite: () => void;
   onToggleThreadRead: () => void;
   onToggleThreadView: () => void;
+  onToggleArticleBrowserExpanded: () => void;
   onClearExtractedPost: () => void;
 };
 
@@ -61,6 +63,11 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
       if (event.key === "Escape" && current.extractedPostId) {
         event.preventDefault();
         current.onClearExtractedPost();
+        return;
+      }
+      if (event.key === "Escape" && current.isArticleBrowserExpanded) {
+        event.preventDefault();
+        current.onToggleArticleBrowserExpanded();
         return;
       }
       if (document.querySelector("[role='dialog']")) return;
@@ -137,6 +144,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
       } else if (event.key.toLowerCase() === "o") {
         event.preventDefault();
         if (!event.repeat) current.onToggleThreadView();
+      } else if ((event.key.toLowerCase() === "f" || event.key === ";") && current.threadViewMode === "browser") {
+        event.preventDefault();
+        if (!event.repeat) current.onToggleArticleBrowserExpanded();
       } else if (event.key === "U") {
         event.preventDefault();
         current.onToggleThreadRead();

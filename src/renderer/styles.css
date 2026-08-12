@@ -340,6 +340,17 @@ body.is-article-pane-resizing * {
   background: #efeffc;
 }
 
+.article-browser-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #efeffc;
+}
+
 .article-browser-toolbar {
   display: flex;
   flex: 0 0 auto;

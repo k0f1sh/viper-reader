@@ -135,6 +135,7 @@ export function App() {
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
+  const [isArticleBrowserExpanded, setIsArticleBrowserExpanded] = useState(false);
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
   const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
@@ -264,6 +265,7 @@ export function App() {
     selectedFeedId,
     smartView,
     threadViewMode,
+    isArticleBrowserExpanded,
     extractedPostId,
     replyBodyRef,
     onSelectThread: selectThread,
@@ -274,7 +276,14 @@ export function App() {
     onGenerateReplies: () => void handleGenerateReplies(),
     onToggleFavorite: () => void toggleFavorite(),
     onToggleThreadRead: () => void toggleSelectedThreadRead(),
-    onToggleThreadView: () => setThreadViewMode((current) => current === "replies" ? "browser" : "replies"),
+    onToggleThreadView: () => setThreadViewMode((current) => {
+      if (current === "browser") {
+        setIsArticleBrowserExpanded(false);
+        return "replies";
+      }
+      return "browser";
+    }),
+    onToggleArticleBrowserExpanded: () => setIsArticleBrowserExpanded((current) => !current),
     onClearExtractedPost: clearExtractedPostId
   });
 
@@ -624,10 +633,21 @@ export function App() {
         menu={menuProps}
         feedPane={feedPaneProps}
         threadList={threadListProps}
-        articleBrowser={{ selectedThread, isActive: true, isSuspended: isArticleBrowserSuspended, onShowReplies: () => setThreadViewMode("replies") }}
+        articleBrowser={{
+          selectedThread,
+          isActive: true,
+          isSuspended: isArticleBrowserSuspended,
+          isExpanded: isArticleBrowserExpanded,
+          onShowReplies: () => {
+            setIsArticleBrowserExpanded(false);
+            setThreadViewMode("replies");
+          },
+          onToggleExpanded: () => setIsArticleBrowserExpanded((current) => !current)
+        }}
         threadReader={threadReaderProps}
         articleBody={{ selectedThread, articleBody, isLoading: isArticleBodyLoading, onClose: toggleArticlePane }}
         threadViewMode={threadViewMode}
+        isArticleBrowserExpanded={isArticleBrowserExpanded}
         showArticlePane={shouldShowArticlePane}
         feedPaneWidth={feedPaneWidth}
         threadListHeight={threadListHeight}

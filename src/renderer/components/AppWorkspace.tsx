@@ -14,6 +14,7 @@ type AppWorkspaceProps = {
   threadReader: ComponentProps<typeof ThreadReaderPane>;
   articleBody: ComponentProps<typeof ArticleBodyPane>;
   threadViewMode: "replies" | "browser";
+  isArticleBrowserExpanded: boolean;
   showArticlePane: boolean;
   feedPaneWidth: number;
   threadListHeight: number;
@@ -34,6 +35,7 @@ export function AppWorkspace({
   threadReader,
   articleBody,
   threadViewMode,
+  isArticleBrowserExpanded,
   showArticlePane,
   feedPaneWidth,
   threadListHeight,
@@ -45,6 +47,14 @@ export function AppWorkspace({
   onStartVerticalResize,
   onStartArticlePaneResize
 }: AppWorkspaceProps) {
+  if (threadViewMode === "browser" && isArticleBrowserExpanded) {
+    return (
+      <div className="article-browser-expanded">
+        <ArticleBrowserPane {...articleBrowser} />
+      </div>
+    );
+  }
+
   return (
     <>
       <MenuBar {...menu} />
@@ -77,6 +87,7 @@ export function AppWorkspace({
         <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
         <span><kbd>I</kbd> 先頭スレ</span>
         <span><kbd>O</kbd> レス／元記事</span>
+        <span><kbd>F</kbd>/<kbd>;</kbd> 元記事を全面表示</span>
         <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
         <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
         <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
