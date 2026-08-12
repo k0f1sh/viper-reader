@@ -160,7 +160,8 @@ export function App() {
     onThreadRead: () => {
       void reloadFeeds();
       void reloadQueueSummary();
-    }
+    },
+    onReadMarkerChange: setReadMarkerNo
   });
   const {
     composer: replyComposer,
@@ -179,7 +180,8 @@ export function App() {
     setReadMarkerNo,
     replyBodyRef,
     reloadFeeds,
-    reloadCurrentThreadList
+    reloadCurrentThreadList,
+    reloadQueueSummary
   });
   const {
     popupData,

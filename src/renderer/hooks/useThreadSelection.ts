@@ -7,22 +7,24 @@ type UseThreadSelectionOptions = {
   setThreadList: Dispatch<SetStateAction<ThreadListItem[]>>;
   onSelectionStarted: (threadId: string | undefined) => void;
   onThreadRead: () => void;
+  onReadMarkerChange: (postNo: number | null) => void;
 };
 
 export function useThreadSelection({
   isArticlePaneEnabled,
   setThreadList,
   onSelectionStarted,
-  onThreadRead
+  onThreadRead,
+  onReadMarkerChange
 }: UseThreadSelectionOptions) {
   const [selectedThreadId, setSelectedThreadId] = useState<string>();
   const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
   const [articleBody, setArticleBody] = useState<ArticleBodyContent | null>(null);
   const [isArticleBodyLoading, setIsArticleBodyLoading] = useState(false);
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
-  const callbacksRef = useRef({ onSelectionStarted, onThreadRead });
+  const callbacksRef = useRef({ onSelectionStarted, onThreadRead, onReadMarkerChange });
   selectedThreadIdRef.current = selectedThreadId;
-  callbacksRef.current = { onSelectionStarted, onThreadRead };
+  callbacksRef.current = { onSelectionStarted, onThreadRead, onReadMarkerChange };
 
   const shouldShowArticlePane = isArticlePaneEnabled
     && Boolean(selectedThread && selectedThread.posts.length > 1);
@@ -45,6 +47,14 @@ export function useThreadSelection({
       setThreadList((currentThreads) => currentThreads.map((currentThread) =>
         currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
       ));
+      if (selectedThreadIdRef.current === selectedThreadId) {
+        callbacksRef.current.onReadMarkerChange(thread.readMarkerNo);
+        if (thread.readMarkerNo !== null) {
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>('[data-read-marker="true"]')?.scrollIntoView({ block: "start" });
+          }));
+        }
+      }
       callbacksRef.current.onThreadRead();
       if (selectedThreadIdRef.current === selectedThreadId) setSelectedThread(thread);
     }).catch(() => {

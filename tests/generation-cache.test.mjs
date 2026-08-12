@@ -12,6 +12,8 @@ const { getDatabase } = await import("../dist/main/db/database.js");
 const {
   listUnconvertedFeedItems,
   getReadingQueueSummary,
+  getThread,
+  listFeeds,
   listGeneratedQueue,
   listThreadGenerationAttempts,
   listThreads,
@@ -25,6 +27,7 @@ const {
   saveArticleBody,
   saveRawThreadTitleFallbacks,
   saveRssThreadSummaries,
+  saveGeneratedThreadPosts,
   saveThreadTitles
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
@@ -73,6 +76,30 @@ function insertItem({ id, feedId, readAt = null }) {
     now
   );
 }
+
+test("既読後に追加されたレスを未確認として数え、再表示位置を返す", () => {
+  insertFeed("reply-unread");
+  insertItem({ id: "reply-unread-item", feedId: "reply-unread" });
+  saveGeneratedThreadPosts("reply-unread-item", [
+    { no: 1, name: "名無しさん", date: now, id: "first", body: "最初のレス" }
+  ]);
+
+  const firstOpen = getThread("reply-unread-item");
+  assert.equal(firstOpen?.readMarkerNo, null);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+
+  saveGeneratedThreadPosts("reply-unread-item", [
+    { no: 2, name: "名無しさん", date: now, id: "second", body: "追加レス" }
+  ]);
+
+  assert.equal(listThreads(null, 0, 100, true).items[0]?.id, "reply-unread-item");
+  assert.equal(listFeeds().find((feed) => feed.id === "reply-unread")?.unreadCount, 1);
+  assert.equal(getReadingQueueSummary().unreadCount, 1);
+
+  const reopened = getThread("reply-unread-item");
+  assert.equal(reopened?.readMarkerNo, 1);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+});
 
 test("スレタイ自動変換は未読かつ未変換の記事だけを対象にする", () => {
   insertFeed("selection");

@@ -36,7 +36,10 @@ export function listFeeds(): FeedSource[] {
       fs.skip_title_conversion,
       fs.parent_folder_id,
       fs.sort_order,
-      COUNT(CASE WHEN fi.id IS NOT NULL AND fi.read_at IS NULL THEN 1 END) AS unread_count
+      COUNT(CASE WHEN fi.id IS NOT NULL AND (
+        fi.read_at IS NULL OR
+        COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0) > COALESCE(fi.last_read_post_no, 0)
+      ) THEN 1 END) AS unread_count
     FROM feed_sources fs
     LEFT JOIN feed_items fi ON fi.feed_id = fs.id
     GROUP BY fs.id
@@ -67,7 +70,14 @@ export function getFeedSource(feedId: string): FeedSource | null {
   if (!row) return null;
 
   const unreadRow = db
-    .prepare("SELECT COUNT(*) AS unread_count FROM feed_items WHERE feed_id = ? AND read_at IS NULL")
+    .prepare(`
+      SELECT COUNT(*) AS unread_count
+      FROM feed_items fi
+      WHERE fi.feed_id = ? AND (
+        fi.read_at IS NULL OR
+        COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0) > COALESCE(fi.last_read_post_no, 0)
+      )
+    `)
     .get(feedId) as { unread_count: number } | undefined;
 
   return {
@@ -84,13 +94,25 @@ export function getFeedSource(feedId: string): FeedSource | null {
 }
 
 export function markAllFeedsRead(): void {
-  getDatabase().prepare("UPDATE feed_items SET read_at = COALESCE(read_at, datetime('now'))").run();
+  const now = new Date().toISOString();
+  getDatabase().prepare(`
+    UPDATE feed_items SET
+      read_at = COALESCE(read_at, ?),
+      last_read_post_no = COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id), 0),
+      updated_at = ?
+  `).run(now, now);
 }
 
 export function markFeedRead(feedId: string): void {
   const now = new Date().toISOString();
   getDatabase()
-    .prepare("UPDATE feed_items SET read_at = COALESCE(read_at, ?), updated_at = ? WHERE feed_id = ?")
+    .prepare(`
+      UPDATE feed_items SET
+        read_at = COALESCE(read_at, ?),
+        last_read_post_no = COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id), 0),
+        updated_at = ?
+      WHERE feed_id = ?
+    `)
     .run(now, now, feedId);
 }
 

@@ -30,6 +30,7 @@ function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   migrateLegacyTitleTable(db);
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
+  const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_status", "TEXT");
@@ -45,6 +46,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_sources", "sort_order", "INTEGER");
   backfillFeedSortOrder(db);
   backfillCanonicalUrls(db);
+  if (addedLastReadPostNo) backfillLastReadPostNo(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
@@ -109,11 +111,23 @@ function backfillCanonicalUrls(db: DatabaseSync): void {
   }
 }
 
-function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): void {
+function backfillLastReadPostNo(db: DatabaseSync): void {
+  db.exec(`
+    UPDATE feed_items
+    SET last_read_post_no = COALESCE(
+      (SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id),
+      0
+    )
+    WHERE read_at IS NOT NULL
+  `);
+}
+
+function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): boolean {
   const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
   if (columns.some((column) => column.name === columnName)) {
-    return;
+    return false;
   }
 
   db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`);
+  return true;
 }

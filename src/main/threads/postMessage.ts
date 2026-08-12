@@ -6,7 +6,6 @@ import {
   postUserMessage,
   recordLlmRequestLog,
   saveGeneratedThreadPosts,
-  setThreadRead,
   getArticleBody,
   getArticleSummary,
   saveArticleSummary
@@ -47,7 +46,7 @@ export async function postThreadMessage(
   }
 
   try {
-    const thread = getThread(threadId);
+    const thread = getThread(threadId, false);
     if (!thread) {
       onStatus?.("error");
       releaseThreadLock(threadId);
@@ -80,7 +79,7 @@ export async function postThreadMessage(
     });
 
     // 最新状態を取得
-    const updatedThread = getThread(threadId);
+    const updatedThread = getThread(threadId, false);
     if (!updatedThread) {
       onStatus?.("error");
       releaseThreadLock(threadId);
@@ -112,7 +111,6 @@ async function completePostGeneration(
   try {
     await ensureArticleSummary(threadId, thread.feedId);
     await generateAndSaveReplies(threadId, thread, "reply_to_user");
-    setThreadRead(threadId, false);
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -134,11 +132,11 @@ export async function generateRepliesOnly(
 ): Promise<ThreadDetail | null> {
   if (!acquireThreadLock(threadId)) {
     onStatus?.("done");
-    return getThread(threadId);
+    return getThread(threadId, false);
   }
 
   try {
-    const thread = getThread(threadId);
+    const thread = getThread(threadId, false);
     if (!thread) {
       onStatus?.("error");
       return null;
@@ -156,7 +154,6 @@ export async function generateRepliesOnly(
 
     onStatus?.("generating");
     await generateAndSaveReplies(threadId, thread, "continue_thread");
-    setThreadRead(threadId, false);
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -166,7 +163,7 @@ export async function generateRepliesOnly(
     releaseThreadLock(threadId);
   }
 
-  return getThread(threadId);
+  return getThread(threadId, false);
 }
 
 async function ensureArticleSummary(threadId: string, feedId: string): Promise<void> {

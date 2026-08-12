@@ -13,6 +13,7 @@ type UsePostingOptions = {
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   reloadFeeds: () => Promise<void>;
   reloadCurrentThreadList: (preferredThreadId?: string) => Promise<void>;
+  reloadQueueSummary: () => Promise<void>;
 };
 
 function scrollReadMarkerToTop() {
@@ -42,7 +43,8 @@ export function usePosting(options: UsePostingOptions) {
       if (data.status === "done" && data.threadId !== current.selectedThreadId) {
         void Promise.all([
           current.reloadFeeds(),
-          current.reloadCurrentThreadList()
+          current.reloadCurrentThreadList(),
+          current.reloadQueueSummary()
         ]);
         return;
       }
@@ -62,16 +64,15 @@ export function usePosting(options: UsePostingOptions) {
           void current.reloadFeeds();
           return;
         }
-        return window.viperReader?.setThreadRead(data.threadId, false).then(() => {
-          current.setSelectedThread(thread);
-          current.setThreadList((items) => items.map((item) =>
-            item.id === thread.id ? { ...item, ...thread, isRead: false } : item
-          ));
-          void Promise.all([
-            current.reloadFeeds(),
-            current.reloadCurrentThreadList(thread.id)
-          ]);
-        });
+        current.setSelectedThread(thread);
+        current.setThreadList((items) => items.map((item) =>
+          item.id === thread.id ? { ...item, ...thread, isRead: true } : item
+        ));
+        void Promise.all([
+          current.reloadFeeds(),
+          current.reloadCurrentThreadList(thread.id),
+          current.reloadQueueSummary()
+        ]);
       });
     });
   }, []);
@@ -147,8 +148,7 @@ export function usePosting(options: UsePostingOptions) {
     try {
       const result = await window.viperReader.generateReplies(thread.id);
       if (result) {
-        await window.viperReader.setThreadRead(thread.id, false);
-        applyResult(thread.id, markerNo, result, false, false);
+        applyResult(thread.id, markerNo, result, false);
       }
     } catch (error) {
       if (current.selectedThreadIdRef.current === thread.id) {

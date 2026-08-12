@@ -3,8 +3,10 @@ import { getDatabase } from "./database.js";
 export function countAllUnreadArticles(): number {
   const row = getDatabase().prepare(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
-    FROM feed_items
-    WHERE read_at IS NULL
+    FROM feed_items fi
+    WHERE fi.read_at IS NULL
+      OR COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0)
+        > COALESCE(fi.last_read_post_no, 0)
   `).get() as { count: number };
   return Number(row.count);
 }
@@ -26,9 +28,14 @@ function updateThreadReadState(threadId: string, readAt: string | null, preserve
   const now = readAt ?? new Date().toISOString();
   getDatabase().prepare(`
     UPDATE feed_items
-    SET read_at = ${preserveExisting ? "COALESCE(read_at, ?)" : "?"}, updated_at = ?
+    SET read_at = ${preserveExisting ? "COALESCE(read_at, ?)" : "?"},
+        last_read_post_no = CASE
+          WHEN ? IS NULL THEN last_read_post_no
+          ELSE COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id), 0)
+        END,
+        updated_at = ?
     WHERE COALESCE(NULLIF(canonical_url, ''), url) = (
       SELECT COALESCE(NULLIF(canonical_url, ''), url) FROM feed_items WHERE id = ?
     )
-  `).run(readAt, now, threadId);
+  `).run(readAt, readAt, now, threadId);
 }

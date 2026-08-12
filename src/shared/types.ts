@@ -67,6 +67,7 @@ export type SmartView = "unread" | "generated" | "reviewed";
 
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
+  readMarkerNo: number | null;
 };
 
 export type ArticleBodyContent = {

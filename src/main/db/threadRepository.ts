@@ -20,6 +20,11 @@ import {
 import { getDatabase } from "./database.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
+
+const unreadSql = `(
+  fi.read_at IS NULL OR
+  COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0) > COALESCE(fi.last_read_post_no, 0)
+)`;
 type ThreadRow = {
   id: string;
   feed_id: string;
@@ -29,6 +34,7 @@ type ThreadRow = {
   source: string;
   published_at: string | null;
   read_at: string | null;
+  last_read_post_no: number;
   raw_summary: string | null;
   response_count: number;
   is_favorite: number;
@@ -57,7 +63,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
     SELECT COUNT(*) AS total_count
     FROM feed_items fi
     WHERE (? IS NULL OR fi.feed_id = ?)
-      AND (? = 0 OR fi.read_at IS NULL)
+      AND (? = 0 OR ${unreadSql})
   `).get(feedId, feedId, filterUnread) as { total_count: number };
   const rows = db
     .prepare(
@@ -71,6 +77,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fs.title AS source,
         fi.published_at,
         fi.read_at,
+        fi.last_read_post_no,
         fi.is_favorite,
         fi.generation_status,
         CASE
@@ -104,9 +111,9 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE (? IS NULL OR fi.feed_id = ?)
-        AND (? = 0 OR fi.read_at IS NULL)
+        AND (? = 0 OR ${unreadSql})
       ORDER BY
-        CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END ASC,
+        CASE WHEN ${unreadSql} THEN 0 ELSE 1 END ASC,
         COALESCE(fi.published_at, fi.created_at) DESC,
         fi.created_at DESC,
         fi.id DESC
@@ -160,7 +167,7 @@ function listAllThreads(
   const countRow = db.prepare(`
     SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
     FROM feed_items fi
-    WHERE (? = 0 OR fi.read_at IS NULL)
+    WHERE (? = 0 OR ${unreadSql})
       ${generationCondition}
   `).get(filterUnread) as { total_count: number };
   const rows = db.prepare(`
@@ -171,13 +178,13 @@ function listAllThreads(
         ROW_NUMBER() OVER (
           PARTITION BY ${canonicalKey}
           ORDER BY
-            CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+            CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
             COALESCE(fi.published_at, fi.created_at) DESC,
             fi.created_at DESC,
             fi.id DESC
         ) AS article_rank
       FROM feed_items fi
-      WHERE (? = 0 OR fi.read_at IS NULL)
+      WHERE (? = 0 OR ${unreadSql})
         ${generationCondition}
     ),
     source_names AS (
@@ -201,6 +208,7 @@ function listAllThreads(
       source_names.source,
       fi.published_at,
       fi.read_at,
+      fi.last_read_post_no,
       fi.is_favorite,
       fi.generation_status,
       CASE
@@ -233,7 +241,7 @@ function listAllThreads(
     ORDER BY
       ${generationQueueMode === "unreviewed" ? "fi.generation_completed_at ASC," : ""}
       ${generationQueueMode === "reviewed" ? "fi.generation_reviewed_at DESC," : ""}
-      CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+      CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
       COALESCE(fi.published_at, fi.created_at) DESC,
       fi.created_at DESC,
       fi.id DESC
@@ -307,14 +315,12 @@ type ThreadPostRow = {
   is_user: number;
 };
 
-export function getThread(threadId: string): ThreadDetail | null {
+export function getThread(threadId: string, markAsRead = true): ThreadDetail | null {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
   const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
-  markThreadRead(threadId);
-
   // 1. thread_posts から取得を試みる
   const postsRows = db
     .prepare("SELECT no, name, mail, date, uid, body, is_user FROM thread_posts WHERE feed_item_id = ? ORDER BY no ASC")
@@ -344,6 +350,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         source_names.source,
         fi.published_at,
         fi.read_at,
+        fi.last_read_post_no,
         fi.is_favorite,
         fi.generation_status,
         CASE
@@ -385,6 +392,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       source: string;
       published_at: string | null;
       read_at: string | null;
+      last_read_post_no: number;
       is_favorite: number;
       generation_status: ThreadListItem["generationStatus"];
       title_generation_status: "completed" | "failed" | "skipped" | null;
@@ -403,7 +411,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     threadTitle: threadInfoRow.thread_title,
     source: threadInfoRow.source,
     publishedAt: threadInfoRow.published_at ?? "",
-    isRead: threadInfoRow.read_at !== null,
+    isRead: true,
     isFavorite: threadInfoRow.is_favorite === 1,
     generationStatus: threadInfoRow.generation_status,
     titleGenerationStatus:
@@ -424,10 +432,13 @@ export function getThread(threadId: string): ThreadDetail | null {
       isUser: row.is_user === 1
     }));
 
+    const readMarkerNo = getReadMarkerNo(threadInfoRow.read_at, threadInfoRow.last_read_post_no, posts);
+    if (markAsRead) markThreadRead(threadId);
     return {
       ...listItem,
       responseCount: posts.length,
-      posts
+      posts,
+      readMarkerNo
     };
   }
 
@@ -472,6 +483,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       source: threadInfoRow.source,
       published_at: threadInfoRow.published_at,
       read_at: threadInfoRow.read_at,
+      last_read_post_no: threadInfoRow.last_read_post_no,
       raw_summary: threadInfoRow.raw_summary,
       is_favorite: threadInfoRow.is_favorite,
       generation_status: threadInfoRow.generation_status,
@@ -485,11 +497,14 @@ export function getThread(threadId: string): ThreadDetail | null {
 
   // 移行したデータを thread_posts に保存
   saveGeneratedThreadPosts(threadId, initialPosts);
+  const readMarkerNo = getReadMarkerNo(threadInfoRow.read_at, threadInfoRow.last_read_post_no, initialPosts);
+  if (markAsRead) markThreadRead(threadId);
 
   return {
     ...listItem,
     responseCount: initialPosts.length,
-    posts: initialPosts
+    posts: initialPosts,
+    readMarkerNo
   };
 }
 
@@ -502,7 +517,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     threadTitle: row.thread_title,
     source: row.source,
     publishedAt: row.published_at ?? "",
-    isRead: row.read_at !== null,
+    isRead: row.read_at !== null && Number(row.response_count) <= Number(row.last_read_post_no ?? 0),
     isFavorite: row.is_favorite === 1,
     responseCount: Number(row.response_count),
     generationStatus: row.generation_status ?? null,
@@ -511,6 +526,13 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
         ? row.title_generation_status
         : null
   };
+}
+
+function getReadMarkerNo(readAt: string | null, lastReadPostNo: number, posts: ThreadPost[]): number | null {
+  const maxPostNo = posts.reduce((max, post) => Math.max(max, post.no), 0);
+  return readAt !== null && lastReadPostNo > 0 && maxPostNo > lastReadPostNo
+    ? lastReadPostNo
+    : null;
 }
 
 function parsePosts(postsJson: string | undefined): ThreadPost[] {
