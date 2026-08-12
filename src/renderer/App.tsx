@@ -15,10 +15,10 @@ import { useThreadGeneration } from "./hooks/useThreadGeneration";
 import { allFeedsId, useFeedTree } from "./hooks/useFeedTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useThreadList } from "./hooks/useThreadList";
+import { useFeedRefresh } from "./hooks/useFeedRefresh";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
-const maxConcurrentFeedRefreshes = 5;
 
 function scrollReadMarkerToTop() {
   setTimeout(() => {
@@ -97,9 +97,7 @@ export function App() {
       setSelectedThread((thread) => thread?.id === threadId ? { ...thread, isRead } : thread);
     }
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
-  const [refreshMessage, setRefreshMessage] = useState("");
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
   const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
@@ -234,6 +232,20 @@ export function App() {
     setSelectedThread,
     reloadGeneratedQueue: () => void reloadGeneratedQueue(0),
     reloadQueueSummary
+  });
+  const {
+    isRefreshing,
+    message: refreshMessage,
+    clearMessage: clearRefreshMessage,
+    refreshFeed,
+    refreshSelectedFeed
+  } = useFeedRefresh({
+    feeds: feedList,
+    threads: threadList,
+    selectedFeedId,
+    selectedThreadIdRef,
+    reloadFeeds,
+    reloadCurrentThreadList
   });
 
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
@@ -471,7 +483,7 @@ export function App() {
     reviewCurrentGeneratedThread();
     setSmartView(null);
     selectFeedNode(feedId);
-    setRefreshMessage("");
+    clearRefreshMessage();
   }
 
   function selectSmartView(view: SmartView) {
@@ -481,7 +493,7 @@ export function App() {
       setSelectedTreeNode(null);
       setSelectedThreadId(undefined);
       setSelectedThread(null);
-      setRefreshMessage("");
+      clearRefreshMessage();
     }
 
     if (view !== smartView && smartView === "generated" && selectedThreadId && window.viperReader) {
@@ -664,116 +676,6 @@ export function App() {
     const anchor = `>>${postNo}\n`;
     setReplyBody((current) => current.startsWith(anchor) ? current : `${anchor}${current}`);
     setTimeout(() => replyBodyRef.current?.focus(), 0);
-  }
-
-  async function refreshFeed(feedId: string) {
-    if (!window.viperReader || !feedId || isRefreshing) {
-      return;
-    }
-
-    const preferredThreadId = threadList.some(
-      (thread) => thread.feedId === feedId && thread.id === selectedThreadId
-    )
-      ? selectedThreadId
-      : undefined;
-
-    setIsRefreshing(true);
-    setRefreshMessage("RSS取得中...");
-    const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
-      if (progress.feedId === feedId) {
-        setRefreshMessage(progress.message);
-      }
-    });
-
-    try {
-      const result = await window.viperReader.refreshFeed(feedId);
-      await reloadFeeds();
-      await reloadCurrentThreadList(preferredThreadId);
-      setRefreshMessage(
-        `取得:${result.fetchedCount} 新規:${result.insertedCount} 更新:${result.updatedCount} 既存:${result.skippedCount} 変換:${result.convertedCount} 失敗:${result.conversionFailedCount} 未変換:${result.conversionSkippedCount}`
-      );
-    } catch (error) {
-      setRefreshMessage(error instanceof Error ? `取得失敗: ${error.message}` : "取得失敗");
-    } finally {
-      unsubscribeProgress();
-      setIsRefreshing(false);
-    }
-  }
-
-  async function refreshSelectedFeed() {
-    if (selectedFeedId === allFeedsId) {
-      await refreshAllFeeds();
-    } else if (selectedFeed) {
-      await refreshFeed(selectedFeed.id);
-    }
-  }
-
-  async function refreshAllFeeds() {
-    if (!window.viperReader || feedList.length === 0 || isRefreshing) {
-      return;
-    }
-
-    const feedsToRefresh = [...feedList];
-    const totals = {
-      fetchedCount: 0,
-      insertedCount: 0,
-      updatedCount: 0,
-      skippedCount: 0,
-      convertedCount: 0,
-      conversionFailedCount: 0,
-      conversionSkippedCount: 0
-    };
-    const failedFeeds: string[] = [];
-    const feedById = new Map(feedsToRefresh.map((feed) => [feed.id, feed]));
-    let nextFeedIndex = 0;
-    let completedFeedCount = 0;
-
-    setIsRefreshing(true);
-    setRefreshMessage(`全板更新を開始...（0/${feedsToRefresh.length}板・最大${maxConcurrentFeedRefreshes}並列）`);
-    const unsubscribeProgress = window.viperReader.onRefreshProgress((progress) => {
-      const feed = feedById.get(progress.feedId);
-      if (feed) {
-        setRefreshMessage(`全板更新 完了${completedFeedCount}/${feedsToRefresh.length}板「${feed.title}」: ${progress.message}`);
-      }
-    });
-
-    try {
-      async function refreshNextFeed(): Promise<void> {
-        while (nextFeedIndex < feedsToRefresh.length) {
-          const feed = feedsToRefresh[nextFeedIndex];
-          nextFeedIndex += 1;
-          setRefreshMessage(`全板更新 完了${completedFeedCount}/${feedsToRefresh.length}板「${feed.title}」: RSS取得中...`);
-          try {
-            const result = await window.viperReader!.refreshFeed(feed.id);
-            totals.fetchedCount += result.fetchedCount;
-            totals.insertedCount += result.insertedCount;
-            totals.updatedCount += result.updatedCount;
-            totals.skippedCount += result.skippedCount;
-            totals.convertedCount += result.convertedCount;
-            totals.conversionFailedCount += result.conversionFailedCount;
-            totals.conversionSkippedCount += result.conversionSkippedCount;
-          } catch {
-            failedFeeds.push(feed.title);
-          } finally {
-            completedFeedCount += 1;
-            setRefreshMessage(`全板更新 ${completedFeedCount}/${feedsToRefresh.length}板完了`);
-          }
-        }
-      }
-
-      const workerCount = Math.min(maxConcurrentFeedRefreshes, feedsToRefresh.length);
-      await Promise.all(Array.from({ length: workerCount }, () => refreshNextFeed()));
-
-      await reloadFeeds();
-      await reloadCurrentThreadList(selectedThreadIdRef.current);
-      const failureSummary = failedFeeds.length > 0 ? ` 更新失敗:${failedFeeds.length}板（${failedFeeds.join("、")}）` : "";
-      setRefreshMessage(
-        `全${feedsToRefresh.length}板完了 取得:${totals.fetchedCount} 新規:${totals.insertedCount} 更新:${totals.updatedCount} 既存:${totals.skippedCount} 変換:${totals.convertedCount} 失敗:${totals.conversionFailedCount} 未変換:${totals.conversionSkippedCount}${failureSummary}`
-      );
-    } finally {
-      unsubscribeProgress();
-      setIsRefreshing(false);
-    }
   }
 
   async function generateResponses(force = false) {
