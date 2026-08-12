@@ -8,7 +8,7 @@ import { FeedPane } from "./components/FeedPane";
 import { MenuBar } from "./components/MenuBar";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
-import { useAddFeedForm, useFeedSettingsForm, useFolderForm, useReplyComposer } from "./hooks/useAppForms";
+import { useAddFeedForm, useFeedSettingsForm, useFolderForm } from "./hooks/useAppForms";
 import { usePaneLayout } from "./hooks/usePaneLayout";
 import { useThreadSelection } from "./hooks/useThreadSelection";
 import { useThreadGeneration } from "./hooks/useThreadGeneration";
@@ -16,23 +16,10 @@ import { allFeedsId, useFeedTree } from "./hooks/useFeedTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useThreadList } from "./hooks/useThreadList";
 import { useFeedRefresh } from "./hooks/useFeedRefresh";
+import { usePosting } from "./hooks/usePosting";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
-
-function scrollReadMarkerToTop() {
-  setTimeout(() => {
-    const postsContainer = document.querySelector<HTMLElement>(".posts");
-    const readMarker = document.querySelector<HTMLElement>('[data-read-marker="true"]');
-    if (!postsContainer || !readMarker) {
-      return;
-    }
-
-    const containerRect = postsContainer.getBoundingClientRect();
-    const markerRect = readMarker.getBoundingClientRect();
-    postsContainer.scrollTop += markerRect.top - containerRect.top;
-  }, 100);
-}
 
 export function App() {
   const {
@@ -139,7 +126,6 @@ export function App() {
   const { form: addFeedForm, update: updateAddFeedForm, reset: resetAddFeedForm } = useAddFeedForm();
   const { form: folderForm, openCreate: openCreateFolderForm, openRename: openRenameFolderForm, update: updateFolderForm, close: closeFolderForm } = useFolderForm();
   const { form: feedSettingsForm, open: openFeedSettingsForm, update: updateFeedSettingsForm, close: closeFeedSettingsForm } = useFeedSettingsForm();
-  const { composer: replyComposer, update: updateReplyComposer, setBody: setReplyBody } = useReplyComposer();
   const {
     title: addFeedTitle,
     url: addFeedUrl,
@@ -159,17 +145,6 @@ export function App() {
   const settingsSkipTitleConversion = feedSettingsForm?.skipTitleConversion ?? false;
   const isFeedSettingsSaving = feedSettingsForm?.isSaving ?? false;
   const feedSettingsError = feedSettingsForm?.error ?? "";
-  const {
-    name: replyName,
-    mail: replyMail,
-    body: replyBody,
-    error: postError,
-    status: postStatus,
-    isPosting
-  } = replyComposer;
-
-  const replyDraftsRef = useRef<Map<string, string>>(new Map());
-  const postingThreadIdRef = useRef<string | null>(null);
   const [popupData, setPopupData] = useState<{
     title: string;
     posts: ThreadPost[];
@@ -212,6 +187,32 @@ export function App() {
       void reloadQueueSummary();
     }
   });
+  const {
+    composer: replyComposer,
+    update: updateReplyComposer,
+    setBody: setReplyBody,
+    switchThread: switchReplyThread,
+    replyToPost,
+    postMessage: handlePostMessage,
+    generateReplies: handleGenerateReplies
+  } = usePosting({
+    selectedThreadId,
+    selectedThreadIdRef,
+    selectedThread,
+    setSelectedThread,
+    setThreadList,
+    setReadMarkerNo,
+    replyBodyRef,
+    reloadFeeds
+  });
+  const {
+    name: replyName,
+    mail: replyMail,
+    body: replyBody,
+    error: postError,
+    status: postStatus,
+    isPosting
+  } = replyComposer;
   const {
     generatingThreadIds,
     progressByThreadId: threadGenerationProgress,
@@ -306,33 +307,6 @@ export function App() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!window.viperReader) return;
-    return window.viperReader.onPostStatus((data) => {
-      if (
-        (data.status === "done" || data.status === "error")
-        && data.threadId === postingThreadIdRef.current
-      ) {
-        postingThreadIdRef.current = null;
-        updateReplyComposer({ isPosting: false });
-      }
-      if (data.threadId !== selectedThreadId) return;
-      updateReplyComposer({ status: data.status });
-      if (data.status === "done" || data.status === "error") {
-        if (data.status === "error") {
-          updateReplyComposer({
-            error: `${data.errorMessage ?? "AI住民のレス生成に失敗しました。"} 書き込みは保存されています。`
-          });
-        }
-        void window.viperReader?.getThread(data.threadId).then((thread) => {
-          if (!thread) return;
-          setSelectedThread(thread);
-          setThreadList((current) => current.map((item) => item.id === thread.id ? { ...item, ...thread, isRead: true } : item));
-        });
-      }
-    });
-  }, [selectedThreadId]);
-
   function selectThreadById(threadId: string) {
     const thread = threadList.find((candidate) => candidate.id === threadId);
     if (thread) {
@@ -345,11 +319,7 @@ export function App() {
       void window.viperReader?.markThreadGenerationReviewed(selectedThreadId).then(reloadQueueSummary);
     }
     if (selectedThreadId !== thread.id) {
-      if (selectedThreadId) {
-        replyDraftsRef.current.set(selectedThreadId, replyBody);
-      }
-      setReplyBody(replyDraftsRef.current.get(thread.id) ?? "");
-      updateReplyComposer({ error: "", status: "idle" });
+      switchReplyThread(selectedThreadId, thread.id);
       setPopupData(null);
     }
     setSelectedFeedId(feedSelection ?? thread.feedId);
@@ -672,12 +642,6 @@ export function App() {
     }
   }
 
-  function replyToPost(postNo: number) {
-    const anchor = `>>${postNo}\n`;
-    setReplyBody((current) => current.startsWith(anchor) ? current : `${anchor}${current}`);
-    setTimeout(() => replyBodyRef.current?.focus(), 0);
-  }
-
   async function generateResponses(force = false) {
     if (selectedThread) await generateThreadResponses(selectedThread, force);
   }
@@ -721,109 +685,6 @@ export function App() {
       }
     } finally {
       setRegeneratingTitleThreadId(null);
-    }
-  }
-
-  async function handlePostMessage(event: React.FormEvent) {
-    event.preventDefault();
-    if (!selectedThread || !window.viperReader || isPosting || !replyBody.trim()) {
-      return;
-    }
-
-    const threadId = selectedThread.id;
-    // 書き込み前の最後のレス番号を記録してセパレーターに使う
-    const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
-
-    updateReplyComposer({ isPosting: true, error: "", status: "idle" });
-    postingThreadIdRef.current = threadId;
-
-    try {
-      const result = await window.viperReader.postMessage(
-        threadId,
-        replyName,
-        replyMail,
-        replyBody
-      );
-
-      if (result) {
-        replyDraftsRef.current.delete(result.id);
-        if (selectedThreadIdRef.current === threadId) {
-          setReadMarkerNo(markerNo);
-          setSelectedThread(result);
-          setReplyBody("");
-        }
-        // スレッド一覧のレス数や既読を更新
-        setThreadList((currentThreads) =>
-          currentThreads.map((currentThread) =>
-            currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
-          )
-        );
-        void reloadFeeds();
-
-        if (selectedThreadIdRef.current === threadId) {
-          scrollReadMarkerToTop();
-        }
-      }
-    } catch (err) {
-      if (selectedThreadIdRef.current === threadId) {
-        updateReplyComposer({ error: err instanceof Error ? err.message : "書き込みに失敗しました。" });
-      }
-      if (postingThreadIdRef.current === threadId) {
-        postingThreadIdRef.current = null;
-        updateReplyComposer({ isPosting: false });
-      }
-      if (selectedThreadIdRef.current === threadId) {
-        updateReplyComposer({ status: "idle" });
-      }
-    }
-  }
-
-  async function handleGenerateReplies() {
-    if (!selectedThread || !window.viperReader || isPosting) return;
-
-    const threadId = selectedThread.id;
-    // 再読み込み前の最後のレス番号を記録してセパレーターに使う
-    const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
-
-    updateReplyComposer({ isPosting: true, error: "" });
-    postingThreadIdRef.current = threadId;
-
-    const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
-      if (data.threadId === threadId && selectedThreadIdRef.current === threadId) {
-        updateReplyComposer({ status: data.status });
-      }
-    });
-
-    try {
-      const result = await window.viperReader.generateReplies(threadId);
-      if (result) {
-        if (selectedThreadIdRef.current === threadId) {
-          setReadMarkerNo(markerNo);
-          setSelectedThread(result);
-        }
-        
-        setThreadList((currentThreads) =>
-          currentThreads.map((currentThread) =>
-            currentThread.id === result.id ? { ...currentThread, ...result, isRead: true } : currentThread
-          )
-        );
-        void reloadFeeds();
-
-        if (selectedThreadIdRef.current === threadId) {
-          scrollReadMarkerToTop();
-        }
-      }
-    } catch (err) {
-      if (selectedThreadIdRef.current === threadId) {
-        updateReplyComposer({ error: err instanceof Error ? err.message : "レス生成に失敗しました。" });
-      }
-    } finally {
-      unsubscribePostStatus();
-      if (postingThreadIdRef.current === threadId) {
-        postingThreadIdRef.current = null;
-        updateReplyComposer({ isPosting: false });
-      }
-      updateReplyComposer({ status: "idle" });
     }
   }
 
