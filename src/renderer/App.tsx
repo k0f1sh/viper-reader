@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, ArticleBodyContent, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -21,6 +21,7 @@ import { ThreadReaderPane } from "./components/ThreadReaderPane";
 import { TitleGenerationStatusModal } from "./components/TitleGenerationStatusModal";
 import { useAddFeedForm, useFeedSettingsForm, useFolderForm, useReplyComposer } from "./hooks/useAppForms";
 import { usePaneLayout } from "./hooks/usePaneLayout";
+import { useThreadSelection } from "./hooks/useThreadSelection";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -53,10 +54,6 @@ export function App() {
   const [selectedFeedId, setSelectedFeedId] = useState("");
   const selectedFeedIdRef = useRef("");
   selectedFeedIdRef.current = selectedFeedId;
-  const [selectedThreadId, setSelectedThreadId] = useState<string | undefined>();
-  const selectedThreadIdRef = useRef<string | undefined>(undefined);
-  selectedThreadIdRef.current = selectedThreadId;
-  const [selectedThread, setSelectedThread] = useState<ThreadDetail | null>(null);
   const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
   const [threadGenerationProgress, setThreadGenerationProgress] = useState<Map<string, string>>(() => new Map());
   const [completedGenerationThreadIds, setCompletedGenerationThreadIds] = useState<Set<string>>(() => new Set());
@@ -82,8 +79,6 @@ export function App() {
   const [promptText, setPromptText] = useState("");
   const [isPromptLoading, setIsPromptLoading] = useState(false);
   const [promptStatusMessage, setPromptStatusMessage] = useState("");
-  const [articleBody, setArticleBody] = useState<ArticleBodyContent | null>(null);
-  const [isArticleBodyLoading, setIsArticleBodyLoading] = useState(false);
   const {
     appShellRef,
     contentPaneRef,
@@ -176,13 +171,42 @@ export function App() {
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
   const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
+  const {
+    selectedThreadId,
+    selectedThreadIdRef,
+    setSelectedThreadId,
+    selectedThread,
+    setSelectedThread,
+    articleBody,
+    isArticleBodyLoading,
+    isSelectedThreadGenerating,
+    shouldShowArticlePane
+  } = useThreadSelection({
+    isArticlePaneEnabled: threadViewMode === "replies" && isArticlePaneVisible,
+    generatingThreadIds,
+    setThreadList,
+    onSelectionStarted: (threadId) => {
+      setReadMarkerNo(null);
+      setExtractedPostId(null);
+      replyBodyRef.current?.blur();
+      if (!threadId) return;
+      setCompletedGenerationThreadIds((currentIds) => {
+        if (!currentIds.has(threadId)) return currentIds;
+        const nextIds = new Set(currentIds);
+        nextIds.delete(threadId);
+        return nextIds;
+      });
+    },
+    onThreadRead: () => {
+      void reloadFeeds();
+      void reloadQueueSummary();
+    }
+  });
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false, skipTitleConversion: false, parentFolderId: null, sortOrder: -1 }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
-  const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
-  const shouldShowArticlePane = threadViewMode === "replies" && isArticlePaneVisible && Boolean(selectedThread && selectedThread.posts.length > 1);
   const isArticleBrowserSuspended =
     isStatisticsOpen
     || isSettingsOpen
@@ -235,84 +259,6 @@ export function App() {
       void reloadThreads(selectedFeedId, undefined, 0);
     }
   }, [selectedFeedId, showUnreadOnly, smartView]);
-
-  useEffect(() => {
-    setReadMarkerNo(null);
-    setExtractedPostId(null);
-    if (!selectedThreadId || !window.viperReader) {
-      setSelectedThread(null);
-      return;
-    }
-    // スレッド切り替え時は、明示操作なしに書き込み欄へフォーカスを残さない
-    replyBodyRef.current?.blur();
-
-    setCompletedGenerationThreadIds((currentIds) => {
-      if (currentIds.has(selectedThreadId)) {
-        const nextIds = new Set(currentIds);
-        nextIds.delete(selectedThreadId);
-        return nextIds;
-      }
-      return currentIds;
-    });
-
-    void window.viperReader
-      .getThread(selectedThreadId)
-      .then((thread) => {
-        if (!thread) {
-          if (selectedThreadIdRef.current === selectedThreadId) {
-            setSelectedThreadId(undefined);
-            setSelectedThread(null);
-          }
-          return;
-        }
-        setThreadList((currentThreads) =>
-          currentThreads.map((currentThread) =>
-            currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
-          )
-        );
-        void reloadFeeds();
-        if (selectedThreadIdRef.current !== selectedThreadId) {
-          return;
-        }
-        setSelectedThread(thread);
-        void reloadQueueSummary();
-      })
-      .catch(() => {
-        if (selectedThreadIdRef.current === selectedThreadId) {
-          setSelectedThread(null);
-        }
-      });
-  }, [selectedThreadId]);
-
-  useEffect(() => {
-    // スレッド間で同じスクロール要素を再利用するため、選択変更時に前の記事の位置を引き継がない。
-    const frame = requestAnimationFrame(() => {
-      const postsContainer = document.querySelector<HTMLElement>(".posts");
-      if (postsContainer) postsContainer.scrollTop = 0;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [selectedThreadId]);
-
-  useEffect(() => {
-    if (!selectedThreadId || !shouldShowArticlePane || !window.viperReader) {
-      setArticleBody(null);
-      setIsArticleBodyLoading(false);
-      return;
-    }
-
-    const threadId = selectedThreadId;
-    setArticleBody(null);
-    setIsArticleBodyLoading(true);
-    void window.viperReader.getArticleBody(threadId).then((body) => {
-      if (selectedThreadIdRef.current === threadId) {
-        setArticleBody(body);
-      }
-    }).finally(() => {
-      if (selectedThreadIdRef.current === threadId) {
-        setIsArticleBodyLoading(false);
-      }
-    });
-  }, [selectedThreadId, shouldShowArticlePane, isSelectedThreadGenerating]);
 
   useEffect(() => {
     if (!window.viperReader) return;
