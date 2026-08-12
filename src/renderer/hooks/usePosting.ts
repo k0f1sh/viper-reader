@@ -12,6 +12,7 @@ type UsePostingOptions = {
   setReadMarkerNo: Dispatch<SetStateAction<number | null>>;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   reloadFeeds: () => Promise<void>;
+  reloadCurrentThreadList: (preferredThreadId?: string) => Promise<void>;
 };
 
 function scrollReadMarkerToTop() {
@@ -38,6 +39,13 @@ export function usePosting(options: UsePostingOptions) {
         postingThreadIdRef.current = null;
         update({ isPosting: false });
       }
+      if (data.status === "done" && data.threadId !== current.selectedThreadId) {
+        void Promise.all([
+          current.reloadFeeds(),
+          current.reloadCurrentThreadList()
+        ]);
+        return;
+      }
       if (data.threadId !== current.selectedThreadId) return;
       update({ status: data.status });
       if (data.status !== "done" && data.status !== "error") return;
@@ -46,12 +54,23 @@ export function usePosting(options: UsePostingOptions) {
       }
       void window.viperReader?.getThread(data.threadId).then((thread) => {
         if (!thread) return;
+        if (data.status === "error") {
+          current.setSelectedThread(thread);
+          current.setThreadList((items) => items.map((item) =>
+            item.id === thread.id ? { ...item, ...thread, isRead: true } : item
+          ));
+          void current.reloadFeeds();
+          return;
+        }
         return window.viperReader?.setThreadRead(data.threadId, false).then(() => {
           current.setSelectedThread(thread);
           current.setThreadList((items) => items.map((item) =>
             item.id === thread.id ? { ...item, ...thread, isRead: false } : item
           ));
-          void current.reloadFeeds();
+          void Promise.all([
+            current.reloadFeeds(),
+            current.reloadCurrentThreadList(thread.id)
+          ]);
         });
       });
     });

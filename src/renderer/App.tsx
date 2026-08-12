@@ -178,7 +178,8 @@ export function App() {
     setThreadList,
     setReadMarkerNo,
     replyBodyRef,
-    reloadFeeds
+    reloadFeeds,
+    reloadCurrentThreadList
   });
   const {
     popupData,
