@@ -46,10 +46,13 @@ export function usePosting(options: UsePostingOptions) {
       }
       void window.viperReader?.getThread(data.threadId).then((thread) => {
         if (!thread) return;
-        current.setSelectedThread(thread);
-        current.setThreadList((items) => items.map((item) =>
-          item.id === thread.id ? { ...item, ...thread, isRead: true } : item
-        ));
+        return window.viperReader?.setThreadRead(data.threadId, false).then(() => {
+          current.setSelectedThread(thread);
+          current.setThreadList((items) => items.map((item) =>
+            item.id === thread.id ? { ...item, ...thread, isRead: false } : item
+          ));
+          void current.reloadFeeds();
+        });
       });
     });
   }, []);
@@ -67,7 +70,13 @@ export function usePosting(options: UsePostingOptions) {
     setTimeout(() => optionsRef.current.replyBodyRef.current?.focus(), 0);
   }
 
-  function applyResult(threadId: string, markerNo: number, result: ThreadDetail, clearBody: boolean) {
+  function applyResult(
+    threadId: string,
+    markerNo: number,
+    result: ThreadDetail,
+    clearBody: boolean,
+    isRead = true
+  ) {
     const current = optionsRef.current;
     if (current.selectedThreadIdRef.current === threadId) {
       current.setReadMarkerNo(markerNo);
@@ -75,7 +84,7 @@ export function usePosting(options: UsePostingOptions) {
       if (clearBody) setBody("");
     }
     current.setThreadList((items) => items.map((item) =>
-      item.id === result.id ? { ...item, ...result, isRead: true } : item
+      item.id === result.id ? { ...item, ...result, isRead } : item
     ));
     void current.reloadFeeds();
     if (current.selectedThreadIdRef.current === threadId) scrollReadMarkerToTop();
@@ -118,7 +127,10 @@ export function usePosting(options: UsePostingOptions) {
     });
     try {
       const result = await window.viperReader.generateReplies(thread.id);
-      if (result) applyResult(thread.id, markerNo, result, false);
+      if (result) {
+        await window.viperReader.setThreadRead(thread.id, false);
+        applyResult(thread.id, markerNo, result, false, false);
+      }
     } catch (error) {
       if (current.selectedThreadIdRef.current === thread.id) {
         update({ error: error instanceof Error ? error.message : "レス生成に失敗しました。" });
@@ -133,5 +145,16 @@ export function usePosting(options: UsePostingOptions) {
     }
   }
 
-  return { composer, update, setBody, switchThread, replyToPost, postMessage, generateReplies };
+  return {
+    composer: {
+      ...composer,
+      isPosting: composer.isPosting && postingThreadIdRef.current === options.selectedThreadId
+    },
+    update,
+    setBody,
+    switchThread,
+    replyToPost,
+    postMessage,
+    generateReplies
+  };
 }

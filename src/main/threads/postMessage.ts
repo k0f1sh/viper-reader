@@ -6,6 +6,7 @@ import {
   postUserMessage,
   recordLlmRequestLog,
   saveGeneratedThreadPosts,
+  setThreadRead,
   getArticleBody,
   getArticleSummary,
   saveArticleSummary
@@ -111,6 +112,7 @@ async function completePostGeneration(
   try {
     await ensureArticleSummary(threadId, thread.feedId);
     await generateAndSaveReplies(threadId, thread, "reply_to_user");
+    setThreadRead(threadId, false);
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -154,6 +156,7 @@ export async function generateRepliesOnly(
 
     onStatus?.("generating");
     await generateAndSaveReplies(threadId, thread, "continue_thread");
+    setThreadRead(threadId, false);
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
