@@ -127,6 +127,7 @@ export function App() {
   const settingsFeedTitle = feedSettingsForm?.title ?? "";
   const settingsGenerateTitleFromSummary = feedSettingsForm?.generateTitleFromSummary ?? false;
   const settingsSkipTitleConversion = feedSettingsForm?.skipTitleConversion ?? false;
+  const settingsDefaultToArticleBrowser = feedSettingsForm?.defaultToArticleBrowser ?? false;
   const isFeedSettingsSaving = feedSettingsForm?.isSaving ?? false;
   const feedSettingsError = feedSettingsForm?.error ?? "";
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
@@ -288,6 +289,13 @@ export function App() {
   });
 
   useEffect(() => {
+    if (!window.viperReader) return;
+    return window.viperReader.onToggleArticleBrowserExpanded(() => {
+      setIsArticleBrowserExpanded((current) => !current);
+    });
+  }, []);
+
+  useEffect(() => {
     void loadFavoriteThreads();
     void reloadQueueSummary();
   }, []);
@@ -321,6 +329,9 @@ export function App() {
       switchReplyThread(selectedThreadId, thread.id);
       closePostPopup();
     }
+    const feed = feedList.find((candidate) => candidate.id === thread.feedId);
+    setIsArticleBrowserExpanded(false);
+    setThreadViewMode(feed?.defaultToArticleBrowser ? "browser" : "replies");
     setSelectedFeedId(feedSelection ?? thread.feedId);
     setSelectedThreadId(thread.id);
   }
@@ -424,7 +435,8 @@ export function App() {
         settingsFeed.id,
         settingsFeedTitle,
         settingsGenerateTitleFromSummary,
-        settingsSkipTitleConversion
+        settingsSkipTitleConversion,
+        settingsDefaultToArticleBrowser
       );
       setFeedList((current) => current.map((feed) => feed.id === updated.id ? updated : feed));
       await reloadCurrentThreadList(selectedThreadIdRef.current);
@@ -668,7 +680,7 @@ export function App() {
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}
         addFeed={isAddFeedOpen ? { addFeedTitle, addFeedUrl, addFeedError, generateTitleFromSummary: addFeedGenerateTitleFromSummary, skipTitleConversion: addFeedSkipTitleConversion, isAddFeedLoading, onTitleChange: (title) => updateAddFeedForm({ title }), onUrlChange: (url) => updateAddFeedForm({ url }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateAddFeedForm({ skipTitleConversion }), onAddFeed: () => void addFeed(), onClose: () => setIsAddFeedOpen(false) } : null}
         folder={folderModalMode ? { mode: folderModalMode, name: folderName, error: folderError, isSaving: isFolderSaving, onNameChange: (name) => updateFolderForm({ name }), onSave: () => void saveFolder(), onClose: closeFolderForm } : null}
-        feedSettings={settingsFeed ? { feed: settingsFeed, title: settingsFeedTitle, generateTitleFromSummary: settingsGenerateTitleFromSummary, skipTitleConversion: settingsSkipTitleConversion, isSaving: isFeedSettingsSaving, error: feedSettingsError, onTitleChange: (title) => updateFeedSettingsForm({ title }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion }), onSave: () => void saveFeedSettings(), onClose: closeFeedSettingsForm } : null}
+        feedSettings={settingsFeed ? { feed: settingsFeed, title: settingsFeedTitle, generateTitleFromSummary: settingsGenerateTitleFromSummary, skipTitleConversion: settingsSkipTitleConversion, defaultToArticleBrowser: settingsDefaultToArticleBrowser, isSaving: isFeedSettingsSaving, error: feedSettingsError, onTitleChange: (title) => updateFeedSettingsForm({ title }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion }), onDefaultToArticleBrowserChange: (defaultToArticleBrowser) => updateFeedSettingsForm({ defaultToArticleBrowser }), onSave: () => void saveFeedSettings(), onClose: closeFeedSettingsForm } : null}
         generationFailure={generationFailureThreadId ? { thread: threadList.find((thread) => thread.id === generationFailureThreadId), attempts: generationAttempts, isLoading: isGenerationAttemptsLoading, isRetrying: isRetryingGeneration, onRetry: () => void retryFailedGeneration(), onClose: closeGenerationFailure } : null}
         titleGenerationStatus={titleGenerationThreadId ? { thread: threadList.find((thread) => thread.id === titleGenerationThreadId), attempts: titleGenerationAttempts, isLoading: isTitleGenerationAttemptsLoading, onClose: () => setTitleGenerationThreadId(null) } : null}
         replyPopup={popupData ? { popupData, onMouseEnter: clearPopupTimeout, onMouseLeave: handleMouseLeaveWithDelay, onAnchorClick: scrollToPost } : null}

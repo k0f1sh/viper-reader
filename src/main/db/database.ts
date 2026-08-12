@@ -42,6 +42,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   addColumnIfMissing(db, "feed_sources", "generate_title_from_summary", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_sources", "skip_title_conversion", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "default_to_article_browser", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_sources", "parent_folder_id", "TEXT REFERENCES feed_folders(id) ON DELETE RESTRICT");
   addColumnIfMissing(db, "feed_sources", "sort_order", "INTEGER");
   backfillFeedSortOrder(db);

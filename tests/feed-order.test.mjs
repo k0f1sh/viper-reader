@@ -41,10 +41,11 @@ test("一部の板だけを指定した不正な並び順は保存しない", ()
 
 test("板の設定からタイトルとスレタイ生成方法を更新できる", () => {
   const feed = listFeeds()[0];
-  const updated = updateFeedSettings(feed.id, "  新しい板タイトル  ", true, true);
+  const updated = updateFeedSettings(feed.id, "  新しい板タイトル  ", true, true, true);
 
   assert.equal(updated.title, "新しい板タイトル");
   assert.equal(updated.generateTitleFromSummary, true);
   assert.equal(updated.skipTitleConversion, true);
+  assert.equal(updated.defaultToArticleBrowser, true);
   assert.equal(listFeeds().find((candidate) => candidate.id === feed.id)?.title, "新しい板タイトル");
 });

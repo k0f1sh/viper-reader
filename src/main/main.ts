@@ -416,12 +416,13 @@ ipcMain.handle("feed-tree:save-layout", (_event, placements: FeedTreePlacement[]
   assertFeedTreePlacements(placements);
   saveFeedTreeLayout(placements);
 });
-ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => {
+ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, defaultToArticleBrowser: boolean) => {
   assertIdentifier(feedId, "feed ID");
   assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertBoolean(generateTitleFromSummary, "title generation flag");
   assertBoolean(skipTitleConversion, "skip title conversion flag");
-  return updateFeedSettings(feedId, title, generateTitleFromSummary, skipTitleConversion);
+  assertBoolean(defaultToArticleBrowser, "default article browser flag");
+  return updateFeedSettings(feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser);
 });
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   assertHttpUrl(url, "external URL");

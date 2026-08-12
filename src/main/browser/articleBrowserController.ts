@@ -280,6 +280,11 @@ export class ArticleBrowserController {
         this.scroll(key === "n" ? 1 : -1);
         return;
       }
+      if (isPlainKeyDown && key === ";") {
+        event.preventDefault();
+        this.owner.webContents.send("article-browser:toggle-expanded");
+        return;
+      }
       if (
         isPlainKeyDown
         && key === "o"

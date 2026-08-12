@@ -10,6 +10,7 @@ type FeedRow = {
   last_fetched_at: string | null;
   generate_title_from_summary: number;
   skip_title_conversion: number;
+  default_to_article_browser: number;
   parent_folder_id: string | null;
   sort_order: number | null;
 };
@@ -21,6 +22,7 @@ type FeedSourceRow = {
   last_fetched_at: string | null;
   generate_title_from_summary: number;
   skip_title_conversion: number;
+  default_to_article_browser: number;
   parent_folder_id: string | null;
   sort_order: number | null;
 };
@@ -34,6 +36,7 @@ export function listFeeds(): FeedSource[] {
       fs.last_fetched_at,
       fs.generate_title_from_summary,
       fs.skip_title_conversion,
+      fs.default_to_article_browser,
       fs.parent_folder_id,
       fs.sort_order,
       COUNT(CASE WHEN fi.id IS NOT NULL AND fi.read_at IS NULL THEN 1 END) AS unread_count
@@ -51,6 +54,7 @@ export function listFeeds(): FeedSource[] {
     lastFetchedAt: row.last_fetched_at,
     generateTitleFromSummary: Boolean(row.generate_title_from_summary),
     skipTitleConversion: Boolean(row.skip_title_conversion),
+    defaultToArticleBrowser: Boolean(row.default_to_article_browser),
     parentFolderId: row.parent_folder_id,
     sortOrder: Number(row.sort_order ?? 0)
   }));
@@ -59,7 +63,7 @@ export function listFeeds(): FeedSource[] {
 export function getFeedSource(feedId: string): FeedSource | null {
   const db = getDatabase();
   const row = db.prepare(`
-    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion, parent_folder_id, sort_order
+    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion, default_to_article_browser, parent_folder_id, sort_order
     FROM feed_sources
     WHERE id = ?
   `).get(feedId) as FeedSourceRow | undefined;
@@ -78,6 +82,7 @@ export function getFeedSource(feedId: string): FeedSource | null {
     lastFetchedAt: row.last_fetched_at,
     generateTitleFromSummary: Boolean(row.generate_title_from_summary),
     skipTitleConversion: Boolean(row.skip_title_conversion),
+    defaultToArticleBrowser: Boolean(row.default_to_article_browser),
     parentFolderId: row.parent_folder_id,
     sortOrder: Number(row.sort_order ?? 0)
   };
@@ -163,6 +168,7 @@ export function addFeedSource(
     lastFetchedAt: null,
     generateTitleFromSummary,
     skipTitleConversion,
+    defaultToArticleBrowser: false,
     parentFolderId,
     sortOrder: nextSortOrder
   };
@@ -210,9 +216,10 @@ export function updateFeedSettings(
   feedId: string,
   title: string,
   generateTitleFromSummary: boolean,
-  skipTitleConversion: boolean
+  skipTitleConversion: boolean,
+  defaultToArticleBrowser: boolean
 ): FeedSource {
-  if (typeof generateTitleFromSummary !== "boolean" || typeof skipTitleConversion !== "boolean") {
+  if (typeof generateTitleFromSummary !== "boolean" || typeof skipTitleConversion !== "boolean" || typeof defaultToArticleBrowser !== "boolean") {
     throw new Error("スレタイ生成設定が不正です。");
   }
   const normalizedTitle = title.trim();
@@ -221,8 +228,8 @@ export function updateFeedSettings(
   }
   const db = getDatabase();
   const result = db.prepare(
-    "UPDATE feed_sources SET title = ?, generate_title_from_summary = ?, skip_title_conversion = ?, updated_at = ? WHERE id = ?"
-  ).run(normalizedTitle, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, new Date().toISOString(), feedId);
+    "UPDATE feed_sources SET title = ?, generate_title_from_summary = ?, skip_title_conversion = ?, default_to_article_browser = ?, updated_at = ? WHERE id = ?"
+  ).run(normalizedTitle, generateTitleFromSummary ? 1 : 0, skipTitleConversion ? 1 : 0, defaultToArticleBrowser ? 1 : 0, new Date().toISOString(), feedId);
   if (result.changes === 0) {
     throw new Error(`Feed not found: ${feedId}`);
   }

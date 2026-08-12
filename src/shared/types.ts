@@ -6,6 +6,7 @@ export type FeedSource = {
   lastFetchedAt: string | null;
   generateTitleFromSummary: boolean;
   skipTitleConversion: boolean;
+  defaultToArticleBrowser: boolean;
   parentFolderId: string | null;
   sortOrder: number;
 };

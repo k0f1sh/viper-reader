@@ -154,6 +154,7 @@ export function useFeedTree({ onReload, onFeedDeleted }: UseFeedTreeOptions) {
         lastFetchedAt: null,
         generateTitleFromSummary: false,
         skipTitleConversion: false,
+        defaultToArticleBrowser: false,
         parentFolderId: null,
         sortOrder: -1
       }

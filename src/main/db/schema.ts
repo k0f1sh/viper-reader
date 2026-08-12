@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS feed_sources (
   last_fetched_at TEXT,
   generate_title_from_summary INTEGER NOT NULL DEFAULT 0,
   skip_title_conversion INTEGER NOT NULL DEFAULT 0,
+  default_to_article_browser INTEGER NOT NULL DEFAULT 0,
   parent_folder_id TEXT,
   sort_order INTEGER,
   FOREIGN KEY (parent_folder_id) REFERENCES feed_folders(id) ON DELETE RESTRICT

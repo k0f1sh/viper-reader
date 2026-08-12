@@ -5,11 +5,13 @@ type FeedSettingsModalProps = {
   title: string;
   generateTitleFromSummary: boolean;
   skipTitleConversion: boolean;
+  defaultToArticleBrowser: boolean;
   isSaving: boolean;
   error: string;
   onTitleChange: (title: string) => void;
   onGenerateTitleFromSummaryChange: (enabled: boolean) => void;
   onSkipTitleConversionChange: (enabled: boolean) => void;
+  onDefaultToArticleBrowserChange: (enabled: boolean) => void;
   onSave: () => void;
   onClose: () => void;
 };
@@ -19,11 +21,13 @@ export function FeedSettingsModal({
   title,
   generateTitleFromSummary,
   skipTitleConversion,
+  defaultToArticleBrowser,
   isSaving,
   error,
   onTitleChange,
   onGenerateTitleFromSummaryChange,
   onSkipTitleConversionChange,
+  onDefaultToArticleBrowserChange,
   onSave,
   onClose
 }: FeedSettingsModalProps) {
@@ -46,6 +50,18 @@ export function FeedSettingsModal({
             onChange={(event) => onTitleChange(event.target.value)}
           />
           <div className="add-feed-checkbox-help">RSS URL: {feed.url}</div>
+          <label className="add-feed-checkbox">
+            <input
+              type="checkbox"
+              checked={defaultToArticleBrowser}
+              disabled={isSaving}
+              onChange={(event) => onDefaultToArticleBrowserChange(event.target.checked)}
+            />
+            <span>内蔵ブラウザをデフォルト表示</span>
+          </label>
+          <div className="add-feed-checkbox-help">
+            この板の記事を選択したとき、レス一覧ではなく元記事を内蔵ブラウザで開きます。
+          </div>
           <label className="add-feed-checkbox">
             <input
               type="checkbox"

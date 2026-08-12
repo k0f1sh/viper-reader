@@ -24,6 +24,7 @@ export type FeedSettingsForm = {
   title: string;
   generateTitleFromSummary: boolean;
   skipTitleConversion: boolean;
+  defaultToArticleBrowser: boolean;
   error: string;
   isSaving: boolean;
 };
@@ -93,6 +94,7 @@ export function useFeedSettingsForm() {
       title: feed.title,
       generateTitleFromSummary: feed.generateTitleFromSummary,
       skipTitleConversion: feed.skipTitleConversion,
+      defaultToArticleBrowser: feed.defaultToArticleBrowser,
       error: "",
       isSaving: false
     }),

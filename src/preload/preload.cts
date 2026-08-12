@@ -50,6 +50,7 @@ export type ViperReaderApi = {
   retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
   getArticleBrowserState: () => Promise<ArticleBrowserState>;
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
+  onToggleArticleBrowserExpanded: (callback: () => void) => () => void;
   regenerateThreadTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
@@ -80,7 +81,7 @@ export type ViperReaderApi = {
   addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
   reorderFeedSources: (feedIds: string[]) => Promise<void>;
-  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean) => Promise<FeedSource>;
+  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, defaultToArticleBrowser: boolean) => Promise<FeedSource>;
   listFeedFolders: () => Promise<FeedFolder[]>;
   createFeedFolder: (name: string, parentFolderId: string | null) => Promise<FeedFolder>;
   renameFeedFolder: (folderId: string, name: string) => Promise<FeedFolder>;
@@ -117,6 +118,11 @@ const api: ViperReaderApi = {
     const listener = (_event: Electron.IpcRendererEvent, state: ArticleBrowserState) => callback(state);
     ipcRenderer.on("article-browser:state", listener);
     return () => ipcRenderer.removeListener("article-browser:state", listener);
+  },
+  onToggleArticleBrowserExpanded: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("article-browser:toggle-expanded", listener);
+    return () => ipcRenderer.removeListener("article-browser:toggle-expanded", listener);
   },
   regenerateThreadTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
@@ -181,8 +187,8 @@ const api: ViperReaderApi = {
   addFeedSource: (title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
   reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
-  updateFeedSettings: (feedId, title, generateTitleFromSummary, skipTitleConversion) =>
-    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion),
+  updateFeedSettings: (feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser) =>
+    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser),
   listFeedFolders: () => ipcRenderer.invoke("feed-folders:list"),
   createFeedFolder: (name, parentFolderId) => ipcRenderer.invoke("feed-folders:create", name, parentFolderId),
   renameFeedFolder: (folderId, name) => ipcRenderer.invoke("feed-folders:rename", folderId, name),
