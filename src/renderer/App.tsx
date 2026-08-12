@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedFolder, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, FeedFolder, FeedSource, GeminiApiKeyStatus, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AppDialogs } from "./components/AppDialogs";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -14,6 +14,7 @@ import { useThreadSelection } from "./hooks/useThreadSelection";
 import { useThreadGeneration } from "./hooks/useThreadGeneration";
 import { allFeedsId, useFeedTree } from "./hooks/useFeedTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useThreadList } from "./hooks/useThreadList";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -62,9 +63,40 @@ export function App() {
       }
     }
   });
-  const [threadList, setThreadList] = useState<ThreadListItem[]>([]);
-  const [threadListPage, setThreadListPage] = useState(0);
-  const [threadListTotalCount, setThreadListTotalCount] = useState(0);
+  const {
+    threads: threadList,
+    setThreads: setThreadList,
+    page: threadListPage,
+    totalCount: threadListTotalCount,
+    showUnreadOnly,
+    setShowUnreadOnly,
+    smartView,
+    smartViewRef,
+    setSmartView,
+    queueSummary,
+    isUnreadOnlyLocked,
+    effectiveShowUnreadOnly,
+    reloadThreads,
+    reloadGenerated: reloadGeneratedQueue,
+    reloadReviewed: reloadReviewedGenerationQueue,
+    reloadSummary: reloadQueueSummary,
+    reloadCurrent: reloadCurrentThreadList,
+    changePage: changeThreadListPage,
+    markAllRead: markAllThreadsRead,
+    toggleRead: toggleThreadRead
+  } = useThreadList({
+    selectedFeedId,
+    selectedFeedIdRef,
+    onClearSelection: () => {
+      setSelectedThreadId(undefined);
+      setSelectedThread(null);
+    },
+    onSelectPreferredThread: (threadId) => setSelectedThreadId(threadId),
+    onReloadFeeds: reloadFeeds,
+    onSelectedThreadReadChange: (threadId, isRead) => {
+      setSelectedThread((thread) => thread?.id === threadId ? { ...thread, isRead } : thread);
+    }
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
   const [refreshMessage, setRefreshMessage] = useState("");
@@ -154,23 +186,6 @@ export function App() {
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
   const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [smartView, setSmartView] = useState<SmartView | null>(null);
-  const showUnreadOnlyRef = useRef(false);
-  const isUnreadOnlyLocked = selectedFeedId === allFeedsId && smartView === null;
-  const effectiveShowUnreadOnly =
-    smartView === "unread" || (smartView === null && !isUnreadOnlyLocked && showUnreadOnly);
-  showUnreadOnlyRef.current = effectiveShowUnreadOnly;
-  const smartViewRef = useRef<SmartView | null>(null);
-  smartViewRef.current = smartView;
-  const threadListRequestIdRef = useRef(0);
-  const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>({
-    unreadCount: 0,
-    queuedCount: 0,
-    generatingCount: 0,
-    completedCount: 0,
-    reviewedCount: 0
-  });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
   const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
@@ -280,24 +295,6 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedFeedId) {
-      setThreadList([]);
-      setSelectedThreadId(undefined);
-      setSelectedThread(null);
-      return;
-    }
-
-    setThreadListPage(0);
-    if (smartView === "generated") {
-      void reloadGeneratedQueue(0);
-    } else if (smartView === "reviewed") {
-      void reloadReviewedGenerationQueue(0);
-    } else {
-      void reloadThreads(selectedFeedId, undefined, 0);
-    }
-  }, [selectedFeedId, showUnreadOnly, smartView]);
-
-  useEffect(() => {
     if (!window.viperReader) return;
     return window.viperReader.onPostStatus((data) => {
       if (
@@ -324,70 +321,6 @@ export function App() {
     });
   }, [selectedThreadId]);
 
-  async function reloadThreads(feedId: string, preferredThreadId?: string, page = threadListPage) {
-    if (!window.viperReader) {
-      return;
-    }
-
-    const requestId = ++threadListRequestIdRef.current;
-    const result = await window.viperReader.listThreads(
-      feedId === allFeedsId ? null : feedId,
-      page,
-      showUnreadOnlyRef.current
-    );
-    if (requestId !== threadListRequestIdRef.current) {
-      return;
-    }
-    setThreadList(result.items);
-    setThreadListPage(result.page);
-    setThreadListTotalCount(result.totalCount);
-    if (preferredThreadId && result.items.some((thread) => thread.id === preferredThreadId)) {
-      setSelectedThreadId(preferredThreadId);
-    }
-  }
-
-  async function reloadGeneratedQueue(page = threadListPage) {
-    if (!window.viperReader) return;
-    const requestId = ++threadListRequestIdRef.current;
-    const result = await window.viperReader.listGeneratedQueue(page);
-    if (requestId !== threadListRequestIdRef.current) return;
-    setThreadList(result.items);
-    setThreadListPage(result.page);
-    setThreadListTotalCount(result.totalCount);
-  }
-
-  async function reloadReviewedGenerationQueue(page = threadListPage) {
-    if (!window.viperReader) return;
-    const requestId = ++threadListRequestIdRef.current;
-    const result = await window.viperReader.listReviewedGenerationQueue(page);
-    if (requestId !== threadListRequestIdRef.current) return;
-    setThreadList(result.items);
-    setThreadListPage(result.page);
-    setThreadListTotalCount(result.totalCount);
-  }
-
-  async function reloadQueueSummary() {
-    if (!window.viperReader) return;
-    setQueueSummary(await window.viperReader.getReadingQueueSummary());
-  }
-
-  async function reloadCurrentThreadList(preferredThreadId?: string) {
-    if (smartViewRef.current === "generated") {
-      await reloadGeneratedQueue(0);
-    } else if (smartViewRef.current === "reviewed") {
-      await reloadReviewedGenerationQueue(0);
-    } else if (selectedFeedIdRef.current) {
-      await reloadThreads(selectedFeedIdRef.current, preferredThreadId, 0);
-    }
-  }
-
-  function changeThreadListPage(nextPage: number) {
-    if (!selectedFeedId || nextPage < 0) return;
-    if (smartView === "generated") void reloadGeneratedQueue(nextPage);
-    else if (smartView === "reviewed") void reloadReviewedGenerationQueue(nextPage);
-    else void reloadThreads(selectedFeedId, undefined, nextPage);
-  }
-
   function selectThreadById(threadId: string) {
     const thread = threadList.find((candidate) => candidate.id === threadId);
     if (thread) {
@@ -411,28 +344,8 @@ export function App() {
     setSelectedThreadId(thread.id);
   }
 
-  async function markAllThreadsRead() {
-    if (!window.viperReader || !selectedFeedId) return;
-    if (selectedFeedId === allFeedsId) {
-      await window.viperReader.markAllFeedsRead();
-    } else {
-      await window.viperReader.markFeedRead(selectedFeedId);
-    }
-    setThreadList((threads) => threads.map((thread) => ({ ...thread, isRead: true })));
-    if (effectiveShowUnreadOnly) setThreadListTotalCount(0);
-    await reloadFeeds();
-    await reloadQueueSummary();
-  }
-
   async function toggleSelectedThreadRead() {
-    if (!window.viperReader || !selectedThreadId) return;
-    const item = threadList.find((thread) => thread.id === selectedThreadId);
-    if (!item) return;
-    const isRead = !item.isRead;
-    await window.viperReader.setThreadRead(item.id, isRead);
-    setThreadList((threads) => threads.map((thread) => thread.id === item.id ? { ...thread, isRead } : thread));
-    setSelectedThread((thread) => thread?.id === item.id ? { ...thread, isRead } : thread);
-    await reloadFeeds();
+    if (selectedThreadId) await toggleThreadRead(selectedThreadId);
   }
 
   async function loadSettings() {
