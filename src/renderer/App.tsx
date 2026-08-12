@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { AppLogEntry, ArticleBodyContent, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
@@ -19,6 +19,7 @@ import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
 import { TitleGenerationStatusModal } from "./components/TitleGenerationStatusModal";
+import { useAddFeedForm, useFeedSettingsForm, useFolderForm, useReplyComposer } from "./hooks/useAppForms";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const defaultThreadColumnWidths = [44, 360, 170, 300, 54, 126, 260];
@@ -26,59 +27,6 @@ const minThreadColumnWidths = [44, 220, 100, 180, 44, 96, 140];
 const maxRendererLogs = 300;
 const maxConcurrentFeedRefreshes = 5;
 const allFeedsId = "__all_feeds__";
-
-type AddFeedForm = {
-  title: string;
-  url: string;
-  generateTitleFromSummary: boolean;
-  skipTitleConversion: boolean;
-  error: string;
-  isLoading: boolean;
-};
-
-type FolderForm = {
-  mode: "create" | "rename";
-  targetId: string | null;
-  name: string;
-  error: string;
-  isSaving: boolean;
-};
-
-type FeedSettingsForm = {
-  feed: FeedSource;
-  title: string;
-  generateTitleFromSummary: boolean;
-  skipTitleConversion: boolean;
-  error: string;
-  isSaving: boolean;
-};
-
-type ReplyComposer = {
-  name: string;
-  mail: string;
-  body: string;
-  error: string;
-  status: "idle" | "writing" | "generating" | "done" | "error";
-  isPosting: boolean;
-};
-
-const emptyAddFeedForm: AddFeedForm = {
-  title: "",
-  url: "",
-  generateTitleFromSummary: false,
-  skipTitleConversion: false,
-  error: "",
-  isLoading: false
-};
-
-const emptyReplyComposer: ReplyComposer = {
-  name: "",
-  mail: "sage",
-  body: "",
-  error: "",
-  status: "idle",
-  isPosting: false
-};
 
 function parseThreadColumnWidths(v3Json: string | null, v2Json: string | null): number[] | null {
   function parse(json: string | null): unknown {
@@ -180,10 +128,10 @@ export function App() {
   const contentPaneRef = useRef<HTMLElement>(null);
   const threadContentRef = useRef<HTMLElement>(null);
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
-  const [addFeedForm, setAddFeedForm] = useState<AddFeedForm>(emptyAddFeedForm);
-  const [folderForm, setFolderForm] = useState<FolderForm | null>(null);
-  const [feedSettingsForm, setFeedSettingsForm] = useState<FeedSettingsForm | null>(null);
-  const [replyComposer, setReplyComposer] = useState<ReplyComposer>(emptyReplyComposer);
+  const { form: addFeedForm, update: updateAddFeedForm, reset: resetAddFeedForm } = useAddFeedForm();
+  const { form: folderForm, openCreate: openCreateFolderForm, openRename: openRenameFolderForm, update: updateFolderForm, close: closeFolderForm } = useFolderForm();
+  const { form: feedSettingsForm, open: openFeedSettingsForm, update: updateFeedSettingsForm, close: closeFeedSettingsForm } = useFeedSettingsForm();
+  const { composer: replyComposer, update: updateReplyComposer, setBody: setReplyBody } = useReplyComposer();
   const {
     title: addFeedTitle,
     url: addFeedUrl,
@@ -212,62 +160,6 @@ export function App() {
     isPosting
   } = replyComposer;
 
-  function setAddFeedField<K extends keyof AddFeedForm>(key: K, value: SetStateAction<AddFeedForm[K]>) {
-    setAddFeedForm((current) => ({
-      ...current,
-      [key]: typeof value === "function" ? value(current[key]) : value
-    }));
-  }
-
-  function setFolderField<K extends keyof FolderForm>(key: K, value: SetStateAction<FolderForm[K]>) {
-    setFolderForm((current) => current ? ({
-      ...current,
-      [key]: typeof value === "function" ? value(current[key]) : value
-    }) : current);
-  }
-
-  function setFeedSettingsField<K extends keyof FeedSettingsForm>(key: K, value: SetStateAction<FeedSettingsForm[K]>) {
-    setFeedSettingsForm((current) => current ? ({
-      ...current,
-      [key]: typeof value === "function" ? value(current[key]) : value
-    }) : current);
-  }
-
-  function setReplyField<K extends keyof ReplyComposer>(key: K, value: SetStateAction<ReplyComposer[K]>) {
-    setReplyComposer((current) => ({
-      ...current,
-      [key]: typeof value === "function" ? value(current[key]) : value
-    }));
-  }
-
-  const setAddFeedTitle = (value: string) => setAddFeedField("title", value);
-  const setAddFeedUrl = (value: string) => setAddFeedField("url", value);
-  const setAddFeedGenerateTitleFromSummary = (value: boolean) => setAddFeedField("generateTitleFromSummary", value);
-  const setAddFeedSkipTitleConversion = (value: boolean) => setAddFeedField("skipTitleConversion", value);
-  const setAddFeedError = (value: string) => setAddFeedField("error", value);
-  const setIsAddFeedLoading = (value: boolean) => setAddFeedField("isLoading", value);
-  const setFolderModalMode = (value: "create" | "rename" | null) => {
-    if (value === null) setFolderForm(null);
-    else setFolderField("mode", value);
-  };
-  const setFolderName = (value: string) => setFolderField("name", value);
-  const setFolderError = (value: string) => setFolderField("error", value);
-  const setIsFolderSaving = (value: boolean) => setFolderField("isSaving", value);
-  const setSettingsFeed = (value: FeedSource | null) => {
-    if (value === null) setFeedSettingsForm(null);
-    else setFeedSettingsField("feed", value);
-  };
-  const setSettingsFeedTitle = (value: string) => setFeedSettingsField("title", value);
-  const setSettingsGenerateTitleFromSummary = (value: boolean) => setFeedSettingsField("generateTitleFromSummary", value);
-  const setSettingsSkipTitleConversion = (value: boolean) => setFeedSettingsField("skipTitleConversion", value);
-  const setFeedSettingsError = (value: string) => setFeedSettingsField("error", value);
-  const setIsFeedSettingsSaving = (value: boolean) => setFeedSettingsField("isSaving", value);
-  const setReplyName = (value: string) => setReplyField("name", value);
-  const setReplyMail = (value: string) => setReplyField("mail", value);
-  const setReplyBody = (value: SetStateAction<string>) => setReplyField("body", value);
-  const setPostError = (value: string) => setReplyField("error", value);
-  const setPostStatus = (value: ReplyComposer["status"]) => setReplyField("status", value);
-  const setIsPosting = (value: boolean) => setReplyField("isPosting", value);
   const replyDraftsRef = useRef<Map<string, string>>(new Map());
   const postingThreadIdRef = useRef<string | null>(null);
   const [popupData, setPopupData] = useState<{
@@ -457,15 +349,15 @@ export function App() {
         && data.threadId === postingThreadIdRef.current
       ) {
         postingThreadIdRef.current = null;
-        setIsPosting(false);
+        updateReplyComposer({ isPosting: false });
       }
       if (data.threadId !== selectedThreadId) return;
-      setPostStatus(data.status);
+      updateReplyComposer({ status: data.status });
       if (data.status === "done" || data.status === "error") {
         if (data.status === "error") {
-          setPostError(
-            `${data.errorMessage ?? "AI住民のレス生成に失敗しました。"} 書き込みは保存されています。`
-          );
+          updateReplyComposer({
+            error: `${data.errorMessage ?? "AI住民のレス生成に失敗しました。"} 書き込みは保存されています。`
+          });
         }
         void window.viperReader?.getThread(data.threadId).then((thread) => {
           if (!thread) return;
@@ -644,8 +536,7 @@ export function App() {
         replyDraftsRef.current.set(selectedThreadId, replyBody);
       }
       setReplyBody(replyDraftsRef.current.get(thread.id) ?? "");
-      setPostError("");
-      setPostStatus("idle");
+      updateReplyComposer({ error: "", status: "idle" });
       setPopupData(null);
     }
     setSelectedFeedId(feedSelection ?? thread.feedId);
@@ -1013,8 +904,7 @@ export function App() {
       return;
     }
 
-    setIsAddFeedLoading(true);
-    setAddFeedError("");
+    updateAddFeedForm({ isLoading: true, error: "" });
     try {
       const newFeed = await window.viperReader.addFeedSource(
         addFeedTitle.trim(),
@@ -1031,26 +921,25 @@ export function App() {
       setSelectedFeedId(newFeed.id);
       setSelectedTreeNode({ type: "feed", id: newFeed.id });
       setIsAddFeedOpen(false);
-      setAddFeedForm(emptyAddFeedForm);
+      resetAddFeedForm();
     } catch (err) {
-      setAddFeedError(err instanceof Error ? err.message : "追加に失敗しました。");
+      updateAddFeedForm({ error: err instanceof Error ? err.message : "追加に失敗しました。" });
     } finally {
-      setIsAddFeedLoading(false);
+      updateAddFeedForm({ isLoading: false });
     }
   }
 
   function openCreateFolder() {
-    setFolderForm({ mode: "create", targetId: null, name: "", error: "", isSaving: false });
+    openCreateFolderForm();
   }
 
   function openRenameFolder(folder: FeedFolder) {
-    setFolderForm({ mode: "rename", targetId: folder.id, name: folder.name, error: "", isSaving: false });
+    openRenameFolderForm(folder);
   }
 
   async function saveFolder() {
     if (!window.viperReader || !folderModalMode || !folderName.trim()) return;
-    setIsFolderSaving(true);
-    setFolderError("");
+    updateFolderForm({ isSaving: true, error: "" });
     try {
       if (folderModalMode === "rename" && folderModalTargetId) {
         await window.viperReader.renameFeedFolder(folderModalTargetId, folderName);
@@ -1074,11 +963,11 @@ export function App() {
         setSelectedTreeNode({ type: "folder", id: folder.id });
       }
       await reloadFeeds();
-      setFolderModalMode(null);
+      closeFolderForm();
     } catch (error) {
-      setFolderError(error instanceof Error ? error.message : "フォルダを保存できませんでした。");
+      updateFolderForm({ error: error instanceof Error ? error.message : "フォルダを保存できませんでした。" });
     } finally {
-      setIsFolderSaving(false);
+      updateFolderForm({ isSaving: false });
     }
   }
 
@@ -1112,20 +1001,12 @@ export function App() {
   }
 
   function openFeedSettings(feed: FeedSource) {
-    setFeedSettingsForm({
-      feed,
-      title: feed.title,
-      generateTitleFromSummary: feed.generateTitleFromSummary,
-      skipTitleConversion: feed.skipTitleConversion,
-      error: "",
-      isSaving: false
-    });
+    openFeedSettingsForm(feed);
   }
 
   async function saveFeedSettings() {
     if (!window.viperReader || !settingsFeed) return;
-    setIsFeedSettingsSaving(true);
-    setFeedSettingsError("");
+    updateFeedSettingsForm({ isSaving: true, error: "" });
     try {
       const updated = await window.viperReader.updateFeedSettings(
         settingsFeed.id,
@@ -1138,11 +1019,11 @@ export function App() {
       if (selectedThreadIdRef.current) {
         setSelectedThread(await window.viperReader.getThread(selectedThreadIdRef.current));
       }
-      setSettingsFeed(null);
+      closeFeedSettingsForm();
     } catch (err) {
-      setFeedSettingsError(err instanceof Error ? err.message : "設定の保存に失敗しました。");
+      updateFeedSettingsForm({ error: err instanceof Error ? err.message : "設定の保存に失敗しました。" });
     } finally {
-      setIsFeedSettingsSaving(false);
+      updateFeedSettingsForm({ isSaving: false });
     }
   }
 
@@ -1432,7 +1313,7 @@ export function App() {
 
     const threadId = selectedThread.id;
     setRegeneratingTitleThreadId(threadId);
-    setPostError("");
+    updateReplyComposer({ error: "" });
 
     try {
       const result = await window.viperReader.regenerateThreadTitle(threadId);
@@ -1448,7 +1329,7 @@ export function App() {
       }
     } catch (err) {
       if (selectedThreadIdRef.current === threadId) {
-        setPostError(err instanceof Error ? err.message : "スレタイ再生成に失敗しました。");
+        updateReplyComposer({ error: err instanceof Error ? err.message : "スレタイ再生成に失敗しました。" });
       }
     } finally {
       setRegeneratingTitleThreadId(null);
@@ -1465,10 +1346,8 @@ export function App() {
     // 書き込み前の最後のレス番号を記録してセパレーターに使う
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
-    setIsPosting(true);
+    updateReplyComposer({ isPosting: true, error: "", status: "idle" });
     postingThreadIdRef.current = threadId;
-    setPostError("");
-    setPostStatus("idle");
 
     try {
       const result = await window.viperReader.postMessage(
@@ -1499,14 +1378,14 @@ export function App() {
       }
     } catch (err) {
       if (selectedThreadIdRef.current === threadId) {
-        setPostError(err instanceof Error ? err.message : "書き込みに失敗しました。");
+        updateReplyComposer({ error: err instanceof Error ? err.message : "書き込みに失敗しました。" });
       }
       if (postingThreadIdRef.current === threadId) {
         postingThreadIdRef.current = null;
-        setIsPosting(false);
+        updateReplyComposer({ isPosting: false });
       }
       if (selectedThreadIdRef.current === threadId) {
-        setPostStatus("idle");
+        updateReplyComposer({ status: "idle" });
       }
     }
   }
@@ -1518,13 +1397,12 @@ export function App() {
     // 再読み込み前の最後のレス番号を記録してセパレーターに使う
     const markerNo = selectedThread.posts.reduce((max, p) => Math.max(max, p.no), 0);
 
-    setIsPosting(true);
+    updateReplyComposer({ isPosting: true, error: "" });
     postingThreadIdRef.current = threadId;
-    setPostError("");
 
     const unsubscribePostStatus = window.viperReader.onPostStatus((data) => {
       if (data.threadId === threadId && selectedThreadIdRef.current === threadId) {
-        setPostStatus(data.status);
+        updateReplyComposer({ status: data.status });
       }
     });
 
@@ -1549,15 +1427,15 @@ export function App() {
       }
     } catch (err) {
       if (selectedThreadIdRef.current === threadId) {
-        setPostError(err instanceof Error ? err.message : "レス生成に失敗しました。");
+        updateReplyComposer({ error: err instanceof Error ? err.message : "レス生成に失敗しました。" });
       }
     } finally {
       unsubscribePostStatus();
       if (postingThreadIdRef.current === threadId) {
         postingThreadIdRef.current = null;
-        setIsPosting(false);
+        updateReplyComposer({ isPosting: false });
       }
-      setPostStatus("idle");
+      updateReplyComposer({ status: "idle" });
     }
   }
 
@@ -2050,8 +1928,8 @@ export function App() {
                   onGenerateResponses={(force) => void generateResponses(force)}
                   onGenerateReplies={() => void handleGenerateReplies()}
                   onPostMessage={handlePostMessage}
-                  onReplyNameChange={setReplyName}
-                  onReplyMailChange={setReplyMail}
+                  onReplyNameChange={(name) => updateReplyComposer({ name })}
+                  onReplyMailChange={(mail) => updateReplyComposer({ mail })}
                   onReplyBodyChange={setReplyBody}
                   onReplyToPost={replyToPost}
                   onScrollToPost={scrollToPost}
@@ -2168,10 +2046,10 @@ export function App() {
           generateTitleFromSummary={addFeedGenerateTitleFromSummary}
           skipTitleConversion={addFeedSkipTitleConversion}
           isAddFeedLoading={isAddFeedLoading}
-          onTitleChange={setAddFeedTitle}
-          onUrlChange={setAddFeedUrl}
-          onGenerateTitleFromSummaryChange={setAddFeedGenerateTitleFromSummary}
-          onSkipTitleConversionChange={setAddFeedSkipTitleConversion}
+          onTitleChange={(title) => updateAddFeedForm({ title })}
+          onUrlChange={(url) => updateAddFeedForm({ url })}
+          onGenerateTitleFromSummaryChange={(generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary })}
+          onSkipTitleConversionChange={(skipTitleConversion) => updateAddFeedForm({ skipTitleConversion })}
           onAddFeed={() => void addFeed()}
           onClose={() => setIsAddFeedOpen(false)}
         />
@@ -2183,9 +2061,9 @@ export function App() {
           name={folderName}
           error={folderError}
           isSaving={isFolderSaving}
-          onNameChange={setFolderName}
+          onNameChange={(name) => updateFolderForm({ name })}
           onSave={() => void saveFolder()}
-          onClose={() => setFolderModalMode(null)}
+          onClose={closeFolderForm}
         />
       ) : null}
 
@@ -2197,11 +2075,11 @@ export function App() {
           skipTitleConversion={settingsSkipTitleConversion}
           isSaving={isFeedSettingsSaving}
           error={feedSettingsError}
-          onTitleChange={setSettingsFeedTitle}
-          onGenerateTitleFromSummaryChange={setSettingsGenerateTitleFromSummary}
-          onSkipTitleConversionChange={setSettingsSkipTitleConversion}
+          onTitleChange={(title) => updateFeedSettingsForm({ title })}
+          onGenerateTitleFromSummaryChange={(generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary })}
+          onSkipTitleConversionChange={(skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion })}
           onSave={() => void saveFeedSettings()}
-          onClose={() => setSettingsFeed(null)}
+          onClose={closeFeedSettingsForm}
         />
       ) : null}
 
