@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedFolder, FeedSource, GeminiApiKeyStatus, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AppDialogs } from "./components/AppDialogs";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -17,6 +17,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useThreadList } from "./hooks/useThreadList";
 import { useFeedRefresh } from "./hooks/useFeedRefresh";
 import { usePosting } from "./hooks/usePosting";
+import { useAppSettings } from "./hooks/useAppSettings";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -85,25 +86,13 @@ export function App() {
     }
   });
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
-  const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
-  const [isStatisticsLoading, setIsStatisticsLoading] = useState(false);
-  const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isBrowserSettingsOpen, setIsBrowserSettingsOpen] = useState(false);
-  const [articleBrowserBlockingEnabled, setArticleBrowserBlockingEnabled] = useState(true);
-  const [isBrowserSettingsSaving, setIsBrowserSettingsSaving] = useState(false);
-  const [browserSettingsStatusMessage, setBrowserSettingsStatusMessage] = useState("");
-  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
-  const [isModelSettingsSaving, setIsModelSettingsSaving] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState("");
-  const [geminiApiKeyStatus, setGeminiApiKeyStatus] = useState<GeminiApiKeyStatus | null>(null);
-  const [isApiKeySaving, setIsApiKeySaving] = useState(false);
-  const [apiKeyStatusMessage, setApiKeyStatusMessage] = useState("");
-  const [isResidentPromptsOpen, setIsResidentPromptsOpen] = useState(false);
-  const [promptTargetFeedId, setPromptTargetFeedId] = useState("");
-  const [promptText, setPromptText] = useState("");
-  const [isPromptLoading, setIsPromptLoading] = useState(false);
-  const [promptStatusMessage, setPromptStatusMessage] = useState("");
+  const {
+    statistics: statisticsSettings,
+    api: apiSettings,
+    browser: browserSettings,
+    models: modelSettings,
+    prompts: promptSettings
+  } = useAppSettings({ feeds: feedList, selectedFeedId, reloadFeeds });
   const {
     appShellRef,
     contentPaneRef,
@@ -150,8 +139,6 @@ export function App() {
     posts: ThreadPost[];
     style: CSSProperties;
   } | null>(null);
-  const [replyModel, setReplyModel] = useState("gemini-3.6-flash");
-  const [titleModel, setTitleModel] = useState("gemini-3.5-flash-lite");
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
@@ -252,11 +239,11 @@ export function App() {
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
   const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isArticleBrowserSuspended =
-    isStatisticsOpen
-    || isSettingsOpen
-    || isBrowserSettingsOpen
-    || isModelSettingsOpen
-    || isResidentPromptsOpen
+    statisticsSettings.isOpen
+    || apiSettings.isOpen
+    || browserSettings.isOpen
+    || modelSettings.isOpen
+    || promptSettings.isOpen
     || isAddFeedOpen
     || folderModalMode !== null
     || settingsFeed !== null
@@ -288,7 +275,6 @@ export function App() {
   });
 
   useEffect(() => {
-    void loadSettings();
     void loadFavoriteThreads();
     void reloadQueueSummary();
   }, []);
@@ -328,125 +314,6 @@ export function App() {
 
   async function toggleSelectedThreadRead() {
     if (selectedThreadId) await toggleThreadRead(selectedThreadId);
-  }
-
-  async function loadSettings() {
-    if (!window.viperReader) {
-      return;
-    }
-
-    try {
-      const [model, savedTitleModel, savedArticleBrowserBlockingEnabled] = await Promise.all([
-        window.viperReader.getUserSetting("replyModel"),
-        window.viperReader.getUserSetting("titleModel"),
-        window.viperReader.getUserSetting("articleBrowserBlockingEnabled")
-      ]);
-
-      if (model) {
-        setReplyModel(model);
-      }
-      if (savedTitleModel) {
-        setTitleModel(savedTitleModel);
-      }
-      setArticleBrowserBlockingEnabled(savedArticleBrowserBlockingEnabled !== "false");
-
-    } catch (err) {
-      console.error("ユーザー設定の読込に失敗しました:", err);
-    }
-  }
-
-  async function saveModelSettings(models: { titleModel: string; replyModel: string }) {
-    if (!window.viperReader) return;
-    setIsModelSettingsSaving(true);
-    try {
-      await Promise.all([
-        window.viperReader.saveUserSetting("titleModel", models.titleModel),
-        window.viperReader.saveUserSetting("replyModel", models.replyModel)
-      ]);
-      setTitleModel(models.titleModel);
-      setReplyModel(models.replyModel);
-      setIsModelSettingsOpen(false);
-    } catch (err) {
-      console.error("モデル設定の保存に失敗しました:", err);
-    } finally {
-      setIsModelSettingsSaving(false);
-    }
-  }
-
-  async function changeArticleBrowserBlockingEnabled(enabled: boolean) {
-    if (!window.viperReader) {
-      return;
-    }
-
-    setIsBrowserSettingsSaving(true);
-    setBrowserSettingsStatusMessage("");
-    try {
-      await window.viperReader.setArticleBrowserGlobalBlockingEnabled(enabled);
-      setArticleBrowserBlockingEnabled(enabled);
-      setBrowserSettingsStatusMessage(enabled
-        ? "広告・追跡ブロックを有効にしました。"
-        : "広告・追跡ブロックを無効にしました。");
-    } catch (err) {
-      setBrowserSettingsStatusMessage(err instanceof Error ? err.message : "ブラウザ設定の保存に失敗しました。");
-    } finally {
-      setIsBrowserSettingsSaving(false);
-    }
-  }
-
-  async function openSettings() {
-    setIsSettingsOpen(true);
-    setGeminiApiKey("");
-    setApiKeyStatusMessage("");
-
-    if (!window.viperReader) {
-      setGeminiApiKeyStatus(null);
-      return;
-    }
-
-    try {
-      setGeminiApiKeyStatus(await window.viperReader.getGeminiApiKeyStatus());
-    } catch (err) {
-      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キー設定の読込に失敗しました。");
-    }
-  }
-
-  async function saveApiKey() {
-    if (!window.viperReader || !geminiApiKey.trim()) {
-      return;
-    }
-
-    setIsApiKeySaving(true);
-    setApiKeyStatusMessage("");
-    try {
-      setGeminiApiKeyStatus(await window.viperReader.saveGeminiApiKey(geminiApiKey));
-      setGeminiApiKey("");
-      setApiKeyStatusMessage("API キーをローカル設定へ保存しました。");
-    } catch (err) {
-      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キーの保存に失敗しました。");
-    } finally {
-      setIsApiKeySaving(false);
-    }
-  }
-
-  async function clearApiKey() {
-    if (!window.viperReader) {
-      return;
-    }
-
-    setIsApiKeySaving(true);
-    setApiKeyStatusMessage("");
-    try {
-      const status = await window.viperReader.clearGeminiApiKey();
-      setGeminiApiKeyStatus(status);
-      setGeminiApiKey("");
-      setApiKeyStatusMessage(status.source === "environment"
-        ? "ローカル設定のキーを削除しました。環境変数のキーへ切り替わりました。"
-        : "保存済みの API キーを削除しました。");
-    } catch (err) {
-      setApiKeyStatusMessage(err instanceof Error ? err.message : "API キーの削除に失敗しました。");
-    } finally {
-      setIsApiKeySaving(false);
-    }
   }
 
   function selectFeed(feedId: string) {
@@ -556,89 +423,6 @@ export function App() {
       updateFeedSettingsForm({ error: err instanceof Error ? err.message : "設定の保存に失敗しました。" });
     } finally {
       updateFeedSettingsForm({ isSaving: false });
-    }
-  }
-
-  async function openStatistics() {
-    setIsStatisticsOpen(true);
-
-    if (!window.viperReader) {
-      setStatistics(null);
-      return;
-    }
-
-    setIsStatisticsLoading(true);
-    try {
-      setStatistics(await window.viperReader.getStatistics());
-    } finally {
-      setIsStatisticsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!isResidentPromptsOpen || !promptTargetFeedId || !window.viperReader) {
-      return;
-    }
-
-    setIsPromptLoading(true);
-    setPromptStatusMessage("");
-    void window.viperReader.getFeedResidentPrompt(promptTargetFeedId)
-      .then((res) => {
-        setPromptText(res?.prompt ?? "");
-      })
-      .catch((err) => {
-        setPromptStatusMessage(err instanceof Error ? `読込失敗: ${err.message}` : "読込失敗");
-      })
-      .finally(() => {
-        setIsPromptLoading(false);
-      });
-  }, [isResidentPromptsOpen, promptTargetFeedId]);
-
-  function openResidentPrompts() {
-    setIsResidentPromptsOpen(true);
-    setPromptTargetFeedId(selectedFeedId || feedList[0]?.id || "");
-    setPromptStatusMessage("");
-  }
-
-  async function savePrompt() {
-    if (!window.viperReader || !promptTargetFeedId || isPromptLoading) {
-      return;
-    }
-
-    setIsPromptLoading(true);
-    setPromptStatusMessage("");
-    try {
-      if (promptText.trim() === "") {
-        await window.viperReader.clearFeedResidentPrompt(promptTargetFeedId);
-        setPromptStatusMessage("クリアしました（デフォルトに戻りました）");
-      } else {
-        await window.viperReader.saveFeedResidentPrompt(promptTargetFeedId, promptText);
-        setPromptStatusMessage("保存しました");
-      }
-      await reloadFeeds();
-    } catch (err) {
-      setPromptStatusMessage(err instanceof Error ? `保存失敗: ${err.message}` : "保存失敗");
-    } finally {
-      setIsPromptLoading(false);
-    }
-  }
-
-  async function clearPrompt() {
-    if (!window.viperReader || !promptTargetFeedId || isPromptLoading) {
-      return;
-    }
-
-    setIsPromptLoading(true);
-    setPromptStatusMessage("");
-    try {
-      await window.viperReader.clearFeedResidentPrompt(promptTargetFeedId);
-      setPromptText("");
-      setPromptStatusMessage("クリアしました（デフォルトに戻りました）");
-      await reloadFeeds();
-    } catch (err) {
-      setPromptStatusMessage(err instanceof Error ? `クリア失敗: ${err.message}` : "クリア失敗");
-    } finally {
-      setIsPromptLoading(false);
     }
   }
 
@@ -888,14 +672,11 @@ export function App() {
   return (
     <main className="app-frame">
       <MenuBar
-        onOpenSettings={() => void openSettings()}
-        onOpenBrowserSettings={() => {
-          setBrowserSettingsStatusMessage("");
-          setIsBrowserSettingsOpen(true);
-        }}
-        onOpenModelSettings={() => setIsModelSettingsOpen(true)}
-        onOpenStatistics={openStatistics}
-        onOpenResidentPrompts={openResidentPrompts}
+        onOpenSettings={() => void apiSettings.open()}
+        onOpenBrowserSettings={browserSettings.open}
+        onOpenModelSettings={modelSettings.open}
+        onOpenStatistics={() => void statisticsSettings.open()}
+        onOpenResidentPrompts={promptSettings.open}
       />
 
       <div
@@ -1077,11 +858,11 @@ export function App() {
       </footer>
 
       <AppDialogs
-        statistics={isStatisticsOpen ? { statistics, isLoading: isStatisticsLoading, onClose: () => setIsStatisticsOpen(false) } : null}
-        settings={isSettingsOpen ? { apiKey: geminiApiKey, apiKeyStatus: geminiApiKeyStatus, isSaving: isApiKeySaving, statusMessage: apiKeyStatusMessage, onApiKeyChange: setGeminiApiKey, onSave: () => void saveApiKey(), onClear: () => void clearApiKey(), onClose: () => setIsSettingsOpen(false) } : null}
-        browserSettings={isBrowserSettingsOpen ? { blockingEnabled: articleBrowserBlockingEnabled, isSaving: isBrowserSettingsSaving, statusMessage: browserSettingsStatusMessage, onBlockingEnabledChange: (enabled) => void changeArticleBrowserBlockingEnabled(enabled), onClose: () => setIsBrowserSettingsOpen(false) } : null}
-        modelSettings={isModelSettingsOpen ? { titleModel, replyModel, isSaving: isModelSettingsSaving, onSave: (models) => void saveModelSettings(models), onClose: () => setIsModelSettingsOpen(false) } : null}
-        residentPrompts={isResidentPromptsOpen ? { feeds: feedList, promptTargetFeedId, promptText, isPromptLoading, promptStatusMessage, onPromptTargetFeedIdChange: setPromptTargetFeedId, onPromptTextChange: setPromptText, onSavePrompt: () => void savePrompt(), onClearPrompt: () => void clearPrompt(), onClose: () => setIsResidentPromptsOpen(false) } : null}
+        statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
+        settings={apiSettings.isOpen ? { apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onClose: apiSettings.close } : null}
+        browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
+        modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
+        residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}
         addFeed={isAddFeedOpen ? { addFeedTitle, addFeedUrl, addFeedError, generateTitleFromSummary: addFeedGenerateTitleFromSummary, skipTitleConversion: addFeedSkipTitleConversion, isAddFeedLoading, onTitleChange: (title) => updateAddFeedForm({ title }), onUrlChange: (url) => updateAddFeedForm({ url }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateAddFeedForm({ skipTitleConversion }), onAddFeed: () => void addFeed(), onClose: () => setIsAddFeedOpen(false) } : null}
         folder={folderModalMode ? { mode: folderModalMode, name: folderName, error: folderError, isSaving: isFolderSaving, onNameChange: (name) => updateFolderForm({ name }), onSave: () => void saveFolder(), onClose: closeFolderForm } : null}
         feedSettings={settingsFeed ? { feed: settingsFeed, title: settingsFeedTitle, generateTitleFromSummary: settingsGenerateTitleFromSummary, skipTitleConversion: settingsSkipTitleConversion, isSaving: isFeedSettingsSaving, error: feedSettingsError, onTitleChange: (title) => updateFeedSettingsForm({ title }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion }), onSave: () => void saveFeedSettings(), onClose: closeFeedSettingsForm } : null}
