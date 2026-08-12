@@ -92,13 +92,16 @@ test("既読後に追加されたレスを未確認として数え、再表示�
     { no: 2, name: "名無しさん", date: now, id: "second", body: "追加レス" }
   ]);
 
-  assert.equal(listThreads(null, 0, 100, true).items[0]?.id, "reply-unread-item");
-  assert.equal(listFeeds().find((feed) => feed.id === "reply-unread")?.unreadCount, 1);
-  assert.equal(getReadingQueueSummary().unreadCount, 1);
+  assert.equal(listThreads(null, 0, 100, true).items.some((item) => item.id === "reply-unread-item"), false);
+  assert.equal(listFeeds().find((feed) => feed.id === "reply-unread")?.unreadCount, 0);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+  assert.equal(getReadingQueueSummary().completedCount, 1);
+  assert.equal(listGeneratedQueue().items[0]?.id, "reply-unread-item");
 
   const reopened = getThread("reply-unread-item");
   assert.equal(reopened?.readMarkerNo, 1);
   assert.equal(getReadingQueueSummary().unreadCount, 0);
+  assert.equal(getReadingQueueSummary().completedCount, 0);
 });
 
 test("スレタイ自動変換は未読かつ未変換の記事だけを対象にする", () => {

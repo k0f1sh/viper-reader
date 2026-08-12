@@ -3,10 +3,8 @@ import { getDatabase } from "./database.js";
 export function countAllUnreadArticles(): number {
   const row = getDatabase().prepare(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
-    FROM feed_items fi
-    WHERE fi.read_at IS NULL
-      OR COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0)
-        > COALESCE(fi.last_read_post_no, 0)
+    FROM feed_items
+    WHERE read_at IS NULL
   `).get() as { count: number };
   return Number(row.count);
 }

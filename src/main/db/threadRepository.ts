@@ -21,8 +21,8 @@ import { getDatabase } from "./database.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
 
-const unreadSql = `(
-  fi.read_at IS NULL OR
+const unreadSql = "fi.read_at IS NULL";
+const hasUnconfirmedRepliesSql = `(
   COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0) > COALESCE(fi.last_read_post_no, 0)
 )`;
 type ThreadRow = {
@@ -160,7 +160,10 @@ function listAllThreads(
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
   const generationCondition =
     generationQueueMode === "unreviewed"
-      ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL"
+      ? `AND (
+          (fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL)
+          OR ${hasUnconfirmedRepliesSql}
+        )`
       : generationQueueMode === "reviewed"
         ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NOT NULL"
         : "";
@@ -290,6 +293,12 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
     GROUP BY generation_status
   `).all() as Array<{ status: string; count: number }>;
   const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
+  const completedRow = db.prepare(`
+    SELECT COUNT(DISTINCT COALESCE(NULLIF(fi.canonical_url, ''), fi.url)) AS count
+    FROM feed_items fi
+    WHERE (fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL)
+      OR ${hasUnconfirmedRepliesSql}
+  `).get() as { count: number };
   const reviewedRow = db.prepare(`
     SELECT COUNT(*) AS count
     FROM feed_items
@@ -299,7 +308,7 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
     unreadCount,
     queuedCount: counts.get("queued") ?? 0,
     generatingCount: counts.get("generating") ?? 0,
-    completedCount: counts.get("completed") ?? 0,
+    completedCount: Number(completedRow.count),
     reviewedCount: Number(reviewedRow.count)
   };
 }
@@ -517,7 +526,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     threadTitle: row.thread_title,
     source: row.source,
     publishedAt: row.published_at ?? "",
-    isRead: row.read_at !== null && Number(row.response_count) <= Number(row.last_read_post_no ?? 0),
+    isRead: row.read_at !== null,
     isFavorite: row.is_favorite === 1,
     responseCount: Number(row.response_count),
     generationStatus: row.generation_status ?? null,
