@@ -1,23 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
-import { AddFeedModal } from "./components/AddFeedModal";
+import { AppDialogs } from "./components/AppDialogs";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
-import { BrowserSettingsModal } from "./components/BrowserSettingsModal";
 import { FeedPane } from "./components/FeedPane";
-import { FolderNameModal } from "./components/FolderNameModal";
-import { FeedSettingsModal } from "./components/FeedSettingsModal";
-import { GenerationFailureModal } from "./components/GenerationFailureModal";
 import { MenuBar } from "./components/MenuBar";
-import { ModelSettingsModal } from "./components/ModelSettingsModal";
-import { ReplyPopup } from "./components/ReplyPopup";
-import { ResidentPromptsModal } from "./components/ResidentPromptsModal";
-import { SettingsModal } from "./components/SettingsModal";
-import { StatisticsModal } from "./components/StatisticsModal";
 import { ThreadListPane } from "./components/ThreadListPane";
 import { ThreadReaderPane } from "./components/ThreadReaderPane";
-import { TitleGenerationStatusModal } from "./components/TitleGenerationStatusModal";
 import { useAddFeedForm, useFeedSettingsForm, useFolderForm, useReplyComposer } from "./hooks/useAppForms";
 import { usePaneLayout } from "./hooks/usePaneLayout";
 import { useThreadSelection } from "./hooks/useThreadSelection";
@@ -1410,135 +1400,19 @@ export function App() {
         <span><kbd>Shift</kbd>+<kbd>U</kbd> 既読切替</span>
       </footer>
 
-      {isStatisticsOpen ? (
-        <StatisticsModal
-          statistics={statistics}
-          isLoading={isStatisticsLoading}
-          onClose={() => setIsStatisticsOpen(false)}
-        />
-      ) : null}
-
-      {isSettingsOpen ? (
-        <SettingsModal
-          apiKey={geminiApiKey}
-          apiKeyStatus={geminiApiKeyStatus}
-          isSaving={isApiKeySaving}
-          statusMessage={apiKeyStatusMessage}
-          onApiKeyChange={setGeminiApiKey}
-          onSave={() => void saveApiKey()}
-          onClear={() => void clearApiKey()}
-          onClose={() => setIsSettingsOpen(false)}
-        />
-      ) : null}
-
-      {isBrowserSettingsOpen ? (
-        <BrowserSettingsModal
-          blockingEnabled={articleBrowserBlockingEnabled}
-          isSaving={isBrowserSettingsSaving}
-          statusMessage={browserSettingsStatusMessage}
-          onBlockingEnabledChange={(enabled) => void changeArticleBrowserBlockingEnabled(enabled)}
-          onClose={() => setIsBrowserSettingsOpen(false)}
-        />
-      ) : null}
-
-      {isModelSettingsOpen ? (
-        <ModelSettingsModal
-          titleModel={titleModel}
-          replyModel={replyModel}
-          isSaving={isModelSettingsSaving}
-          onSave={(models) => void saveModelSettings(models)}
-          onClose={() => setIsModelSettingsOpen(false)}
-        />
-      ) : null}
-
-      {isResidentPromptsOpen ? (
-        <ResidentPromptsModal
-          feeds={feedList}
-          promptTargetFeedId={promptTargetFeedId}
-          promptText={promptText}
-          isPromptLoading={isPromptLoading}
-          promptStatusMessage={promptStatusMessage}
-          onPromptTargetFeedIdChange={setPromptTargetFeedId}
-          onPromptTextChange={setPromptText}
-          onSavePrompt={() => void savePrompt()}
-          onClearPrompt={() => void clearPrompt()}
-          onClose={() => setIsResidentPromptsOpen(false)}
-        />
-      ) : null}
-
-      {isAddFeedOpen ? (
-        <AddFeedModal
-          addFeedTitle={addFeedTitle}
-          addFeedUrl={addFeedUrl}
-          addFeedError={addFeedError}
-          generateTitleFromSummary={addFeedGenerateTitleFromSummary}
-          skipTitleConversion={addFeedSkipTitleConversion}
-          isAddFeedLoading={isAddFeedLoading}
-          onTitleChange={(title) => updateAddFeedForm({ title })}
-          onUrlChange={(url) => updateAddFeedForm({ url })}
-          onGenerateTitleFromSummaryChange={(generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary })}
-          onSkipTitleConversionChange={(skipTitleConversion) => updateAddFeedForm({ skipTitleConversion })}
-          onAddFeed={() => void addFeed()}
-          onClose={() => setIsAddFeedOpen(false)}
-        />
-      ) : null}
-
-      {folderModalMode ? (
-        <FolderNameModal
-          mode={folderModalMode}
-          name={folderName}
-          error={folderError}
-          isSaving={isFolderSaving}
-          onNameChange={(name) => updateFolderForm({ name })}
-          onSave={() => void saveFolder()}
-          onClose={closeFolderForm}
-        />
-      ) : null}
-
-      {settingsFeed ? (
-        <FeedSettingsModal
-          feed={settingsFeed}
-          title={settingsFeedTitle}
-          generateTitleFromSummary={settingsGenerateTitleFromSummary}
-          skipTitleConversion={settingsSkipTitleConversion}
-          isSaving={isFeedSettingsSaving}
-          error={feedSettingsError}
-          onTitleChange={(title) => updateFeedSettingsForm({ title })}
-          onGenerateTitleFromSummaryChange={(generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary })}
-          onSkipTitleConversionChange={(skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion })}
-          onSave={() => void saveFeedSettings()}
-          onClose={closeFeedSettingsForm}
-        />
-      ) : null}
-
-      {generationFailureThreadId ? (
-        <GenerationFailureModal
-          thread={threadList.find((thread) => thread.id === generationFailureThreadId)}
-          attempts={generationAttempts}
-          isLoading={isGenerationAttemptsLoading}
-          isRetrying={isRetryingGeneration}
-          onRetry={() => void retryFailedGeneration()}
-          onClose={closeGenerationFailure}
-        />
-      ) : null}
-
-      {titleGenerationThreadId ? (
-        <TitleGenerationStatusModal
-          thread={threadList.find((thread) => thread.id === titleGenerationThreadId)}
-          attempts={titleGenerationAttempts}
-          isLoading={isTitleGenerationAttemptsLoading}
-          onClose={() => setTitleGenerationThreadId(null)}
-        />
-      ) : null}
-
-      {popupData ? (
-        <ReplyPopup
-          popupData={popupData}
-          onMouseEnter={clearPopupTimeout}
-          onMouseLeave={handleMouseLeaveWithDelay}
-          onAnchorClick={scrollToPost}
-        />
-      ) : null}
+      <AppDialogs
+        statistics={isStatisticsOpen ? { statistics, isLoading: isStatisticsLoading, onClose: () => setIsStatisticsOpen(false) } : null}
+        settings={isSettingsOpen ? { apiKey: geminiApiKey, apiKeyStatus: geminiApiKeyStatus, isSaving: isApiKeySaving, statusMessage: apiKeyStatusMessage, onApiKeyChange: setGeminiApiKey, onSave: () => void saveApiKey(), onClear: () => void clearApiKey(), onClose: () => setIsSettingsOpen(false) } : null}
+        browserSettings={isBrowserSettingsOpen ? { blockingEnabled: articleBrowserBlockingEnabled, isSaving: isBrowserSettingsSaving, statusMessage: browserSettingsStatusMessage, onBlockingEnabledChange: (enabled) => void changeArticleBrowserBlockingEnabled(enabled), onClose: () => setIsBrowserSettingsOpen(false) } : null}
+        modelSettings={isModelSettingsOpen ? { titleModel, replyModel, isSaving: isModelSettingsSaving, onSave: (models) => void saveModelSettings(models), onClose: () => setIsModelSettingsOpen(false) } : null}
+        residentPrompts={isResidentPromptsOpen ? { feeds: feedList, promptTargetFeedId, promptText, isPromptLoading, promptStatusMessage, onPromptTargetFeedIdChange: setPromptTargetFeedId, onPromptTextChange: setPromptText, onSavePrompt: () => void savePrompt(), onClearPrompt: () => void clearPrompt(), onClose: () => setIsResidentPromptsOpen(false) } : null}
+        addFeed={isAddFeedOpen ? { addFeedTitle, addFeedUrl, addFeedError, generateTitleFromSummary: addFeedGenerateTitleFromSummary, skipTitleConversion: addFeedSkipTitleConversion, isAddFeedLoading, onTitleChange: (title) => updateAddFeedForm({ title }), onUrlChange: (url) => updateAddFeedForm({ url }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateAddFeedForm({ skipTitleConversion }), onAddFeed: () => void addFeed(), onClose: () => setIsAddFeedOpen(false) } : null}
+        folder={folderModalMode ? { mode: folderModalMode, name: folderName, error: folderError, isSaving: isFolderSaving, onNameChange: (name) => updateFolderForm({ name }), onSave: () => void saveFolder(), onClose: closeFolderForm } : null}
+        feedSettings={settingsFeed ? { feed: settingsFeed, title: settingsFeedTitle, generateTitleFromSummary: settingsGenerateTitleFromSummary, skipTitleConversion: settingsSkipTitleConversion, isSaving: isFeedSettingsSaving, error: feedSettingsError, onTitleChange: (title) => updateFeedSettingsForm({ title }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateFeedSettingsForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateFeedSettingsForm({ skipTitleConversion }), onSave: () => void saveFeedSettings(), onClose: closeFeedSettingsForm } : null}
+        generationFailure={generationFailureThreadId ? { thread: threadList.find((thread) => thread.id === generationFailureThreadId), attempts: generationAttempts, isLoading: isGenerationAttemptsLoading, isRetrying: isRetryingGeneration, onRetry: () => void retryFailedGeneration(), onClose: closeGenerationFailure } : null}
+        titleGenerationStatus={titleGenerationThreadId ? { thread: threadList.find((thread) => thread.id === titleGenerationThreadId), attempts: titleGenerationAttempts, isLoading: isTitleGenerationAttemptsLoading, onClose: () => setTitleGenerationThreadId(null) } : null}
+        replyPopup={popupData ? { popupData, onMouseEnter: clearPopupTimeout, onMouseLeave: handleMouseLeaveWithDelay, onAnchorClick: scrollToPost } : null}
+      />
     </main>
   );
 }
