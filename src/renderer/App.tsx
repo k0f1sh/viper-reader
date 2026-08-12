@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import type { AppLogEntry, ArticleBodyContent, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
@@ -26,6 +26,59 @@ const minThreadColumnWidths = [44, 220, 100, 180, 44, 96, 140];
 const maxRendererLogs = 300;
 const maxConcurrentFeedRefreshes = 5;
 const allFeedsId = "__all_feeds__";
+
+type AddFeedForm = {
+  title: string;
+  url: string;
+  generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
+  error: string;
+  isLoading: boolean;
+};
+
+type FolderForm = {
+  mode: "create" | "rename";
+  targetId: string | null;
+  name: string;
+  error: string;
+  isSaving: boolean;
+};
+
+type FeedSettingsForm = {
+  feed: FeedSource;
+  title: string;
+  generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
+  error: string;
+  isSaving: boolean;
+};
+
+type ReplyComposer = {
+  name: string;
+  mail: string;
+  body: string;
+  error: string;
+  status: "idle" | "writing" | "generating" | "done" | "error";
+  isPosting: boolean;
+};
+
+const emptyAddFeedForm: AddFeedForm = {
+  title: "",
+  url: "",
+  generateTitleFromSummary: false,
+  skipTitleConversion: false,
+  error: "",
+  isLoading: false
+};
+
+const emptyReplyComposer: ReplyComposer = {
+  name: "",
+  mail: "sage",
+  body: "",
+  error: "",
+  status: "idle",
+  isPosting: false
+};
 
 function parseThreadColumnWidths(v3Json: string | null, v2Json: string | null): number[] | null {
   function parse(json: string | null): unknown {
@@ -127,31 +180,96 @@ export function App() {
   const contentPaneRef = useRef<HTMLElement>(null);
   const threadContentRef = useRef<HTMLElement>(null);
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
-  const [addFeedTitle, setAddFeedTitle] = useState("");
-  const [addFeedUrl, setAddFeedUrl] = useState("");
-  const [addFeedGenerateTitleFromSummary, setAddFeedGenerateTitleFromSummary] = useState(false);
-  const [addFeedSkipTitleConversion, setAddFeedSkipTitleConversion] = useState(false);
-  const [addFeedError, setAddFeedError] = useState("");
-  const [isAddFeedLoading, setIsAddFeedLoading] = useState(false);
-  const [folderModalMode, setFolderModalMode] = useState<"create" | "rename" | null>(null);
-  const [folderModalTargetId, setFolderModalTargetId] = useState<string | null>(null);
-  const [folderName, setFolderName] = useState("");
-  const [folderError, setFolderError] = useState("");
-  const [isFolderSaving, setIsFolderSaving] = useState(false);
-  const [settingsFeed, setSettingsFeed] = useState<FeedSource | null>(null);
-  const [settingsFeedTitle, setSettingsFeedTitle] = useState("");
-  const [settingsGenerateTitleFromSummary, setSettingsGenerateTitleFromSummary] = useState(false);
-  const [settingsSkipTitleConversion, setSettingsSkipTitleConversion] = useState(false);
-  const [isFeedSettingsSaving, setIsFeedSettingsSaving] = useState(false);
-  const [feedSettingsError, setFeedSettingsError] = useState("");
-  const [replyName, setReplyName] = useState("");
-  const [replyMail, setReplyMail] = useState("sage");
-  const [replyBody, setReplyBody] = useState("");
+  const [addFeedForm, setAddFeedForm] = useState<AddFeedForm>(emptyAddFeedForm);
+  const [folderForm, setFolderForm] = useState<FolderForm | null>(null);
+  const [feedSettingsForm, setFeedSettingsForm] = useState<FeedSettingsForm | null>(null);
+  const [replyComposer, setReplyComposer] = useState<ReplyComposer>(emptyReplyComposer);
+  const {
+    title: addFeedTitle,
+    url: addFeedUrl,
+    generateTitleFromSummary: addFeedGenerateTitleFromSummary,
+    skipTitleConversion: addFeedSkipTitleConversion,
+    error: addFeedError,
+    isLoading: isAddFeedLoading
+  } = addFeedForm;
+  const folderModalMode = folderForm?.mode ?? null;
+  const folderModalTargetId = folderForm?.targetId ?? null;
+  const folderName = folderForm?.name ?? "";
+  const folderError = folderForm?.error ?? "";
+  const isFolderSaving = folderForm?.isSaving ?? false;
+  const settingsFeed = feedSettingsForm?.feed ?? null;
+  const settingsFeedTitle = feedSettingsForm?.title ?? "";
+  const settingsGenerateTitleFromSummary = feedSettingsForm?.generateTitleFromSummary ?? false;
+  const settingsSkipTitleConversion = feedSettingsForm?.skipTitleConversion ?? false;
+  const isFeedSettingsSaving = feedSettingsForm?.isSaving ?? false;
+  const feedSettingsError = feedSettingsForm?.error ?? "";
+  const {
+    name: replyName,
+    mail: replyMail,
+    body: replyBody,
+    error: postError,
+    status: postStatus,
+    isPosting
+  } = replyComposer;
+
+  function setAddFeedField<K extends keyof AddFeedForm>(key: K, value: SetStateAction<AddFeedForm[K]>) {
+    setAddFeedForm((current) => ({
+      ...current,
+      [key]: typeof value === "function" ? value(current[key]) : value
+    }));
+  }
+
+  function setFolderField<K extends keyof FolderForm>(key: K, value: SetStateAction<FolderForm[K]>) {
+    setFolderForm((current) => current ? ({
+      ...current,
+      [key]: typeof value === "function" ? value(current[key]) : value
+    }) : current);
+  }
+
+  function setFeedSettingsField<K extends keyof FeedSettingsForm>(key: K, value: SetStateAction<FeedSettingsForm[K]>) {
+    setFeedSettingsForm((current) => current ? ({
+      ...current,
+      [key]: typeof value === "function" ? value(current[key]) : value
+    }) : current);
+  }
+
+  function setReplyField<K extends keyof ReplyComposer>(key: K, value: SetStateAction<ReplyComposer[K]>) {
+    setReplyComposer((current) => ({
+      ...current,
+      [key]: typeof value === "function" ? value(current[key]) : value
+    }));
+  }
+
+  const setAddFeedTitle = (value: string) => setAddFeedField("title", value);
+  const setAddFeedUrl = (value: string) => setAddFeedField("url", value);
+  const setAddFeedGenerateTitleFromSummary = (value: boolean) => setAddFeedField("generateTitleFromSummary", value);
+  const setAddFeedSkipTitleConversion = (value: boolean) => setAddFeedField("skipTitleConversion", value);
+  const setAddFeedError = (value: string) => setAddFeedField("error", value);
+  const setIsAddFeedLoading = (value: boolean) => setAddFeedField("isLoading", value);
+  const setFolderModalMode = (value: "create" | "rename" | null) => {
+    if (value === null) setFolderForm(null);
+    else setFolderField("mode", value);
+  };
+  const setFolderName = (value: string) => setFolderField("name", value);
+  const setFolderError = (value: string) => setFolderField("error", value);
+  const setIsFolderSaving = (value: boolean) => setFolderField("isSaving", value);
+  const setSettingsFeed = (value: FeedSource | null) => {
+    if (value === null) setFeedSettingsForm(null);
+    else setFeedSettingsField("feed", value);
+  };
+  const setSettingsFeedTitle = (value: string) => setFeedSettingsField("title", value);
+  const setSettingsGenerateTitleFromSummary = (value: boolean) => setFeedSettingsField("generateTitleFromSummary", value);
+  const setSettingsSkipTitleConversion = (value: boolean) => setFeedSettingsField("skipTitleConversion", value);
+  const setFeedSettingsError = (value: string) => setFeedSettingsField("error", value);
+  const setIsFeedSettingsSaving = (value: boolean) => setFeedSettingsField("isSaving", value);
+  const setReplyName = (value: string) => setReplyField("name", value);
+  const setReplyMail = (value: string) => setReplyField("mail", value);
+  const setReplyBody = (value: SetStateAction<string>) => setReplyField("body", value);
+  const setPostError = (value: string) => setReplyField("error", value);
+  const setPostStatus = (value: ReplyComposer["status"]) => setReplyField("status", value);
+  const setIsPosting = (value: boolean) => setReplyField("isPosting", value);
   const replyDraftsRef = useRef<Map<string, string>>(new Map());
-  const [isPosting, setIsPosting] = useState(false);
   const postingThreadIdRef = useRef<string | null>(null);
-  const [postError, setPostError] = useState("");
-  const [postStatus, setPostStatus] = useState<"idle" | "writing" | "generating" | "done" | "error">("idle");
   const [popupData, setPopupData] = useState<{
     title: string;
     posts: ThreadPost[];
@@ -913,10 +1031,7 @@ export function App() {
       setSelectedFeedId(newFeed.id);
       setSelectedTreeNode({ type: "feed", id: newFeed.id });
       setIsAddFeedOpen(false);
-      setAddFeedTitle("");
-      setAddFeedUrl("");
-      setAddFeedGenerateTitleFromSummary(false);
-      setAddFeedSkipTitleConversion(false);
+      setAddFeedForm(emptyAddFeedForm);
     } catch (err) {
       setAddFeedError(err instanceof Error ? err.message : "追加に失敗しました。");
     } finally {
@@ -925,17 +1040,11 @@ export function App() {
   }
 
   function openCreateFolder() {
-    setFolderModalMode("create");
-    setFolderModalTargetId(null);
-    setFolderName("");
-    setFolderError("");
+    setFolderForm({ mode: "create", targetId: null, name: "", error: "", isSaving: false });
   }
 
   function openRenameFolder(folder: FeedFolder) {
-    setFolderModalMode("rename");
-    setFolderModalTargetId(folder.id);
-    setFolderName(folder.name);
-    setFolderError("");
+    setFolderForm({ mode: "rename", targetId: folder.id, name: folder.name, error: "", isSaving: false });
   }
 
   async function saveFolder() {
@@ -1003,11 +1112,14 @@ export function App() {
   }
 
   function openFeedSettings(feed: FeedSource) {
-    setSettingsFeed(feed);
-    setSettingsFeedTitle(feed.title);
-    setSettingsGenerateTitleFromSummary(feed.generateTitleFromSummary);
-    setSettingsSkipTitleConversion(feed.skipTitleConversion);
-    setFeedSettingsError("");
+    setFeedSettingsForm({
+      feed,
+      title: feed.title,
+      generateTitleFromSummary: feed.generateTitleFromSummary,
+      skipTitleConversion: feed.skipTitleConversion,
+      error: "",
+      isSaving: false
+    });
   }
 
   async function saveFeedSettings() {
