@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { CSSProperties } from "react";
+import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, TitleGenerationAttempt } from "../shared/types";
 import { AppDialogs } from "./components/AppDialogs";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -18,6 +18,7 @@ import { useThreadList } from "./hooks/useThreadList";
 import { useFeedRefresh } from "./hooks/useFeedRefresh";
 import { usePosting } from "./hooks/usePosting";
 import { useAppSettings } from "./hooks/useAppSettings";
+import { usePostPopup } from "./hooks/usePostPopup";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -134,17 +135,10 @@ export function App() {
   const settingsSkipTitleConversion = feedSettingsForm?.skipTitleConversion ?? false;
   const isFeedSettingsSaving = feedSettingsForm?.isSaving ?? false;
   const feedSettingsError = feedSettingsForm?.error ?? "";
-  const [popupData, setPopupData] = useState<{
-    title: string;
-    posts: ThreadPost[];
-    style: CSSProperties;
-  } | null>(null);
-  const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const replyBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [favoriteThreads, setFavoriteThreads] = useState<ThreadListItem[]>([]);
   const [isFavoriteCollapsed, setIsFavoriteCollapsed] = useState(false);
   const [readMarkerNo, setReadMarkerNo] = useState<number | null>(null);
-  const [extractedPostId, setExtractedPostId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AppLogEntry[]>([]);
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
@@ -164,7 +158,7 @@ export function App() {
     setThreadList,
     onSelectionStarted: (threadId) => {
       setReadMarkerNo(null);
-      setExtractedPostId(null);
+      clearExtractedPostId();
       replyBodyRef.current?.blur();
       if (!threadId) return;
       clearCompletedGeneration(threadId);
@@ -192,6 +186,19 @@ export function App() {
     replyBodyRef,
     reloadFeeds
   });
+  const {
+    popupData,
+    extractedPostId,
+    clearExtractedPostId,
+    closePopup: closePostPopup,
+    clearPopupTimeout,
+    closePopupWithDelay: handleMouseLeaveWithDelay,
+    scrollToPost,
+    showReplies: handlePostNoMouseEnter,
+    showAnchor: handleAnchorMouseEnter,
+    showPostId: handlePostIdMouseEnter,
+    toggleExtractedPostId: handleExtractPostId
+  } = usePostPopup(selectedThread);
   const {
     name: replyName,
     mail: replyMail,
@@ -271,7 +278,7 @@ export function App() {
     onToggleFavorite: () => void toggleFavorite(),
     onToggleThreadRead: () => void toggleSelectedThreadRead(),
     onToggleThreadView: () => setThreadViewMode((current) => current === "replies" ? "browser" : "replies"),
-    onClearExtractedPost: () => setExtractedPostId(null)
+    onClearExtractedPost: clearExtractedPostId
   });
 
   useEffect(() => {
@@ -306,7 +313,7 @@ export function App() {
     }
     if (selectedThreadId !== thread.id) {
       switchReplyThread(selectedThreadId, thread.id);
-      setPopupData(null);
+      closePostPopup();
     }
     setSelectedFeedId(feedSelection ?? thread.feedId);
     setSelectedThreadId(thread.id);
@@ -507,168 +514,6 @@ export function App() {
     selectThread(thread);
   }
 
-  function scrollToPost(postNo: number) {
-    function scrollToVisiblePost() {
-      const element = document.getElementById(`post-${postNo}`);
-      if (!element) return;
-      element.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      element.classList.add("highlighted-post");
-      setTimeout(() => element.classList.remove("highlighted-post"), 2000);
-    }
-
-    const targetPost = selectedThread?.posts.find((post) => post.no === postNo);
-    if (extractedPostId && targetPost?.id !== extractedPostId) {
-      setExtractedPostId(null);
-      setTimeout(scrollToVisiblePost, 0);
-    } else {
-      scrollToVisiblePost();
-    }
-  }
-
-  function clearPopupTimeout() {
-    if (popupTimeoutRef.current) {
-      clearTimeout(popupTimeoutRef.current);
-      popupTimeoutRef.current = null;
-    }
-  }
-
-  function handleMouseLeaveWithDelay() {
-    clearPopupTimeout();
-    popupTimeoutRef.current = setTimeout(() => {
-      setPopupData(null);
-    }, 200);
-  }
-
-  function handlePostNoMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
-    if (!selectedThread) return;
-    clearPopupTimeout();
-
-    const regex = new RegExp(`>>${postNo}(?!\\d)`);
-    const replies = selectedThread.posts.filter((post) => regex.test(post.body));
-
-    if (replies.length === 0) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    let left = rect.left;
-    let top = rect.bottom + 4;
-
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-    const popupMaxWidth = 480;
-    const popupMaxHeight = 300;
-
-    if (left + popupMaxWidth > screenWidth) {
-      left = screenWidth - popupMaxWidth - 16;
-    }
-    if (left < 0) left = 8;
-
-    if (top + popupMaxHeight > screenHeight) {
-      top = rect.top - popupMaxHeight - 4;
-      if (top < 0) {
-        top = screenHeight - popupMaxHeight - 16;
-      }
-    }
-
-    setPopupData({
-      title: `>>${postNo} への返信レス (${replies.length}件)`,
-      posts: replies,
-      style: {
-        left: `${left}px`,
-        top: `${top}px`
-      }
-    });
-  }
-
-  function handlePostNoMouseLeave() {
-    handleMouseLeaveWithDelay();
-  }
-
-  function handleAnchorMouseEnter(postNo: number, event: ReactMouseEvent<HTMLElement>) {
-    if (!selectedThread) return;
-    clearPopupTimeout();
-
-    const targetPost = selectedThread.posts.find((post) => post.no === postNo);
-    if (!targetPost) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    let left = rect.left;
-    let top = rect.bottom + 4;
-
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-    const popupMaxWidth = 480;
-    const popupMaxHeight = 150; // 単体のプレビューなので少し低めに
-
-    if (left + popupMaxWidth > screenWidth) {
-      left = screenWidth - popupMaxWidth - 16;
-    }
-    if (left < 0) left = 8;
-
-    if (top + popupMaxHeight > screenHeight) {
-      top = rect.top - popupMaxHeight - 4;
-      if (top < 0) {
-        top = screenHeight - popupMaxHeight - 16;
-      }
-    }
-
-    setPopupData({
-      title: `>>${postNo} の内容`,
-      posts: [targetPost],
-      style: {
-        left: `${left}px`,
-        top: `${top}px`
-      }
-    });
-  }
-
-  function handleAnchorMouseLeave() {
-    handleMouseLeaveWithDelay();
-  }
-
-  function handlePostIdMouseEnter(postId: string, event: ReactMouseEvent<HTMLElement>) {
-    if (!selectedThread) return;
-    clearPopupTimeout();
-
-    const posts = selectedThread.posts.filter((post) => post.id === postId);
-    if (posts.length === 0) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    let left = rect.left;
-    let top = rect.bottom + 4;
-    const popupMaxWidth = 480;
-    const popupMaxHeight = 300;
-
-    if (left + popupMaxWidth > window.innerWidth) {
-      left = window.innerWidth - popupMaxWidth - 16;
-    }
-    if (left < 0) left = 8;
-
-    if (top + popupMaxHeight > window.innerHeight) {
-      top = rect.top - popupMaxHeight - 4;
-      if (top < 0) {
-        top = window.innerHeight - popupMaxHeight - 16;
-      }
-    }
-
-    setPopupData({
-      title: `ID:${postId} の発言 (${posts.length}/${selectedThread.posts.length})`,
-      posts,
-      style: {
-        left: `${left}px`,
-        top: `${top}px`
-      }
-    });
-  }
-
-  function handleExtractPostId(postId: string) {
-    setPopupData(null);
-    setExtractedPostId((currentId) => currentId === postId ? null : postId);
-    setTimeout(() => {
-      const postsContainer = document.querySelector<HTMLElement>(".posts");
-      if (postsContainer) postsContainer.scrollTop = 0;
-    }, 0);
-  }
-
   return (
     <main className="app-frame">
       <MenuBar
@@ -809,12 +654,12 @@ export function App() {
                   onReplyToPost={replyToPost}
                   onScrollToPost={scrollToPost}
                   onPostNoMouseEnter={handlePostNoMouseEnter}
-                  onPostNoMouseLeave={handlePostNoMouseLeave}
+                  onPostNoMouseLeave={handleMouseLeaveWithDelay}
                   onPostIdClick={handleExtractPostId}
                   onPostIdMouseEnter={handlePostIdMouseEnter}
                   onPostIdMouseLeave={handleMouseLeaveWithDelay}
                   onAnchorMouseEnter={handleAnchorMouseEnter}
-                  onAnchorMouseLeave={handleAnchorMouseLeave}
+                  onAnchorMouseLeave={handleMouseLeaveWithDelay}
                   isArticlePaneVisible={shouldShowArticlePane}
                   onToggleArticlePane={toggleArticlePane}
                   onShowArticleBrowser={() => setThreadViewMode("browser")}
