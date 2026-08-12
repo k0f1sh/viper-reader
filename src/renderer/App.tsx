@@ -23,6 +23,7 @@ import { usePaneLayout } from "./hooks/usePaneLayout";
 import { useThreadSelection } from "./hooks/useThreadSelection";
 import { useThreadGeneration } from "./hooks/useThreadGeneration";
 import { allFeedsId, useFeedTree } from "./hooks/useFeedTree";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -246,6 +247,28 @@ export function App() {
   // 未読巡回中は、開いて既読になった行もセッション内に残して一覧の並びを安定させる。
   const visibleThreads = threadList;
 
+  useKeyboardShortcuts({
+    feeds: feedList,
+    threads: visibleThreads,
+    selectedThreadId,
+    selectedThread,
+    selectedFeedId,
+    smartView,
+    threadViewMode,
+    extractedPostId,
+    replyBodyRef,
+    onSelectThread: selectThread,
+    onSelectFeed: selectFeed,
+    onSelectSmartView: selectSmartView,
+    onRefresh: () => void refreshSelectedFeed(),
+    onGenerateResponses: () => void generateResponses(false),
+    onGenerateReplies: () => void handleGenerateReplies(),
+    onToggleFavorite: () => void toggleFavorite(),
+    onToggleThreadRead: () => void toggleSelectedThreadRead(),
+    onToggleThreadView: () => setThreadViewMode((current) => current === "replies" ? "browser" : "replies"),
+    onClearExtractedPost: () => setExtractedPostId(null)
+  });
+
   useEffect(() => {
     void loadSettings();
     void loadFavoriteThreads();
@@ -421,121 +444,6 @@ export function App() {
     setSelectedThread((thread) => thread?.id === item.id ? { ...thread, isRead } : thread);
     await reloadFeeds();
   }
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      const primaryModifier = event.ctrlKey || event.metaKey;
-
-      function scrollPosts(direction: -1 | 1) {
-        const posts = document.querySelector<HTMLElement>(".posts");
-        if (!posts) return;
-        const distance = Math.max(80, Math.round(posts.clientHeight * 0.35));
-        posts.scrollBy({ top: direction * distance, behavior: "smooth" });
-      }
-
-      function generateThreadPosts() {
-        if ((selectedThread?.posts.length ?? 0) <= 1) {
-          void generateResponses(false);
-        } else if (selectedThread && selectedThread.posts.length < 1000) {
-          void handleGenerateReplies();
-        }
-      }
-
-      if (event.key === "Escape" && target === replyBodyRef.current) {
-        event.preventDefault();
-        target?.blur();
-        return;
-      }
-
-      if (event.key === "Escape" && extractedPostId) {
-        event.preventDefault();
-        setExtractedPostId(null);
-        return;
-      }
-
-      if (document.querySelector("[role='dialog']")) return;
-
-      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
-
-      if (event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "j" || event.key === "k")) {
-        if (!document.querySelector("[role='dialog']")) {
-          scrollPosts(event.key === "j" ? 1 : -1);
-          event.preventDefault();
-        }
-        return;
-      }
-
-      if (primaryModifier || event.altKey) return;
-      const index = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
-      if (event.key === " " && threadViewMode !== "replies") {
-        event.preventDefault();
-        void window.viperReader?.scrollArticleBrowser(event.shiftKey ? -1 : 1);
-      } else if (event.key === "p" || event.key === "n") {
-        event.preventDefault();
-        if (threadViewMode === "browser") {
-          void window.viperReader?.scrollArticleBrowser(event.key === "n" ? 1 : -1);
-        } else {
-          scrollPosts(event.key === "n" ? 1 : -1);
-        }
-      } else if (event.key === "j" || event.key === "k") {
-        const delta = event.key === "j" ? 1 : -1;
-        const nextIndex = index < 0 ? (delta > 0 ? 0 : visibleThreads.length - 1) : index + delta;
-        const next = visibleThreads[nextIndex];
-        if (next) { event.preventDefault(); selectThread(next, selectedFeedId === allFeedsId ? allFeedsId : undefined); }
-      } else if (event.key === "i") {
-        const first = visibleThreads[0];
-        if (first) {
-          event.preventDefault();
-          selectThread(first, selectedFeedId === allFeedsId ? allFeedsId : undefined);
-        }
-      } else if (event.key === "h" || event.key === "l") {
-        const navigationTargets = [
-          { id: "__unread_queue__", select: () => selectSmartView("unread") },
-          { id: "__generated_queue__", select: () => selectSmartView("generated") },
-          { id: "__reviewed_queue__", select: () => selectSmartView("reviewed") },
-          { id: allFeedsId, select: () => selectFeed(allFeedsId) },
-          ...feedList.map((feed) => ({ id: feed.id, select: () => selectFeed(feed.id) }))
-        ];
-        const currentTargetId =
-          smartView === "unread"
-            ? "__unread_queue__"
-            : smartView === "generated"
-              ? "__generated_queue__"
-              : smartView === "reviewed"
-                ? "__reviewed_queue__"
-                : selectedFeedId;
-        const currentIndex = navigationTargets.findIndex((targetItem) => targetItem.id === currentTargetId);
-        const delta = event.key === "l" ? 1 : -1;
-        const nextIndex = currentIndex < 0 ? (delta > 0 ? 0 : navigationTargets.length - 1) : currentIndex + delta;
-        const nextTarget = navigationTargets[nextIndex];
-        if (nextTarget) {
-          event.preventDefault();
-          nextTarget.select();
-        }
-      } else if (event.key === "r" || event.key === "y") {
-        event.preventDefault(); void refreshSelectedFeed();
-      } else if (event.key === "g" || event.key === "u") {
-        event.preventDefault();
-        generateThreadPosts();
-      } else if (event.key === "w") {
-        if (replyBodyRef.current && !replyBodyRef.current.disabled) {
-          event.preventDefault();
-          replyBodyRef.current.focus();
-        }
-      } else if (event.key === "b") {
-        event.preventDefault(); void toggleFavorite();
-      } else if (event.key.toLowerCase() === "o") {
-        event.preventDefault();
-        if (event.repeat) return;
-        setThreadViewMode((current) => current === "replies" ? "browser" : "replies");
-      } else if (event.key === "U") {
-        event.preventDefault(); void toggleSelectedThreadRead();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [feedList, visibleThreads, selectedThreadId, selectedThread, selectedFeedId, smartView, isRefreshing, isSelectedThreadGenerating, isPosting, extractedPostId, threadViewMode]);
 
   async function loadSettings() {
     if (!window.viperReader) {
