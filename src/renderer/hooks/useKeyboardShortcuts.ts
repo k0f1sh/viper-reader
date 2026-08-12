@@ -34,6 +34,15 @@ function scrollPosts(direction: -1 | 1) {
   posts.scrollBy({ top: direction * distance, behavior: "smooth" });
 }
 
+function isEditableTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+    return !target.readOnly && !target.disabled;
+  }
+  if (target instanceof HTMLSelectElement) return !target.disabled;
+  return target.isContentEditable;
+}
+
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -55,7 +64,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         return;
       }
       if (document.querySelector("[role='dialog']")) return;
-      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (isEditableTarget(target)) return;
 
       if (event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "j" || event.key === "k")) {
         scrollPosts(event.key === "j" ? 1 : -1);
