@@ -2511,19 +2511,7 @@ body.is-article-pane-resizing * {
 
 /* お気に入りボタン（スレッドヘッダー内） */
 .favorite-button {
-  font-family: inherit;
-  font-size: 11px;
-  height: 22px;
-  padding: 0 8px;
-  color: #000000;
-  background: #d4d0c8;
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #808080;
-  border-bottom: 1px solid #808080;
-  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d4d0c8;
-  cursor: pointer;
-  outline: none;
+  white-space: nowrap;
 }
 
 .favorite-button:hover {
@@ -2532,12 +2520,11 @@ body.is-article-pane-resizing * {
 
 .favorite-button:active,
 .favorite-button.is-favorite-active {
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
+  border-top-color: #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  border-left-color: #808080;
   background: #d4d0c8;
-  box-shadow: inset 1px 1px 0 #808080;
 }
 
 .favorite-button.is-favorite-active {

@@ -116,7 +116,7 @@ export function ThreadReaderPane({
                 </button>
               ) : null}
               <button
-                className={`favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
+                className={`deep-dive-button favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
                 onClick={onToggleFavorite}
                 type="button"
                 title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
