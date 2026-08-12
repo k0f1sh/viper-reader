@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import type { AppLogEntry, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadGenerationAttempt, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
+import type { AppLogEntry, FeedFolder, FeedSource, FeedTreePlacement, GeminiApiKeyStatus, ReadingQueueSummary, SmartView, StatisticsSummary, ThreadDetail, ThreadListItem, ThreadPost, TitleGenerationAttempt } from "../shared/types";
 import { AddFeedModal } from "./components/AddFeedModal";
 import { ArticleBodyPane } from "./components/ArticleBodyPane";
 import { ArticleBrowserPane } from "./components/ArticleBrowserPane";
@@ -22,6 +22,7 @@ import { TitleGenerationStatusModal } from "./components/TitleGenerationStatusMo
 import { useAddFeedForm, useFeedSettingsForm, useFolderForm, useReplyComposer } from "./hooks/useAppForms";
 import { usePaneLayout } from "./hooks/usePaneLayout";
 import { useThreadSelection } from "./hooks/useThreadSelection";
+import { useThreadGeneration } from "./hooks/useThreadGeneration";
 
 const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
@@ -54,9 +55,6 @@ export function App() {
   const [selectedFeedId, setSelectedFeedId] = useState("");
   const selectedFeedIdRef = useRef("");
   selectedFeedIdRef.current = selectedFeedId;
-  const [generatingThreadIds, setGeneratingThreadIds] = useState<Set<string>>(() => new Set());
-  const [threadGenerationProgress, setThreadGenerationProgress] = useState<Map<string, string>>(() => new Map());
-  const [completedGenerationThreadIds, setCompletedGenerationThreadIds] = useState<Set<string>>(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
   const [refreshMessage, setRefreshMessage] = useState("");
@@ -164,10 +162,6 @@ export function App() {
     reviewedCount: 0
   });
   const [threadViewMode, setThreadViewMode] = useState<"replies" | "browser">("replies");
-  const [generationFailureThreadId, setGenerationFailureThreadId] = useState<string | null>(null);
-  const [generationAttempts, setGenerationAttempts] = useState<ThreadGenerationAttempt[]>([]);
-  const [isGenerationAttemptsLoading, setIsGenerationAttemptsLoading] = useState(false);
-  const [isRetryingGeneration, setIsRetryingGeneration] = useState(false);
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
   const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
@@ -179,34 +173,49 @@ export function App() {
     setSelectedThread,
     articleBody,
     isArticleBodyLoading,
-    isSelectedThreadGenerating,
     shouldShowArticlePane
   } = useThreadSelection({
     isArticlePaneEnabled: threadViewMode === "replies" && isArticlePaneVisible,
-    generatingThreadIds,
     setThreadList,
     onSelectionStarted: (threadId) => {
       setReadMarkerNo(null);
       setExtractedPostId(null);
       replyBodyRef.current?.blur();
       if (!threadId) return;
-      setCompletedGenerationThreadIds((currentIds) => {
-        if (!currentIds.has(threadId)) return currentIds;
-        const nextIds = new Set(currentIds);
-        nextIds.delete(threadId);
-        return nextIds;
-      });
+      clearCompletedGeneration(threadId);
     },
     onThreadRead: () => {
       void reloadFeeds();
       void reloadQueueSummary();
     }
   });
+  const {
+    generatingThreadIds,
+    progressByThreadId: threadGenerationProgress,
+    completedThreadIds: completedGenerationThreadIds,
+    failureThreadId: generationFailureThreadId,
+    attempts: generationAttempts,
+    isAttemptsLoading: isGenerationAttemptsLoading,
+    isRetrying: isRetryingGeneration,
+    generate: generateThreadResponses,
+    showFailure: showGenerationFailure,
+    retryFailure: retryFailedGeneration,
+    closeFailure: closeGenerationFailure,
+    clearCompleted: clearCompletedGeneration
+  } = useThreadGeneration({
+    selectedThreadIdRef,
+    smartViewRef,
+    setThreadList,
+    setSelectedThread,
+    reloadGeneratedQueue: () => void reloadGeneratedQueue(0),
+    reloadQueueSummary
+  });
 
   const selectedFeed = selectedFeedId === allFeedsId
     ? { id: allFeedsId, title: "全体共通", url: "登録済みの全板・記事時刻の新しい順", unreadCount: feedList.reduce((sum, feed) => sum + feed.unreadCount, 0), lastFetchedAt: null, generateTitleFromSummary: false, skipTitleConversion: false, parentFolderId: null, sortOrder: -1 }
     : feedList.find((feed) => feed.id === selectedFeedId) ?? feedList[0];
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
+  const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
   const isArticleBrowserSuspended =
     isStatisticsOpen
     || isSettingsOpen
@@ -286,73 +295,6 @@ export function App() {
       }
     });
   }, [selectedThreadId]);
-
-  useEffect(() => {
-    if (!window.viperReader) {
-      return;
-    }
-
-    return window.viperReader.onThreadGenerationProgress((progress) => {
-      setThreadGenerationProgress((current) => {
-        const next = new Map(current);
-        next.set(progress.threadId, progress.message);
-        return next;
-      });
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!window.viperReader) {
-      return;
-    }
-
-    return window.viperReader.onThreadGenerationComplete((status) => {
-      setThreadGenerationProgress((current) => {
-        const next = new Map(current);
-        next.delete(status.threadId);
-        return next;
-      });
-      setGeneratingThreadIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        nextIds.delete(status.threadId);
-        return nextIds;
-      });
-      const generationStatus = status.status === "error" ? "failed" : "completed";
-      setThreadList((currentThreads) =>
-        currentThreads.map((thread) =>
-          thread.id === status.threadId ? { ...thread, generationStatus } : thread
-        )
-      );
-      setSelectedThread((thread) =>
-        thread?.id === status.threadId ? { ...thread, generationStatus } : thread
-      );
-
-      if (status.status === "done") {
-        if (status.threadId !== selectedThreadId) {
-          setCompletedGenerationThreadIds((currentIds) => {
-            const nextIds = new Set(currentIds);
-            nextIds.add(status.threadId);
-            return nextIds;
-          });
-        }
-
-        void window.viperReader?.getThread(status.threadId).then((thread) => {
-          if (thread) {
-            setThreadList((currentThreads) =>
-              currentThreads.map((currentThread) =>
-                currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: status.threadId === selectedThreadId ? true : currentThread.isRead } : currentThread
-              )
-            );
-            if (status.threadId === selectedThreadId) {
-              setSelectedThread(thread);
-            }
-          }
-        });
-        if (smartView === "generated") void reloadGeneratedQueue(0);
-      }
-      void reloadQueueSummary();
-    });
-  }, [selectedThreadId, smartView]);
 
   async function reloadFeeds() {
     if (!window.viperReader) {
@@ -1109,71 +1051,7 @@ export function App() {
   }
 
   async function generateResponses(force = false) {
-    if (!selectedThread || !window.viperReader || isSelectedThreadGenerating) {
-      return;
-    }
-
-    setGeneratingThreadIds((currentIds) => {
-      const nextIds = new Set(currentIds);
-      nextIds.add(selectedThread.id);
-      return nextIds;
-    });
-    setThreadGenerationProgress((current) => {
-      const next = new Map(current);
-      next.set(selectedThread.id, "レス生成を準備中...");
-      return next;
-    });
-
-    try {
-      await window.viperReader.generateThreadResponses(selectedThread.id, force);
-      await reloadQueueSummary();
-    } catch (err) {
-      setGeneratingThreadIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        nextIds.delete(selectedThread.id);
-        return nextIds;
-      });
-      setThreadGenerationProgress((current) => {
-        const next = new Map(current);
-        next.delete(selectedThread.id);
-        return next;
-      });
-    }
-  }
-
-  async function showGenerationFailure(threadId: string) {
-    if (!window.viperReader) return;
-    setGenerationFailureThreadId(threadId);
-    setGenerationAttempts([]);
-    setIsGenerationAttemptsLoading(true);
-    try {
-      const attempts = await window.viperReader.listThreadGenerationAttempts(threadId);
-      setGenerationAttempts(attempts);
-    } finally {
-      setIsGenerationAttemptsLoading(false);
-    }
-  }
-
-  async function retryFailedGeneration() {
-    if (!window.viperReader || !generationFailureThreadId || isRetryingGeneration) return;
-    const threadId = generationFailureThreadId;
-    setIsRetryingGeneration(true);
-    setGeneratingThreadIds((currentIds) => new Set(currentIds).add(threadId));
-    setThreadGenerationProgress((current) => {
-      const next = new Map(current);
-      next.set(threadId, "レス生成を準備中...");
-      return next;
-    });
-    setThreadList((threads) =>
-      threads.map((thread) => thread.id === threadId ? { ...thread, generationStatus: "queued" } : thread)
-    );
-    try {
-      await window.viperReader.generateThreadResponses(threadId, true);
-      setGenerationFailureThreadId(null);
-      await reloadQueueSummary();
-    } finally {
-      setIsRetryingGeneration(false);
-    }
+    if (selectedThread) await generateThreadResponses(selectedThread, force);
   }
 
   async function showTitleGenerationStatus(threadId: string) {
@@ -1817,7 +1695,7 @@ export function App() {
           isLoading={isGenerationAttemptsLoading}
           isRetrying={isRetryingGeneration}
           onRetry={() => void retryFailedGeneration()}
-          onClose={() => setGenerationFailureThreadId(null)}
+          onClose={closeGenerationFailure}
         />
       ) : null}
 

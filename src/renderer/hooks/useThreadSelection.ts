@@ -4,7 +4,6 @@ import type { ArticleBodyContent, ThreadDetail, ThreadListItem } from "../../sha
 
 type UseThreadSelectionOptions = {
   isArticlePaneEnabled: boolean;
-  generatingThreadIds: Set<string>;
   setThreadList: Dispatch<SetStateAction<ThreadListItem[]>>;
   onSelectionStarted: (threadId: string | undefined) => void;
   onThreadRead: () => void;
@@ -12,7 +11,6 @@ type UseThreadSelectionOptions = {
 
 export function useThreadSelection({
   isArticlePaneEnabled,
-  generatingThreadIds,
   setThreadList,
   onSelectionStarted,
   onThreadRead
@@ -26,9 +24,6 @@ export function useThreadSelection({
   selectedThreadIdRef.current = selectedThreadId;
   callbacksRef.current = { onSelectionStarted, onThreadRead };
 
-  const isSelectedThreadGenerating = selectedThread
-    ? generatingThreadIds.has(selectedThread.id)
-    : false;
   const shouldShowArticlePane = isArticlePaneEnabled
     && Boolean(selectedThread && selectedThread.posts.length > 1);
 
@@ -79,7 +74,7 @@ export function useThreadSelection({
     }).finally(() => {
       if (selectedThreadIdRef.current === threadId) setIsArticleBodyLoading(false);
     });
-  }, [selectedThreadId, shouldShowArticlePane, isSelectedThreadGenerating]);
+  }, [selectedThreadId, selectedThread?.generationStatus, shouldShowArticlePane]);
 
   return {
     selectedThreadId,
@@ -89,7 +84,6 @@ export function useThreadSelection({
     setSelectedThread,
     articleBody,
     isArticleBodyLoading,
-    isSelectedThreadGenerating,
     shouldShowArticlePane
   };
 }
