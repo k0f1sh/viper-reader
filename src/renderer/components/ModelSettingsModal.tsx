@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { geminiModelOptions } from "../../shared/geminiModels";
 
 type ModelSettingsModalProps = {
   titleModel: string;
@@ -7,13 +8,6 @@ type ModelSettingsModalProps = {
   onSave: (models: { titleModel: string; replyModel: string }) => void;
   onClose: () => void;
 };
-
-const modelOptions = [
-  ["gemini-3.6-flash", "Gemini 3.6 Flash"],
-  ["gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"],
-  ["gemini-3.5-flash", "Gemini 3.5 Flash"],
-  ["gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite"]
-] as const;
 
 export function ModelSettingsModal({
   titleModel,
@@ -63,7 +57,7 @@ function ModelSelect({ label, value, onChange }: { label: string; value: string;
     <>
       <label htmlFor={`model-${label}`}>{label}:</label>
       <select id={`model-${label}`} className="settings-input" value={value} onChange={(event) => onChange(event.target.value)}>
-        {modelOptions.map(([model, name]) => <option key={model} value={model}>{name}</option>)}
+        {geminiModelOptions.map(([model, name]) => <option key={model} value={model}>{name}</option>)}
       </select>
     </>
   );

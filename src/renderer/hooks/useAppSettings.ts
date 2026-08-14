@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FeedSource, GeminiApiKeyStatus, StatisticsSummary } from "../../shared/types";
+import { defaultReplyModel, defaultTitleModel } from "../../shared/geminiModels";
 
 type UseAppSettingsOptions = {
   feeds: FeedSource[];
@@ -22,8 +23,8 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
   const [browserSettingsMessage, setBrowserSettingsMessage] = useState("");
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsSaving, setModelSettingsSaving] = useState(false);
-  const [replyModel, setReplyModel] = useState("gemini-3.6-flash");
-  const [titleModel, setTitleModel] = useState("gemini-3.5-flash-lite");
+  const [replyModel, setReplyModel] = useState(defaultReplyModel);
+  const [titleModel, setTitleModel] = useState(defaultTitleModel);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [promptFeedId, setPromptFeedId] = useState("");
   const [promptText, setPromptText] = useState("");
