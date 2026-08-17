@@ -44,6 +44,7 @@ import {
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
+import { loadRssImage } from "./rss/rssImageLoader.js";
 import {
   clearGeminiApiKey,
   getGeminiApiKeyStatus,
@@ -252,6 +253,10 @@ ipcMain.handle("threads:get", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
   return thread;
+});
+ipcMain.handle("threads:load-rss-image", (_event, threadId: string, imageIndex: number) => {
+  assertIdentifier(threadId, "thread ID");
+  return loadRssImage(threadId, imageIndex);
 });
 ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");

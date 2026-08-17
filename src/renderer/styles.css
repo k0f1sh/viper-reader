@@ -1383,6 +1383,37 @@ body.is-article-pane-resizing * {
   white-space: pre-wrap;
 }
 
+.rss-image-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: calc(100% - 52px);
+  margin: 8px 26px 14px;
+}
+
+.rss-image-strip img {
+  flex: none;
+  display: block;
+  width: auto;
+  max-width: 240px;
+  height: 128px;
+  padding: 3px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #606060;
+  border-bottom: 1px solid #606060;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  object-fit: contain;
+}
+
+.rss-image-status {
+  margin: 6px 26px 12px;
+  color: #505050;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .post-link {
   display: inline;
   margin: 0;
