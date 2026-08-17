@@ -1397,7 +1397,8 @@ body.is-article-pane-resizing * {
   display: block;
   width: auto;
   max-width: 240px;
-  height: 128px;
+  height: auto;
+  max-height: 64px;
   padding: 3px;
   border-top: 1px solid #ffffff;
   border-right: 1px solid #606060;
