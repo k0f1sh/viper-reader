@@ -49,6 +49,7 @@ function migrate(db: DatabaseSync): void {
   backfillCanonicalUrls(db);
   if (addedLastReadPostNo) backfillLastReadPostNo(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_article_key ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))");
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());

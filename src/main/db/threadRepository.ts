@@ -191,17 +191,18 @@ function listAllThreads(
       WHERE (? = 0 OR ${unreadSql})
         ${generationCondition}
     ),
-    source_names AS (
-      SELECT article_key, GROUP_CONCAT(title, ' / ') AS source
-      FROM (
-        SELECT DISTINCT
-          COALESCE(NULLIF(fi.canonical_url, ''), fi.url) AS article_key,
-          fs.title AS title
-        FROM feed_items fi
-        INNER JOIN feed_sources fs ON fs.id = fi.feed_id
-        ORDER BY fs.title
-      )
-      GROUP BY article_key
+    page_items AS (
+      SELECT *
+      FROM ranked_items
+      WHERE article_rank = 1
+      ORDER BY
+        ${generationQueueMode === "unreviewed" ? "generation_completed_at ASC," : ""}
+        ${generationQueueMode === "reviewed" ? "generation_reviewed_at DESC," : ""}
+        CASE WHEN read_at IS NULL THEN 0 ELSE 1 END,
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      LIMIT ? OFFSET ?
     )
     SELECT
       fi.id,
@@ -209,7 +210,16 @@ function listAllThreads(
       fi.title AS original_title,
       fi.url,
       CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
-      source_names.source,
+      (
+        SELECT GROUP_CONCAT(title, ' / ')
+        FROM (
+          SELECT DISTINCT fs2.title AS title
+          FROM feed_items fi2
+          INNER JOIN feed_sources fs2 ON fs2.id = fi2.feed_id
+          WHERE COALESCE(NULLIF(fi2.canonical_url, ''), fi2.url) = fi.article_key
+          ORDER BY fs2.title
+        )
+      ) AS source,
       fi.published_at,
       fi.read_at,
       fi.last_read_post_no,
@@ -222,9 +232,8 @@ function listAllThreads(
       END AS title_generation_status,
       fi.raw_summary,
       COALESCE((SELECT COUNT(*) FROM thread_posts WHERE feed_item_id = fi.id), COALESCE(rss_ts.response_count, 0) + COALESCE(response_ts.response_count, 0), 1) AS response_count
-    FROM ranked_items fi
+    FROM page_items fi
     INNER JOIN feed_sources fs ON fs.id = fi.feed_id
-    INNER JOIN source_names ON source_names.article_key = fi.article_key
     LEFT JOIN thread_titles generated_vt
       ON generated_vt.feed_item_id = fi.id
       AND generated_vt.model = ?
@@ -241,7 +250,6 @@ function listAllThreads(
       ON response_ts.feed_item_id = fi.id
       AND response_ts.model = ?
       AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
-    WHERE fi.article_rank = 1
     ORDER BY
       ${generationQueueMode === "unreviewed" ? "fi.generation_completed_at ASC," : ""}
       ${generationQueueMode === "reviewed" ? "fi.generation_reviewed_at DESC," : ""}
@@ -249,9 +257,10 @@ function listAllThreads(
       COALESCE(fi.published_at, fi.created_at) DESC,
       fi.created_at DESC,
       fi.id DESC
-    LIMIT ? OFFSET ?
   `).all(
     filterUnread,
+    pageSize,
+    page * pageSize,
     titleModel,
     summaryTitlePromptHash,
     plainTitlePromptHash,
@@ -261,9 +270,7 @@ function listAllThreads(
     rssSummaryPromptHash,
     activeModel,
     threadResponsePromptHash,
-    defaultResidentPromptHash,
-    pageSize,
-    page * pageSize
+    defaultResidentPromptHash
   ) as ThreadRow[];
 
   return { items: rows.map(rowToThreadListItem), totalCount: Number(countRow.total_count), page, pageSize };
