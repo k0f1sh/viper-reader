@@ -168,7 +168,7 @@ export function FeedPane(props: FeedPaneProps) {
           onDragOver={(event) => { if (draggedNode) { event.preventDefault(); setDropTarget({ type: "root" }); } }}
           onDrop={completeDrop}
         >RSS</div>
-        <button className={`feed-row ${props.selectedFeedId === props.allFeedsId && !selectedTreeNode ? "is-selected" : ""}`} onClick={() => props.onSelectFeed(props.allFeedsId)} title="全板の記事を新着順で表示" type="button">
+        <button className={`feed-row ${props.activeSmartView === null && props.selectedFeedId === props.allFeedsId && !selectedTreeNode ? "is-selected" : ""}`} onClick={() => props.onSelectFeed(props.allFeedsId)} title="全板の記事を新着順で表示" type="button">
           <span className="feed-name">全体共通</span><span className="feed-count">{props.allUnreadCount}</span>
         </button>
         {renderNodes(null, 0)}
