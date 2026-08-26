@@ -1271,18 +1271,6 @@ body.is-article-pane-resizing * {
   }
 }
 
-.queue-complete-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 5px 8px;
-  border-top: 1px solid #999;
-  background: #e7f5e7;
-  color: #075b07;
-  font-weight: 700;
-}
-
 .post {
   margin: 0 0 14px;
   color: #000000;

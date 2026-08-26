@@ -599,8 +599,7 @@ export function App() {
     onPreviousPage: () => changeThreadListPage(threadListPage - 1),
     onNextPage: () => changeThreadListPage(threadListPage + 1),
     smartView,
-    queueSummary,
-    onOpenGeneratedQueue: () => selectSmartView("generated")
+    queueSummary
   };
   const threadReaderProps = {
     selectedThread,

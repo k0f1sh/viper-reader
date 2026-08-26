@@ -32,7 +32,6 @@ type ThreadListPaneProps = {
   onNextPage: () => void;
   smartView: SmartView | null;
   queueSummary: ReadingQueueSummary;
-  onOpenGeneratedQueue: () => void;
 };
 
 export function ThreadListPane({
@@ -63,8 +62,7 @@ export function ThreadListPane({
   onPreviousPage,
   onNextPage,
   smartView,
-  queueSummary,
-  onOpenGeneratedQueue
+  queueSummary
 }: ThreadListPaneProps) {
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -234,21 +232,6 @@ export function ThreadListPane({
           );
         })}
       </div>
-      {smartView === "unread"
-        && threads.length > 0
-        && totalCount <= threads.length
-        && threads.every((thread) => thread.isRead) ? (
-        <div className="queue-complete-banner">
-          <span>未読チェック完了</span>
-          {queueSummary.completedCount > 0 ? (
-            <button onClick={onOpenGeneratedQueue} type="button">
-              生成済みを読む（{queueSummary.completedCount}件）
-            </button>
-          ) : queueSummary.generatingCount > 0 || queueSummary.queuedCount > 0 ? (
-            <span>生成完了を待っています</span>
-          ) : null}
-        </div>
-      ) : null}
       <div className="thread-list-pagination">
         <div className="thread-status-legend" aria-label="状態の凡例">
           <LegendLamp status="response-failed" label="レス失敗" />
