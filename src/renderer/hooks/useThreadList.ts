@@ -35,6 +35,7 @@ export function useThreadList({
   const [smartView, setSmartView] = useState<SmartView | null>(null);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>(emptyQueueSummary);
   const requestIdRef = useRef(0);
+  const threadsRef = useRef<ThreadListItem[]>([]);
   const callbacksRef = useRef({
     onClearSelection,
     onSelectPreferredThread,
@@ -45,6 +46,7 @@ export function useThreadList({
   const effectiveUnreadOnlyRef = useRef(false);
   callbacksRef.current = { onClearSelection, onSelectPreferredThread, onReloadFeeds, onSelectedThreadReadChange };
   smartViewRef.current = smartView;
+  threadsRef.current = threads;
 
   const isUnreadOnlyLocked = selectedFeedId === allFeedsId && smartView === null;
   const effectiveShowUnreadOnly = smartView === "unread"
@@ -68,14 +70,23 @@ export function useThreadList({
     }
   }
 
-  async function reloadGenerated(nextPage = page) {
+  async function reloadGenerated(nextPage = page, preserveCurrent = false) {
     if (!window.viperReader) return;
     const requestId = ++requestIdRef.current;
     const result = await window.viperReader.listGeneratedQueue(nextPage);
     if (requestId !== requestIdRef.current) return;
-    setThreads(result.items);
+    if (preserveCurrent) {
+      const refreshedById = new Map(result.items.map((thread) => [thread.id, thread]));
+      const retained = threadsRef.current.map((thread) => refreshedById.get(thread.id) ?? thread);
+      const retainedIds = new Set(retained.map((thread) => thread.id));
+      const merged = [...retained, ...result.items.filter((thread) => !retainedIds.has(thread.id))];
+      setThreads(merged);
+      setTotalCount(Math.max(result.totalCount, merged.length));
+    } else {
+      setThreads(result.items);
+      setTotalCount(result.totalCount);
+    }
     setPage(result.page);
-    setTotalCount(result.totalCount);
   }
 
   async function reloadReviewed(nextPage = page) {

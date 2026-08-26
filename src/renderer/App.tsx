@@ -224,7 +224,7 @@ export function App() {
     smartViewRef,
     setThreadList,
     setSelectedThread,
-    reloadGeneratedQueue: () => void reloadGeneratedQueue(0),
+    reloadGeneratedQueue: () => void reloadGeneratedQueue(0, true),
     reloadQueueSummary
   });
   const {
