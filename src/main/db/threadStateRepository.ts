@@ -1,11 +1,12 @@
 import { getDatabase } from "./database.js";
+import { runWithSlowQueryLog } from "./slowQueryLogger.js";
 
 export function countAllUnreadArticles(): number {
-  const row = getDatabase().prepare(`
+  const row = runWithSlowQueryLog("countAllUnreadArticles", () => getDatabase().prepare(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
     FROM feed_items
     WHERE read_at IS NULL
-  `).get() as { count: number };
+  `).get()) as { count: number };
   return Number(row.count);
 }
 

@@ -20,10 +20,14 @@ import {
 import { getDatabase } from "./database.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
+import { runWithSlowQueryLog } from "./slowQueryLogger.js";
 
 const unreadSql = "fi.read_at IS NULL";
-const hasUnconfirmedRepliesSql = `(
-  COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = fi.id), 0) > COALESCE(fi.last_read_post_no, 0)
+const hasUnconfirmedRepliesSql = `EXISTS (
+  SELECT 1
+  FROM thread_posts tp
+  WHERE tp.feed_item_id = fi.id
+    AND tp.no > COALESCE(fi.last_read_post_no, 0)
 )`;
 type ThreadRow = {
   id: string;
@@ -59,13 +63,13 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   if (feedId === null) {
     return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread);
   }
-  const countRow = db.prepare(`
+  const countRow = runWithSlowQueryLog("listThreads.count", () => db.prepare(`
     SELECT COUNT(*) AS total_count
     FROM feed_items fi
-    WHERE (? IS NULL OR fi.feed_id = ?)
+    WHERE fi.feed_id = ?
       AND (? = 0 OR ${unreadSql})
-  `).get(feedId, feedId, filterUnread) as { total_count: number };
-  const rows = db
+  `).get(feedId, filterUnread)) as { total_count: number };
+  const rows = runWithSlowQueryLog("listThreads.items", () => db
     .prepare(
       `
       SELECT
@@ -110,7 +114,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         ON response_ts.feed_item_id = fi.id
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
-      WHERE (? IS NULL OR fi.feed_id = ?)
+      WHERE fi.feed_id = ?
         AND (? = 0 OR ${unreadSql})
       ORDER BY
         CASE WHEN ${unreadSql} THEN 0 ELSE 1 END ASC,
@@ -132,11 +136,10 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       threadResponsePromptHash,
       defaultResidentPromptHash,
       feedId,
-      feedId,
       filterUnread,
       safePageSize,
       safePage * safePageSize
-    ) as ThreadRow[];
+    ) as ThreadRow[]);
 
   return {
     items: rows.map(rowToThreadListItem),
@@ -167,42 +170,68 @@ function listAllThreads(
       : generationQueueMode === "reviewed"
         ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NOT NULL"
         : "";
-  const countRow = db.prepare(`
+  const pageItemsSql = generationQueueMode === "none"
+    ? `page_items AS (
+        SELECT fi.*, ${canonicalKey} AS article_key
+        FROM feed_items fi
+        WHERE (? = 0 OR ${unreadSql})
+          AND fi.id = (
+            SELECT candidate.id
+            FROM feed_items candidate
+            WHERE COALESCE(NULLIF(candidate.canonical_url, ''), candidate.url)
+              = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
+              AND (? = 0 OR candidate.read_at IS NULL)
+            ORDER BY
+              CASE WHEN candidate.read_at IS NULL THEN 0 ELSE 1 END,
+              COALESCE(candidate.published_at, candidate.created_at) DESC,
+              candidate.created_at DESC,
+              candidate.id DESC
+            LIMIT 1
+          )
+        ORDER BY
+          CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+          COALESCE(fi.published_at, fi.created_at) DESC,
+          fi.created_at DESC,
+          fi.id DESC
+        LIMIT ? OFFSET ?
+      )`
+    : `ranked_items AS (
+        SELECT
+          fi.*,
+          ${canonicalKey} AS article_key,
+          ROW_NUMBER() OVER (
+            PARTITION BY ${canonicalKey}
+            ORDER BY
+              CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
+              COALESCE(fi.published_at, fi.created_at) DESC,
+              fi.created_at DESC,
+              fi.id DESC
+          ) AS article_rank
+        FROM feed_items fi
+        WHERE (? = 0 OR ${unreadSql})
+          ${generationCondition}
+      ),
+      page_items AS (
+        SELECT *
+        FROM ranked_items
+        WHERE article_rank = 1
+        ORDER BY
+          ${generationQueueMode === "unreviewed" ? "generation_completed_at ASC," : ""}
+          ${generationQueueMode === "reviewed" ? "generation_reviewed_at DESC," : ""}
+          CASE WHEN read_at IS NULL THEN 0 ELSE 1 END,
+          COALESCE(published_at, created_at) DESC,
+          created_at DESC,
+          id DESC
+        LIMIT ? OFFSET ?
+      )`;
+  const countRow = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.count`, () => db.prepare(`
     SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
     FROM feed_items fi
     WHERE (? = 0 OR ${unreadSql})
       ${generationCondition}
-  `).get(filterUnread) as { total_count: number };
-  const rows = db.prepare(`
-    WITH ranked_items AS (
-      SELECT
-        fi.*,
-        ${canonicalKey} AS article_key,
-        ROW_NUMBER() OVER (
-          PARTITION BY ${canonicalKey}
-          ORDER BY
-            CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
-            COALESCE(fi.published_at, fi.created_at) DESC,
-            fi.created_at DESC,
-            fi.id DESC
-        ) AS article_rank
-      FROM feed_items fi
-      WHERE (? = 0 OR ${unreadSql})
-        ${generationCondition}
-    ),
-    page_items AS (
-      SELECT *
-      FROM ranked_items
-      WHERE article_rank = 1
-      ORDER BY
-        ${generationQueueMode === "unreviewed" ? "generation_completed_at ASC," : ""}
-        ${generationQueueMode === "reviewed" ? "generation_reviewed_at DESC," : ""}
-        CASE WHEN read_at IS NULL THEN 0 ELSE 1 END,
-        COALESCE(published_at, created_at) DESC,
-        created_at DESC,
-        id DESC
-      LIMIT ? OFFSET ?
-    )
+  `).get(filterUnread)) as { total_count: number };
+  const rows = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.items`, () => db.prepare(`
+    WITH ${pageItemsSql}
     SELECT
       fi.id,
       fi.feed_id,
@@ -258,6 +287,7 @@ function listAllThreads(
       fi.id DESC
   `).all(
     filterUnread,
+    ...(generationQueueMode === "none" ? [filterUnread] : []),
     pageSize,
     page * pageSize,
     titleModel,
@@ -270,7 +300,7 @@ function listAllThreads(
     activeModel,
     threadResponsePromptHash,
     defaultResidentPromptHash
-  ) as ThreadRow[];
+  )) as ThreadRow[];
 
   return { items: rows.map(rowToThreadListItem), totalCount: Number(countRow.total_count), page, pageSize };
 }
@@ -292,25 +322,25 @@ export function listGeneratedQueue(page = 0, pageSize = 100, reviewed = false): 
 export function getReadingQueueSummary(): ReadingQueueSummary {
   const db = getDatabase();
   const unreadCount = countAllUnreadArticles();
-  const rows = db.prepare(`
+  const rows = runWithSlowQueryLog("readingQueueSummary.statuses", () => db.prepare(`
     SELECT generation_status AS status, COUNT(*) AS count
     FROM feed_items
     WHERE generation_status IN ('queued', 'generating', 'completed')
       AND (generation_status != 'completed' OR generation_reviewed_at IS NULL)
     GROUP BY generation_status
-  `).all() as Array<{ status: string; count: number }>;
+  `).all()) as Array<{ status: string; count: number }>;
   const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
-  const completedRow = db.prepare(`
+  const completedRow = runWithSlowQueryLog("readingQueueSummary.completed", () => db.prepare(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(fi.canonical_url, ''), fi.url)) AS count
     FROM feed_items fi
     WHERE (fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL)
       OR ${hasUnconfirmedRepliesSql}
-  `).get() as { count: number };
-  const reviewedRow = db.prepare(`
+  `).get()) as { count: number };
+  const reviewedRow = runWithSlowQueryLog("readingQueueSummary.reviewed", () => db.prepare(`
     SELECT COUNT(*) AS count
     FROM feed_items
     WHERE generation_status = 'completed' AND generation_reviewed_at IS NOT NULL
-  `).get() as { count: number };
+  `).get()) as { count: number };
   return {
     unreadCount,
     queuedCount: counts.get("queued") ?? 0,
@@ -338,32 +368,30 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
   const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   // 1. thread_posts から取得を試みる
-  const postsRows = db
+  const postsRows = runWithSlowQueryLog("getThread.posts", () => db
     .prepare("SELECT no, name, mail, date, uid, body, is_user FROM thread_posts WHERE feed_item_id = ? ORDER BY no ASC")
-    .all(threadId) as ThreadPostRow[];
+    .all(threadId) as ThreadPostRow[]);
 
   // 基本的なスレッド情報（threadTitle など）を取得するクエリ
-  const threadInfoRow = db
+  const threadInfoRow = runWithSlowQueryLog("getThread.info", () => db
     .prepare(`
-      WITH source_names AS (
-        SELECT article_key, GROUP_CONCAT(title, ' / ') AS source
-        FROM (
-          SELECT DISTINCT
-            COALESCE(NULLIF(item.canonical_url, ''), item.url) AS article_key,
-            source.title AS title
-          FROM feed_items item
-          INNER JOIN feed_sources source ON source.id = item.feed_id
-          ORDER BY source.title
-        )
-        GROUP BY article_key
-      )
       SELECT
         fi.id,
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
         CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
-        source_names.source,
+        (
+          SELECT GROUP_CONCAT(title, ' / ')
+          FROM (
+            SELECT DISTINCT source.title AS title
+            FROM feed_items item
+            INNER JOIN feed_sources source ON source.id = item.feed_id
+            WHERE COALESCE(NULLIF(item.canonical_url, ''), item.url)
+              = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
+            ORDER BY source.title
+          )
+        ) AS source,
         fi.published_at,
         fi.read_at,
         fi.last_read_post_no,
@@ -377,8 +405,6 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
         fi.raw_summary
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
-      INNER JOIN source_names
-        ON source_names.article_key = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
       LEFT JOIN thread_titles generated_vt
         ON generated_vt.feed_item_id = fi.id
         AND generated_vt.model = ?
@@ -399,7 +425,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
       titleModel,
       rawTitlePromptHash,
       threadId
-    ) as {
+    )) as {
       id: string;
       feed_id: string;
       original_title: string;
@@ -458,7 +484,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
   }
 
   // 2. thread_posts にデータがない場合は、古い thread_summaries または RSS から復元（移行）する
-  const legacyRow = db
+  const legacyRow = runWithSlowQueryLog("getThread.legacy", () => db
     .prepare(`
       SELECT
         rss_ts.posts_json,
@@ -483,7 +509,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
       threadResponsePromptHash,
       defaultResidentPromptHash,
       threadId
-    ) as { posts_json?: string; response_posts_json?: string } | undefined;
+    )) as { posts_json?: string; response_posts_json?: string } | undefined;
 
   const rssPosts = parsePosts(legacyRow?.posts_json);
   const responsePosts = parsePosts(legacyRow?.response_posts_json);
