@@ -34,15 +34,6 @@ export type ThreadPost = {
   isUser?: boolean;
 };
 
-export type RssImage = {
-  url: string;
-  alt: string | null;
-};
-
-export type RssImageContent = RssImage & {
-  dataUrl: string;
-};
-
 export type ThreadListItem = {
   id: string;
   feedId: string;
@@ -78,7 +69,6 @@ export type SmartView = "unread" | "generated" | "reviewed";
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
   readMarkerNo: number | null;
-  rssImages: RssImage[];
 };
 
 export type ArticleBodyContent = {

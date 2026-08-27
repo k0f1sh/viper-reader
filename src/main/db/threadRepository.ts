@@ -11,7 +11,6 @@ import {
 } from "../prompts/threadResponsePrompt.js";
 import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
-import { extractRssImages } from "../rss/extractRssImages.js";
 import {
   createFirstPostBody,
   createInitialPosts,
@@ -437,8 +436,6 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
         : null,
     responseCount: 0
   };
-  const rssImages = extractRssImages(threadInfoRow.raw_summary, threadInfoRow.url);
-
   if (postsRows.length > 0) {
     const posts: ThreadPost[] = postsRows.map((row) => ({
       no: row.no,
@@ -456,8 +453,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
       ...listItem,
       responseCount: posts.length,
       posts,
-      readMarkerNo,
-      rssImages
+      readMarkerNo
     };
   }
 
@@ -523,8 +519,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
     ...listItem,
     responseCount: initialPosts.length,
     posts: initialPosts,
-    readMarkerNo,
-    rssImages
+    readMarkerNo
   };
 }
 

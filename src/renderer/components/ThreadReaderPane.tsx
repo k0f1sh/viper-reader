@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import type { RssImageContent, ThreadDetail } from "../../shared/types";
+import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
 
 type ThreadReaderPaneProps = {
@@ -76,33 +76,6 @@ export function ThreadReaderPane({
   onToggleArticlePane,
   onShowArticleBrowser
 }: ThreadReaderPaneProps) {
-  const [rssImages, setRssImages] = useState<RssImageContent[]>([]);
-  const [rssImageStatus, setRssImageStatus] = useState<"idle" | "loading" | "failed">("idle");
-  const rssImageUrls = selectedThread?.rssImages.slice(0, 12).map((image) => image.url) ?? [];
-  const rssImageKey = rssImageUrls.join("\n");
-
-  useEffect(() => {
-    let isCurrent = true;
-    setRssImages([]);
-    if (!selectedThread || rssImageUrls.length === 0 || !window.viperReader) {
-      setRssImageStatus("idle");
-      return () => { isCurrent = false; };
-    }
-
-    setRssImageStatus("loading");
-    void Promise.allSettled(
-      rssImageUrls.map((_url, imageIndex) => window.viperReader!.loadRssImage(selectedThread.id, imageIndex))
-    ).then((results) => {
-        if (!isCurrent) return;
-        const images = results.flatMap((result) =>
-          result.status === "fulfilled" && result.value ? [result.value] : []
-        );
-        setRssImages(images);
-        setRssImageStatus(images.length > 0 ? "idle" : "failed");
-      });
-    return () => { isCurrent = false; };
-  }, [selectedThread?.id, rssImageKey]);
-
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
     postStatus === "generating"
@@ -216,19 +189,6 @@ export function ThreadReaderPane({
                     onAnchorMouseLeave={onAnchorMouseLeave}
                     onReplyToPost={onReplyToPost}
                   />
-                  {!extractedPostId && post.no === 1 && rssImages.length > 0 ? (
-                    <div className="rss-image-strip" aria-label="RSS記事の画像">
-                      {rssImages.map((image) => (
-                        <img key={image.url} src={image.dataUrl} alt={image.alt ?? "RSS記事の画像"} title={image.alt ?? undefined} />
-                      ))}
-                    </div>
-                  ) : null}
-                  {!extractedPostId && post.no === 1 && rssImageStatus === "loading" ? (
-                    <div className="rss-image-status" role="status">RSS画像を読み込み中...</div>
-                  ) : null}
-                  {!extractedPostId && post.no === 1 && rssImageStatus === "failed" ? (
-                    <div className="rss-image-status">RSS画像を表示できませんでした。</div>
-                  ) : null}
                 </Fragment>
               );
             })}

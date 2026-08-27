@@ -13,7 +13,6 @@ import type {
   RefreshFeedResult,
   RefreshProgress,
   ReadingQueueSummary,
-  RssImageContent,
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationAttempt,
@@ -37,7 +36,6 @@ export type ViperReaderApi = {
   listTitleGenerationAttempts: (threadId: string) => Promise<TitleGenerationAttempt[]>;
   countUnreadArticles: () => Promise<number>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
-  loadRssImage: (threadId: string, imageIndex: number) => Promise<RssImageContent | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
   showArticleBrowser: (request: ShowArticleBrowserRequest) => Promise<ArticleBrowserState>;
   hideArticleBrowser: () => Promise<void>;
@@ -103,7 +101,6 @@ const api: ViperReaderApi = {
   listTitleGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-title-generation-attempts", threadId),
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
-  loadRssImage: (threadId, imageIndex) => ipcRenderer.invoke("threads:load-rss-image", threadId, imageIndex),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
   showArticleBrowser: (request) => ipcRenderer.invoke("article-browser:show", request),
   hideArticleBrowser: () => ipcRenderer.invoke("article-browser:hide"),
