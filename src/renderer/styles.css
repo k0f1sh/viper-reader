@@ -1387,6 +1387,49 @@ body.is-article-pane-resizing * {
   color: #551a8b;
 }
 
+.post-url-copy-button {
+  display: inline-grid;
+  width: 19px;
+  height: 19px;
+  margin: 0 0 0 4px;
+  padding: 2px;
+  place-items: center;
+  vertical-align: -4px;
+  border-top: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  border-left: 1px solid #ffffff;
+  background: #d4d0c8;
+  color: #333333;
+  cursor: pointer;
+}
+
+.post-url-copy-button:hover,
+.post-url-copy-button:focus-visible {
+  background: #ffffcc;
+  color: #000080;
+  outline: 1px dotted #000080;
+  outline-offset: 1px;
+}
+
+.post-url-copy-button:active {
+  border-color: #404040 #ffffff #ffffff #404040;
+}
+
+.post-url-copy-button.is-copied {
+  color: #008000;
+}
+
+.post-url-copy-button svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
 .thread-response-loading {
   display: inline-flex;
   gap: 10px;

@@ -373,6 +373,7 @@ function FragmentPost({
             onAnchorClick={onScrollToPost}
             onAnchorMouseEnter={onAnchorMouseEnter}
             onAnchorMouseLeave={onAnchorMouseLeave}
+            showUrlCopyButton={post.no === 1}
           />
         </div>
       </article>

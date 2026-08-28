@@ -353,6 +353,10 @@ ipcMain.handle("logs:copy", (_event, text: string) => {
   }
   clipboard.writeText(text.slice(0, 1_000_000));
 });
+ipcMain.handle("clipboard:copy-text", (_event, text: string) => {
+  assertString(text, "clipboard text", { minLength: 1, maxLength: 10_000 });
+  clipboard.writeText(text);
+});
 ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
   return getFeedResidentPrompt(feedId);
