@@ -32,7 +32,8 @@ export async function transformTitlesToBoardStyle(
   feedId: string,
   feedTitle: string,
   items: UnconvertedFeedItem[],
-  useSummary = false
+  useSummary = false,
+  onProgress: (completedCount: number, totalCount: number) => void = () => undefined
 ): Promise<TitleTransformResult> {
   if (items.length === 0) {
     return {
@@ -86,6 +87,7 @@ export async function transformTitlesToBoardStyle(
   const logs: LlmRequestLogWrite[] = [];
   const outcomes: TitleTransformOutcome[] = [];
   let failedCount = 0;
+  let completedCount = 0;
 
   for (const chunk of chunkItems(items, titleBatchSize)) {
     const startedAt = new Date().toISOString();
@@ -152,6 +154,8 @@ export async function transformTitlesToBoardStyle(
       startedAt,
       finishedAt
     });
+    completedCount += chunk.length;
+    onProgress(completedCount, items.length);
   }
 
   return {

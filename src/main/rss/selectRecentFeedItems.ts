@@ -1,4 +1,4 @@
-export const maxFeedItemsPerRefresh = 50;
+export const maxFeedItemsPerRefresh = 500;
 
 type FeedItemWithPublishedAt = {
   publishedAt: string | null;

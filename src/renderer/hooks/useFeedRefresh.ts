@@ -3,7 +3,7 @@ import type { MutableRefObject } from "react";
 import type { FeedSource, ThreadListItem } from "../../shared/types";
 import { allFeedsId } from "./useFeedTree";
 
-const maxConcurrentFeedRefreshes = 5;
+const maxConcurrentFeedRefreshes = 2;
 
 type UseFeedRefreshOptions = {
   feeds: FeedSource[];
