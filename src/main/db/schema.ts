@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS feed_items (
   raw_summary TEXT,
   read_at TEXT,
   last_read_post_no INTEGER NOT NULL DEFAULT 0,
+  latest_post_no INTEGER NOT NULL DEFAULT 0,
   is_favorite INTEGER NOT NULL DEFAULT 0,
   generation_status TEXT,
   generation_requested_at TEXT,

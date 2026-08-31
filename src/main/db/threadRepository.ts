@@ -23,12 +23,7 @@ import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.
 import { runWithSlowQueryLog } from "./slowQueryLogger.js";
 
 const unreadSql = "fi.read_at IS NULL";
-const hasUnconfirmedRepliesSql = `EXISTS (
-  SELECT 1
-  FROM thread_posts tp
-  WHERE tp.feed_item_id = fi.id
-    AND tp.no > COALESCE(fi.last_read_post_no, 0)
-)`;
+const hasUnconfirmedRepliesSql = "fi.latest_post_no > fi.last_read_post_no";
 type ThreadRow = {
   id: string;
   feed_id: string;
@@ -63,12 +58,13 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   if (feedId === null) {
     return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread);
   }
+  const unreadCondition = unreadOnly ? `AND ${unreadSql}` : "";
   const countRow = runWithSlowQueryLog("listThreads.count", () => db.prepare(`
     SELECT COUNT(*) AS total_count
     FROM feed_items fi
     WHERE fi.feed_id = ?
-      AND (? = 0 OR ${unreadSql})
-  `).get(feedId, filterUnread)) as { total_count: number };
+      ${unreadCondition}
+  `).get(feedId)) as { total_count: number };
   const rows = runWithSlowQueryLog("listThreads.items", () => db
     .prepare(
       `
@@ -115,7 +111,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE fi.feed_id = ?
-        AND (? = 0 OR ${unreadSql})
+        ${unreadCondition}
       ORDER BY
         CASE WHEN ${unreadSql} THEN 0 ELSE 1 END ASC,
         COALESCE(fi.published_at, fi.created_at) DESC,
@@ -136,7 +132,6 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       threadResponsePromptHash,
       defaultResidentPromptHash,
       feedId,
-      filterUnread,
       safePageSize,
       safePage * safePageSize
     ) as ThreadRow[]);
@@ -171,8 +166,8 @@ function listAllThreads(
         ? "AND fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NOT NULL"
         : "";
   const pageItemsSql = generationQueueMode === "none"
-    ? `page_items AS (
-        SELECT fi.*, ${canonicalKey} AS article_key
+    ? `page_item_ids AS (
+        SELECT fi.id, ${canonicalKey} AS article_key
         FROM feed_items fi
         WHERE (? = 0 OR ${unreadSql})
           AND fi.id = (
@@ -194,11 +189,61 @@ function listAllThreads(
           fi.created_at DESC,
           fi.id DESC
         LIMIT ? OFFSET ?
+      ),
+      page_items AS (
+        SELECT fi.*, page_item_ids.article_key
+        FROM page_item_ids
+        INNER JOIN feed_items fi ON fi.id = page_item_ids.id
       )`
-    : `ranked_items AS (
+    : generationQueueMode === "reviewed"
+      ? `page_item_ids AS (
+        SELECT fi.id, ${canonicalKey} AS article_key
+        FROM feed_items fi
+        WHERE fi.generation_status = 'completed'
+          AND fi.generation_reviewed_at IS NOT NULL
+          AND fi.id = (
+            SELECT candidate.id
+            FROM feed_items candidate
+            WHERE COALESCE(NULLIF(candidate.canonical_url, ''), candidate.url)
+              = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
+              AND candidate.generation_status = 'completed'
+              AND candidate.generation_reviewed_at IS NOT NULL
+            ORDER BY
+              CASE WHEN candidate.read_at IS NULL THEN 0 ELSE 1 END,
+              COALESCE(candidate.published_at, candidate.created_at) DESC,
+              candidate.created_at DESC,
+              candidate.id DESC
+            LIMIT 1
+          )
+        ORDER BY
+          fi.generation_reviewed_at DESC,
+          CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+          COALESCE(fi.published_at, fi.created_at) DESC,
+          fi.created_at DESC,
+          fi.id DESC
+        LIMIT ? OFFSET ?
+      ),
+      page_items AS (
+        SELECT fi.*, page_item_ids.article_key
+        FROM page_item_ids
+        INNER JOIN feed_items fi ON fi.id = page_item_ids.id
+      )`
+      : `candidate_items AS (
+        SELECT id FROM feed_items
+        WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+        UNION
+        SELECT id FROM feed_items
+        WHERE latest_post_no > last_read_post_no
+      ),
+      ranked_items AS (
         SELECT
-          fi.*,
+          fi.id,
           ${canonicalKey} AS article_key,
+          fi.generation_completed_at,
+          fi.generation_reviewed_at,
+          fi.read_at,
+          fi.published_at,
+          fi.created_at,
           ROW_NUMBER() OVER (
             PARTITION BY ${canonicalKey}
             ORDER BY
@@ -207,29 +252,45 @@ function listAllThreads(
               fi.created_at DESC,
               fi.id DESC
           ) AS article_rank
-        FROM feed_items fi
-        WHERE (? = 0 OR ${unreadSql})
-          ${generationCondition}
+        FROM candidate_items
+        INNER JOIN feed_items fi ON fi.id = candidate_items.id
       ),
-      page_items AS (
-        SELECT *
+      page_item_ids AS (
+        SELECT id, article_key
         FROM ranked_items
         WHERE article_rank = 1
         ORDER BY
-          ${generationQueueMode === "unreviewed" ? "generation_completed_at ASC," : ""}
-          ${generationQueueMode === "reviewed" ? "generation_reviewed_at DESC," : ""}
+          generation_completed_at ASC,
           CASE WHEN read_at IS NULL THEN 0 ELSE 1 END,
           COALESCE(published_at, created_at) DESC,
           created_at DESC,
           id DESC
         LIMIT ? OFFSET ?
+      ),
+      page_items AS (
+        SELECT fi.*, page_item_ids.article_key
+        FROM page_item_ids
+        INNER JOIN feed_items fi ON fi.id = page_item_ids.id
       )`;
-  const countRow = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.count`, () => db.prepare(`
-    SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
-    FROM feed_items fi
-    WHERE (? = 0 OR ${unreadSql})
-      ${generationCondition}
-  `).get(filterUnread)) as { total_count: number };
+  const countSql = generationQueueMode === "unreviewed"
+    ? `SELECT COUNT(DISTINCT article_key) AS total_count
+       FROM (
+         SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
+         FROM feed_items
+         WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+         UNION ALL
+         SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
+         FROM feed_items
+         WHERE latest_post_no > last_read_post_no
+       )`
+    : `SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
+       FROM feed_items fi
+       WHERE (? = 0 OR ${unreadSql})
+         ${generationCondition}`;
+  const countRow = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.count`, () => {
+    const statement = db.prepare(countSql);
+    return generationQueueMode === "unreviewed" ? statement.get() : statement.get(filterUnread);
+  }) as { total_count: number };
   const rows = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.items`, () => db.prepare(`
     WITH ${pageItemsSql}
     SELECT
@@ -286,8 +347,7 @@ function listAllThreads(
       fi.created_at DESC,
       fi.id DESC
   `).all(
-    filterUnread,
-    ...(generationQueueMode === "none" ? [filterUnread] : []),
+    ...(generationQueueMode === "none" ? [filterUnread, filterUnread] : []),
     pageSize,
     page * pageSize,
     titleModel,
@@ -339,14 +399,9 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
 
       UNION ALL
 
-      SELECT COALESCE(NULLIF(fi.canonical_url, ''), fi.url) AS article_key
-      FROM (
-        SELECT feed_item_id, MAX(no) AS max_no
-        FROM thread_posts
-        GROUP BY feed_item_id
-      ) posts
-      INNER JOIN feed_items fi ON fi.id = posts.feed_item_id
-      WHERE posts.max_no > COALESCE(fi.last_read_post_no, 0)
+      SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
+      FROM feed_items
+      WHERE latest_post_no > last_read_post_no
     )
   `).get()) as { count: number };
   const reviewedRow = runWithSlowQueryLog("readingQueueSummary.reviewed", () => db.prepare(`
