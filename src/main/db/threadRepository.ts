@@ -156,6 +156,8 @@ function listAllThreads(
   const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
+  const allUnreadCondition = filterUnread ? `AND ${unreadSql}` : "";
+  const candidateUnreadCondition = filterUnread ? "AND candidate.read_at IS NULL" : "";
   const generationCondition =
     generationQueueMode === "unreviewed"
       ? `AND (
@@ -169,13 +171,14 @@ function listAllThreads(
     ? `page_item_ids AS (
         SELECT fi.id, ${canonicalKey} AS article_key
         FROM feed_items fi
-        WHERE (? = 0 OR ${unreadSql})
+        WHERE 1 = 1
+          ${allUnreadCondition}
           AND fi.id = (
             SELECT candidate.id
             FROM feed_items candidate
             WHERE COALESCE(NULLIF(candidate.canonical_url, ''), candidate.url)
               = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
-              AND (? = 0 OR candidate.read_at IS NULL)
+              ${candidateUnreadCondition}
             ORDER BY
               CASE WHEN candidate.read_at IS NULL THEN 0 ELSE 1 END,
               COALESCE(candidate.published_at, candidate.created_at) DESC,
@@ -231,7 +234,7 @@ function listAllThreads(
       : `candidate_items AS (
         SELECT id FROM feed_items
         WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
-        UNION
+        UNION ALL
         SELECT id FROM feed_items
         WHERE latest_post_no > last_read_post_no
       ),
@@ -285,11 +288,12 @@ function listAllThreads(
        )`
     : `SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
        FROM feed_items fi
-       WHERE (? = 0 OR ${unreadSql})
+       WHERE 1 = 1
+         ${allUnreadCondition}
          ${generationCondition}`;
   const countRow = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.count`, () => {
     const statement = db.prepare(countSql);
-    return generationQueueMode === "unreviewed" ? statement.get() : statement.get(filterUnread);
+    return statement.get();
   }) as { total_count: number };
   const rows = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.items`, () => db.prepare(`
     WITH ${pageItemsSql}
@@ -347,7 +351,6 @@ function listAllThreads(
       fi.created_at DESC,
       fi.id DESC
   `).all(
-    ...(generationQueueMode === "none" ? [filterUnread, filterUnread] : []),
     pageSize,
     page * pageSize,
     titleModel,
