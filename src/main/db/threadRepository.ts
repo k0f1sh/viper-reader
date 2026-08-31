@@ -331,10 +331,23 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
   `).all()) as Array<{ status: string; count: number }>;
   const counts = new Map(rows.map((row) => [row.status, Number(row.count)]));
   const completedRow = runWithSlowQueryLog("readingQueueSummary.completed", () => db.prepare(`
-    SELECT COUNT(DISTINCT COALESCE(NULLIF(fi.canonical_url, ''), fi.url)) AS count
-    FROM feed_items fi
-    WHERE (fi.generation_status = 'completed' AND fi.generation_reviewed_at IS NULL)
-      OR ${hasUnconfirmedRepliesSql}
+    SELECT COUNT(DISTINCT article_key) AS count
+    FROM (
+      SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
+      FROM feed_items
+      WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+
+      UNION ALL
+
+      SELECT COALESCE(NULLIF(fi.canonical_url, ''), fi.url) AS article_key
+      FROM (
+        SELECT feed_item_id, MAX(no) AS max_no
+        FROM thread_posts
+        GROUP BY feed_item_id
+      ) posts
+      INNER JOIN feed_items fi ON fi.id = posts.feed_item_id
+      WHERE posts.max_no > COALESCE(fi.last_read_post_no, 0)
+    )
   `).get()) as { count: number };
   const reviewedRow = runWithSlowQueryLog("readingQueueSummary.reviewed", () => db.prepare(`
     SELECT COUNT(*) AS count

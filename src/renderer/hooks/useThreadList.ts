@@ -21,6 +21,7 @@ const emptyQueueSummary: ReadingQueueSummary = {
 };
 
 type PageSelection = "first" | "last";
+const summaryReloadDelayMs = 150;
 
 export function useThreadList({
   selectedFeedId,
@@ -37,6 +38,7 @@ export function useThreadList({
   const [smartView, setSmartView] = useState<SmartView | null>(null);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>(emptyQueueSummary);
   const requestIdRef = useRef(0);
+  const summaryReloadRef = useRef<{ promise: Promise<void>; timer: ReturnType<typeof setTimeout> } | null>(null);
   const threadsRef = useRef<ThreadListItem[]>([]);
   const callbacksRef = useRef({
     onClearSelection,
@@ -101,9 +103,26 @@ export function useThreadList({
     selectLoadedThread(result.items, undefined, pageSelection);
   }
 
-  async function reloadSummary() {
-    if (!window.viperReader) return;
-    setQueueSummary(await window.viperReader.getReadingQueueSummary());
+  function reloadSummary(): Promise<void> {
+    if (!window.viperReader) return Promise.resolve();
+    if (summaryReloadRef.current) return summaryReloadRef.current.promise;
+
+    let resolveReload!: () => void;
+    let rejectReload!: (error: unknown) => void;
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveReload = resolve;
+      rejectReload = reject;
+    });
+    const timer = setTimeout(() => {
+      void window.viperReader!.getReadingQueueSummary()
+        .then(setQueueSummary)
+        .then(resolveReload, rejectReload)
+        .finally(() => {
+          if (summaryReloadRef.current?.promise === promise) summaryReloadRef.current = null;
+        });
+    }, summaryReloadDelayMs);
+    summaryReloadRef.current = { promise, timer };
+    return promise;
   }
 
   async function reloadCurrent(preferredThreadId?: string) {

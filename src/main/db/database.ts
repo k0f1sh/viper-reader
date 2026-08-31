@@ -29,6 +29,7 @@ export function getDatabase(): DatabaseSync {
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   migrateLegacyTitleTable(db);
+  addColumnIfMissing(db, "feed_items", "published_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
@@ -50,6 +51,29 @@ function migrate(db: DatabaseSync): void {
   if (addedLastReadPostNo) backfillLastReadPostNo(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_article_key ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))");
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_feed_items_unread_article_key
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE read_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_generation_unreviewed_article
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_all_threads_order
+      ON feed_items(
+        (CASE WHEN read_at IS NULL THEN 0 ELSE 1 END),
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      );
+    CREATE INDEX IF NOT EXISTS idx_feed_items_article_rank
+      ON feed_items(
+        COALESCE(NULLIF(canonical_url, ''), url),
+        (CASE WHEN read_at IS NULL THEN 0 ELSE 1 END),
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      );
+  `);
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());

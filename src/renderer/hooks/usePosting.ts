@@ -13,7 +13,6 @@ type UsePostingOptions = {
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
   reloadFeeds: () => Promise<void>;
   reloadCurrentThreadList: (preferredThreadId?: string) => Promise<void>;
-  reloadQueueSummary: () => Promise<void>;
 };
 
 function scrollReadMarkerToTop() {
@@ -43,8 +42,7 @@ export function usePosting(options: UsePostingOptions) {
       if (data.status === "done" && data.threadId !== current.selectedThreadId) {
         void Promise.all([
           current.reloadFeeds(),
-          current.reloadCurrentThreadList(),
-          current.reloadQueueSummary()
+          current.reloadCurrentThreadList()
         ]);
         return;
       }
@@ -70,8 +68,7 @@ export function usePosting(options: UsePostingOptions) {
         ));
         void Promise.all([
           current.reloadFeeds(),
-          current.reloadCurrentThreadList(thread.id),
-          current.reloadQueueSummary()
+          current.reloadCurrentThreadList(thread.id)
         ]);
       });
     });

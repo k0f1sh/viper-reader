@@ -77,6 +77,22 @@ function insertItem({ id, feedId, readAt = null }) {
   );
 }
 
+test("一覧・集計用インデックスを既存DBにも作成する", () => {
+  const indexNames = new Set(
+    db.prepare("PRAGMA index_list(feed_items)").all().map((row) => row.name)
+  );
+
+  assert.deepEqual(
+    [
+      "idx_feed_items_unread_article_key",
+      "idx_feed_items_generation_unreviewed_article",
+      "idx_feed_items_all_threads_order",
+      "idx_feed_items_article_rank"
+    ].filter((name) => !indexNames.has(name)),
+    []
+  );
+});
+
 test("既読後に追加されたレスを未確認として数え、再表示位置を返す", () => {
   insertFeed("reply-unread");
   insertItem({ id: "reply-unread-item", feedId: "reply-unread" });
@@ -143,6 +159,36 @@ test("同じcanonical URLの記事は全取得元をまとめて既読・未読�
       .map((row) => row.id),
     ["canonical-item-a", "canonical-item-b"]
   );
+});
+
+test("同じcanonical URLの生成済み記事はキュー件数を重複計上しない", () => {
+  const baseline = getReadingQueueSummary().completedCount;
+  insertFeed("canonical-queue-a");
+  insertFeed("canonical-queue-b");
+  insertItem({ id: "canonical-queue-item-a", feedId: "canonical-queue-a", readAt: now });
+  insertItem({ id: "canonical-queue-item-b", feedId: "canonical-queue-b", readAt: now });
+  db.prepare("UPDATE feed_items SET canonical_url = ? WHERE id IN (?, ?)")
+    .run(
+      "https://example.com/canonical/queue-shared",
+      "canonical-queue-item-a",
+      "canonical-queue-item-b"
+    );
+
+  setThreadGenerationState("canonical-queue-item-a", "completed");
+  setThreadGenerationState("canonical-queue-item-b", "completed");
+  assert.equal(getReadingQueueSummary().completedCount, baseline + 1);
+
+  markThreadGenerationReviewed("canonical-queue-item-a");
+  markThreadGenerationReviewed("canonical-queue-item-b");
+  assert.equal(getReadingQueueSummary().completedCount, baseline);
+  db.prepare(`
+    UPDATE feed_items
+    SET generation_status = NULL,
+        generation_requested_at = NULL,
+        generation_completed_at = NULL,
+        generation_reviewed_at = NULL
+    WHERE id IN (?, ?)
+  `).run("canonical-queue-item-a", "canonical-queue-item-b");
 });
 
 test("スレタイ変換の失敗・未変換を記事単位で保存し、成功時に状態表示を消す", () => {

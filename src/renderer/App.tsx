@@ -38,7 +38,7 @@ export function App() {
     deleteSelected: deleteSelectedTreeNode,
     saveFolder: saveFeedFolder
   } = useFeedTree({
-    onReload: () => void reloadQueueSummary(),
+    onReload: () => reloadQueueSummary(),
     onFeedDeleted: (feedId) => {
       if (selectedThread?.feedId === feedId) {
         setSelectedThreadId(undefined);
@@ -140,6 +140,7 @@ export function App() {
   const [titleGenerationThreadId, setTitleGenerationThreadId] = useState<string | null>(null);
   const [titleGenerationAttempts, setTitleGenerationAttempts] = useState<TitleGenerationAttempt[]>([]);
   const [isTitleGenerationAttemptsLoading, setIsTitleGenerationAttemptsLoading] = useState(false);
+  const readMetadataReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     selectedThreadId,
     selectedThreadIdRef,
@@ -159,10 +160,7 @@ export function App() {
       if (!threadId) return;
       clearCompletedGeneration(threadId);
     },
-    onThreadRead: () => {
-      void reloadFeeds();
-      void reloadQueueSummary();
-    },
+    onThreadRead: scheduleReadMetadataReload,
     onReadMarkerChange: setReadMarkerNo
   });
   const {
@@ -182,8 +180,7 @@ export function App() {
     setReadMarkerNo,
     replyBodyRef,
     reloadFeeds,
-    reloadCurrentThreadList,
-    reloadQueueSummary
+    reloadCurrentThreadList
   });
   const {
     popupData,
@@ -305,7 +302,9 @@ export function App() {
 
   useEffect(() => {
     void loadFavoriteThreads();
-    void reloadQueueSummary();
+    return () => {
+      if (readMetadataReloadTimerRef.current) clearTimeout(readMetadataReloadTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -327,6 +326,14 @@ export function App() {
     if (thread) {
       selectThread(thread, selectedFeedId === allFeedsId ? allFeedsId : undefined);
     }
+  }
+
+  function scheduleReadMetadataReload() {
+    if (readMetadataReloadTimerRef.current) clearTimeout(readMetadataReloadTimerRef.current);
+    readMetadataReloadTimerRef.current = setTimeout(() => {
+      readMetadataReloadTimerRef.current = null;
+      void reloadFeeds();
+    }, 150);
   }
 
   function selectThread(thread: ThreadListItem | ThreadDetail, feedSelection?: string) {

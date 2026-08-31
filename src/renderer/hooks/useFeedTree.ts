@@ -5,7 +5,7 @@ import type { FeedTreeSelection } from "../components/FeedPane";
 export const allFeedsId = "__all_feeds__";
 
 type UseFeedTreeOptions = {
-  onReload: () => void;
+  onReload: () => Promise<void>;
   onFeedDeleted: (feedId: string) => void;
 };
 
@@ -36,7 +36,7 @@ export function useFeedTree({ onReload, onFeedDeleted }: UseFeedTreeOptions) {
       [...current].filter((id) => nextFolders.some((folder) => folder.id === id))
     ));
     setAllUnreadCount(nextAllUnreadCount);
-    onReloadRef.current();
+    await onReloadRef.current();
     setSelectedFeedId((current) =>
       current === allFeedsId || nextFeeds.some((feed) => feed.id === current) ? current : allFeedsId
     );
