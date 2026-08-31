@@ -82,19 +82,19 @@ export function AppWorkspace({
         </section>
       </div>
       <footer className="shortcut-bar" aria-label="キーボードショートカット">
-        <span><kbd>P</kbd>/<kbd>N</kbd> レス／元記事スクロール</span>
-        <span><kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> レススクロール</span>
-        <span><kbd>J</kbd>/<kbd>K</kbd> スレ移動</span>
-        <span><kbd>I</kbd> 先頭スレ</span>
-        <span><kbd>O</kbd> レス／元記事</span>
-        <span><kbd>F</kbd>/<kbd>;</kbd> 元記事を全面表示</span>
+        <span><kbd>p</kbd>/<kbd>n</kbd> レス／元記事スクロール</span>
+        <span><kbd>Ctrl</kbd>+<kbd>j</kbd>/<kbd>k</kbd> レススクロール</span>
+        <span><kbd>j</kbd>/<kbd>k</kbd> スレ移動</span>
+        <span><kbd>i</kbd>/<kbd>I</kbd> 先頭／末尾スレ</span>
+        <span><kbd>o</kbd> レス／元記事</span>
+        <span><kbd>f</kbd>/<kbd>;</kbd> 元記事を全面表示</span>
         <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
-        <span><kbd>H</kbd>/<kbd>L</kbd> 板移動</span>
-        <span><kbd>G</kbd>/<kbd>U</kbd> AIレス</span>
-        <span><kbd>W</kbd> 書き込み</span>
-        <span><kbd>R</kbd>/<kbd>Y</kbd> 更新</span>
-        <span><kbd>B</kbd> お気に入り</span>
-        <span><kbd>Shift</kbd>+<kbd>U</kbd> 既読切替</span>
+        <span><kbd>h</kbd>/<kbd>l</kbd> 板移動</span>
+        <span><kbd>g</kbd>/<kbd>u</kbd> AIレス</span>
+        <span><kbd>w</kbd> 書き込み</span>
+        <span><kbd>r</kbd>/<kbd>y</kbd> 更新</span>
+        <span><kbd>b</kbd> お気に入り</span>
+        <span><kbd>U</kbd> 既読切替</span>
       </footer>
     </>
   );

@@ -19,6 +19,8 @@ type UseKeyboardShortcutsOptions = {
   onSelectThread: (thread: ThreadListItem, feedSelection?: string) => void;
   onSelectFeed: (feedId: string) => void;
   onSelectSmartView: (view: SmartView) => void;
+  onMoveToNextPage: () => void;
+  onMoveToPreviousPage: () => void;
   onRefresh: () => void;
   onGenerateResponses: () => void;
   onGenerateReplies: () => void;
@@ -98,12 +100,22 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         if (next) {
           event.preventDefault();
           current.onSelectThread(next, current.selectedFeedId === allFeedsId ? allFeedsId : undefined);
+        } else if (index >= 0) {
+          event.preventDefault();
+          if (delta > 0) current.onMoveToNextPage();
+          else current.onMoveToPreviousPage();
         }
       } else if (event.key === "i") {
         const first = current.threads[0];
         if (first) {
           event.preventDefault();
           current.onSelectThread(first, current.selectedFeedId === allFeedsId ? allFeedsId : undefined);
+        }
+      } else if (event.key === "I") {
+        const last = current.threads.at(-1);
+        if (last) {
+          event.preventDefault();
+          current.onSelectThread(last, current.selectedFeedId === allFeedsId ? allFeedsId : undefined);
         }
       } else if (event.key === "h" || event.key === "l") {
         const navigationTargets = [

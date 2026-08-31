@@ -20,6 +20,8 @@ const emptyQueueSummary: ReadingQueueSummary = {
   reviewedCount: 0
 };
 
+type PageSelection = "first" | "last";
+
 export function useThreadList({
   selectedFeedId,
   selectedFeedIdRef,
@@ -53,7 +55,7 @@ export function useThreadList({
     || (smartView === null && !isUnreadOnlyLocked && showUnreadOnly);
   effectiveUnreadOnlyRef.current = effectiveShowUnreadOnly;
 
-  async function reloadThreads(feedId: string, preferredThreadId?: string, nextPage = page) {
+  async function reloadThreads(feedId: string, preferredThreadId?: string, nextPage = page, pageSelection?: PageSelection) {
     if (!window.viperReader) return;
     const requestId = ++requestIdRef.current;
     const result = await window.viperReader.listThreads(
@@ -65,12 +67,10 @@ export function useThreadList({
     setThreads(result.items);
     setPage(result.page);
     setTotalCount(result.totalCount);
-    if (preferredThreadId && result.items.some((thread) => thread.id === preferredThreadId)) {
-      callbacksRef.current.onSelectPreferredThread(preferredThreadId);
-    }
+    selectLoadedThread(result.items, preferredThreadId, pageSelection);
   }
 
-  async function reloadGenerated(nextPage = page, preserveCurrent = false) {
+  async function reloadGenerated(nextPage = page, preserveCurrent = false, pageSelection?: PageSelection) {
     if (!window.viperReader) return;
     const requestId = ++requestIdRef.current;
     const result = await window.viperReader.listGeneratedQueue(nextPage);
@@ -87,9 +87,10 @@ export function useThreadList({
       setTotalCount(result.totalCount);
     }
     setPage(result.page);
+    if (!preserveCurrent) selectLoadedThread(result.items, undefined, pageSelection);
   }
 
-  async function reloadReviewed(nextPage = page) {
+  async function reloadReviewed(nextPage = page, pageSelection?: PageSelection) {
     if (!window.viperReader) return;
     const requestId = ++requestIdRef.current;
     const result = await window.viperReader.listReviewedGenerationQueue(nextPage);
@@ -97,6 +98,7 @@ export function useThreadList({
     setThreads(result.items);
     setPage(result.page);
     setTotalCount(result.totalCount);
+    selectLoadedThread(result.items, undefined, pageSelection);
   }
 
   async function reloadSummary() {
@@ -122,11 +124,22 @@ export function useThreadList({
     else void reloadThreads(selectedFeedId, undefined, 0);
   }, [selectedFeedId, showUnreadOnly, smartView]);
 
-  function changePage(nextPage: number) {
+  function changePage(nextPage: number, pageSelection?: PageSelection) {
     if (!selectedFeedId || nextPage < 0) return;
-    if (smartView === "generated") void reloadGenerated(nextPage);
-    else if (smartView === "reviewed") void reloadReviewed(nextPage);
-    else void reloadThreads(selectedFeedId, undefined, nextPage);
+    if (smartView === "generated") void reloadGenerated(nextPage, false, pageSelection);
+    else if (smartView === "reviewed") void reloadReviewed(nextPage, pageSelection);
+    else void reloadThreads(selectedFeedId, undefined, nextPage, pageSelection);
+  }
+
+  function selectLoadedThread(items: ThreadListItem[], preferredThreadId?: string, pageSelection?: PageSelection) {
+    const selectedId = preferredThreadId && items.some((thread) => thread.id === preferredThreadId)
+      ? preferredThreadId
+      : pageSelection === "first"
+        ? items[0]?.id
+        : pageSelection === "last"
+          ? items.at(-1)?.id
+          : undefined;
+    if (selectedId) callbacksRef.current.onSelectPreferredThread(selectedId);
   }
 
   async function markAllRead() {

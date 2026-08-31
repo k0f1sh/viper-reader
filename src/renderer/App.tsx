@@ -272,6 +272,14 @@ export function App() {
     onSelectThread: selectThread,
     onSelectFeed: selectFeed,
     onSelectSmartView: selectSmartView,
+    onMoveToNextPage: () => {
+      if ((threadListPage + 1) * 100 < threadListTotalCount) {
+        changeThreadListPage(threadListPage + 1, "first");
+      }
+    },
+    onMoveToPreviousPage: () => {
+      if (threadListPage > 0) changeThreadListPage(threadListPage - 1, "last");
+    },
     onRefresh: () => void refreshSelectedFeed(),
     onGenerateResponses: () => void generateResponses(false),
     onGenerateReplies: () => void handleGenerateReplies(),
