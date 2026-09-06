@@ -17,6 +17,7 @@ import {
   setThreadFavorite,
   listFavoriteThreads,
   setThreadRead,
+  markThreadPostsRead,
   setThreadGenerationState,
   markThreadGenerationReviewed
 } from "./db/repository.js";
@@ -252,6 +253,11 @@ ipcMain.handle("threads:get", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
   return thread;
+});
+ipcMain.handle("threads:mark-posts-read", (_event, threadId: string, postNo: number) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!Number.isSafeInteger(postNo) || postNo < 0) throw new Error("Invalid post number.");
+  return markThreadPostsRead(threadId, postNo);
 });
 ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");

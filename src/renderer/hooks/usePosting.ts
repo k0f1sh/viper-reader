@@ -53,7 +53,7 @@ export function usePosting(options: UsePostingOptions) {
         update({ error: `${data.errorMessage ?? "AI住民のレス生成に失敗しました。"} 書き込みは保存されています。` });
       }
       void window.viperReader?.getThread(data.threadId).then((thread) => {
-        if (!thread) return;
+        if (!thread || optionsRef.current.selectedThreadIdRef.current !== data.threadId) return;
         if (data.status === "error") {
           current.setSelectedThread(thread);
           current.setThreadList((items) => items.map((item) =>

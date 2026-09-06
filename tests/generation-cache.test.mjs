@@ -18,6 +18,7 @@ const {
   listThreadGenerationAttempts,
   listThreads,
   markThreadRead,
+  markThreadPostsRead,
   markThreadGenerationReviewed,
   listTitleGenerationAttempts,
   recordTitleGenerationAttempts,
@@ -102,6 +103,7 @@ test("既読後に追加されたレスを未確認として数え、再表示�
 
   const firstOpen = getThread("reply-unread-item");
   assert.equal(firstOpen?.readMarkerNo, null);
+  markThreadPostsRead("reply-unread-item", 1);
   assert.equal(getReadingQueueSummary().unreadCount, 0);
 
   saveGeneratedThreadPosts("reply-unread-item", [
@@ -116,6 +118,7 @@ test("既読後に追加されたレスを未確認として数え、再表示�
 
   const reopened = getThread("reply-unread-item");
   assert.equal(reopened?.readMarkerNo, 1);
+  markThreadPostsRead("reply-unread-item", 2);
   assert.equal(getReadingQueueSummary().unreadCount, 0);
   assert.equal(getReadingQueueSummary().completedCount, 0);
 });
@@ -505,4 +508,32 @@ test("ペインとカラムのレイアウト設定を保存できる", () => {
 test("板フォルダの開閉状態をSQLiteへ保存できる", () => {
   saveRendererUserSetting("collapsedFeedFolderIds", '["folder:development"]');
   assert.equal(getRendererUserSetting("collapsedFeedFolderIds"), '["folder:development"]');
+});
+
+test("A生成開始→B表示→A完了の取得ではAの未表示レスを既読にしない", () => {
+  insertFeed("background-read");
+  const a = "background-read-a";
+  const b = "background-read-b";
+  insertItem({ id: a, feedId: "background-read" });
+  insertItem({ id: b, feedId: "background-read" });
+  const initial = getThread(a);
+  assert.equal(initial.isRead, false);
+  assert.equal(db.prepare("SELECT read_at FROM feed_items WHERE id = ?").get(a).read_at, null);
+  markThreadPostsRead(a, 1);
+  const selectedB = getThread(b);
+  markThreadPostsRead(b, selectedB.posts.at(-1).no);
+  saveGeneratedThreadPosts(a, [
+    { no: 2, name: "名無しさん", date: now, id: "background", body: "未表示の生成レス" }
+  ]);
+  const background = getThread(a);
+  assert.equal(background.readMarkerNo, 1);
+  assert.equal(db.prepare("SELECT last_read_post_no FROM feed_items WHERE id = ?").get(a).last_read_post_no, 1);
+  // A delayed acknowledgement of the old snapshot must not consume the new post.
+  markThreadPostsRead(a, 1);
+  const reopened = getThread(a);
+  assert.equal(reopened.readMarkerNo, 1);
+  markThreadPostsRead(a, reopened.posts.at(-1).no);
+  markThreadPostsRead(a, 1);
+  assert.equal(getThread(a).readMarkerNo, null);
+  assert.equal(db.prepare("SELECT last_read_post_no FROM feed_items WHERE id = ?").get(a).last_read_post_no, 2);
 });

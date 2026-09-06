@@ -44,8 +44,9 @@ export function useThreadSelection({
         }
         return;
       }
+      if (selectedThreadIdRef.current !== selectedThreadId) return;
       setThreadList((currentThreads) => currentThreads.map((currentThread) =>
-        currentThread.id === thread.id ? { ...currentThread, ...thread, isRead: true } : currentThread
+        currentThread.id === thread.id ? { ...currentThread, ...thread } : currentThread
       ));
       if (selectedThreadIdRef.current === selectedThreadId) {
         callbacksRef.current.onReadMarkerChange(thread.readMarkerNo);
@@ -55,12 +56,24 @@ export function useThreadSelection({
           }));
         }
       }
-      callbacksRef.current.onThreadRead();
       if (selectedThreadIdRef.current === selectedThreadId) setSelectedThread(thread);
     }).catch(() => {
       if (selectedThreadIdRef.current === selectedThreadId) setSelectedThread(null);
     });
   }, [selectedThreadId, setThreadList]);
+
+  // A committed detail view acknowledges only the posts included in that snapshot.
+  useEffect(() => {
+    if (!selectedThread || selectedThread.id !== selectedThreadId || !window.viperReader) return;
+    const threadId = selectedThread.id;
+    const postNo = selectedThread.posts.reduce((max, post) => Math.max(max, post.no), 0);
+    void window.viperReader.markThreadPostsRead(threadId, postNo).then(() => {
+      setThreadList((threads) => threads.map((thread) =>
+        thread.id === threadId ? { ...thread, isRead: true } : thread
+      ));
+      callbacksRef.current.onThreadRead();
+    }).catch(() => undefined);
+  }, [selectedThread, selectedThreadId, setThreadList]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {

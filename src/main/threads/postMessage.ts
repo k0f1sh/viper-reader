@@ -46,7 +46,7 @@ export async function postThreadMessage(
   }
 
   try {
-    const thread = getThread(threadId, false);
+    const thread = getThread(threadId);
     if (!thread) {
       onStatus?.("error");
       releaseThreadLock(threadId);
@@ -79,7 +79,7 @@ export async function postThreadMessage(
     });
 
     // 最新状態を取得
-    const updatedThread = getThread(threadId, false);
+    const updatedThread = getThread(threadId);
     if (!updatedThread) {
       onStatus?.("error");
       releaseThreadLock(threadId);
@@ -132,11 +132,11 @@ export async function generateRepliesOnly(
 ): Promise<ThreadDetail | null> {
   if (!acquireThreadLock(threadId)) {
     onStatus?.("done");
-    return getThread(threadId, false);
+    return getThread(threadId);
   }
 
   try {
-    const thread = getThread(threadId, false);
+    const thread = getThread(threadId);
     if (!thread) {
       onStatus?.("error");
       return null;
@@ -163,7 +163,7 @@ export async function generateRepliesOnly(
     releaseThreadLock(threadId);
   }
 
-  return getThread(threadId, false);
+  return getThread(threadId);
 }
 
 async function ensureArticleSummary(threadId: string, feedId: string): Promise<void> {

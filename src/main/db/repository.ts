@@ -53,6 +53,7 @@ export type { ThreadResponseWrite } from "./threadPostRepository.js";
 export {
   countAllUnreadArticles,
   markThreadRead,
+  markThreadPostsRead,
   setThreadFavorite,
   setThreadRead
 } from "./threadStateRepository.js";

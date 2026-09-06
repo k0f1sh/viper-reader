@@ -19,7 +19,7 @@ import {
 } from "../threads/initialThreadPosts.js";
 import { getDatabase } from "./database.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
-import { countAllUnreadArticles, markThreadRead } from "./threadStateRepository.js";
+import { countAllUnreadArticles } from "./threadStateRepository.js";
 import { runWithSlowQueryLog } from "./slowQueryLogger.js";
 
 const unreadSql = "fi.read_at IS NULL";
@@ -432,7 +432,7 @@ type ThreadPostRow = {
   is_user: number;
 };
 
-export function getThread(threadId: string, markAsRead = true): ThreadDetail | null {
+export function getThread(threadId: string): ThreadDetail | null {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
@@ -524,7 +524,7 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
     threadTitle: threadInfoRow.thread_title,
     source: threadInfoRow.source,
     publishedAt: threadInfoRow.published_at ?? "",
-    isRead: true,
+    isRead: threadInfoRow.read_at !== null,
     isFavorite: threadInfoRow.is_favorite === 1,
     generationStatus: threadInfoRow.generation_status,
     titleGenerationStatus:
@@ -545,7 +545,6 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
     }));
 
     const readMarkerNo = getReadMarkerNo(threadInfoRow.read_at, threadInfoRow.last_read_post_no, posts);
-    if (markAsRead) markThreadRead(threadId);
     return {
       ...listItem,
       responseCount: posts.length,
@@ -610,7 +609,6 @@ export function getThread(threadId: string, markAsRead = true): ThreadDetail | n
   // 移行したデータを thread_posts に保存
   saveGeneratedThreadPosts(threadId, initialPosts);
   const readMarkerNo = getReadMarkerNo(threadInfoRow.read_at, threadInfoRow.last_read_post_no, initialPosts);
-  if (markAsRead) markThreadRead(threadId);
 
   return {
     ...listItem,
