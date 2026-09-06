@@ -221,7 +221,7 @@ export function ThreadListPane({
                 </span>
               </span>
               <span className="thread-title">
-                {thread.threadTitle}
+                {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
               </span>
               <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>

@@ -76,6 +76,7 @@ export function ThreadReaderPane({
   onToggleArticlePane,
   onShowArticleBrowser
 }: ThreadReaderPaneProps) {
+  const hasArticleUpdate = Boolean(selectedThread && selectedThread.contentVersion !== selectedThread.generatedContentVersion);
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
     postStatus === "generating"
@@ -157,6 +158,14 @@ export function ThreadReaderPane({
               ) : null}
             </div>
           </div>
+          {hasArticleUpdate ? (
+            <div className="id-extraction-bar" role="status">
+              <span>記事に更新あり。既存のAIレスは更新前の内容です。更新すると本文を取得し直し、AIレスを置き換えます。書き込みとその番号は保持します。</span>
+              <button type="button" disabled={isWritePanelBusy} onClick={() => onGenerateResponses(true)}>
+                本文・AIレスを更新
+              </button>
+            </div>
+          ) : null}
           <div className="posts">
             {extractedPostId ? (
               <div className="id-extraction-bar" role="status">
@@ -208,7 +217,7 @@ export function ThreadReaderPane({
                 <button
                   className="load-button"
                   onClick={onGenerateReplies}
-                  disabled={isPosting}
+                  disabled={isPosting || hasArticleUpdate}
                   type="button"
                 >
                   {postStatus === "generating" ? "レス生成中..." : "再読み込み(続きのレス生成)"}

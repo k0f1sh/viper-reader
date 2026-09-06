@@ -45,6 +45,8 @@ export type ThreadListItem = {
   responseCount: number;
   isRead: boolean;
   isFavorite: boolean;
+  contentVersion: number;
+  generatedContentVersion: number;
   generationStatus: "queued" | "generating" | "completed" | "failed" | null;
   titleGenerationStatus: "failed" | "skipped" | null;
 };

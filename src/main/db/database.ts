@@ -36,6 +36,8 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_status", "TEXT");
+  addColumnIfMissing(db, "feed_items", "content_version", "INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "feed_items", "generated_content_version", "INTEGER NOT NULL DEFAULT 1");
   addColumnIfMissing(db, "feed_items", "generation_requested_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_completed_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_reviewed_at", "TEXT");

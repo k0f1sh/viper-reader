@@ -1,3 +1,4 @@
+import { assertArticleVersion } from "../db/articleRepository.js";
 import type { ThreadDetail, ThreadGenerationProgress } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
@@ -32,7 +33,7 @@ export function startThreadResponseGeneration(
     onComplete("error");
     return;
   }
-  if (!force && thread.posts.length > 1) {
+  if (!force && thread.posts.length > 1 && thread.contentVersion === thread.generatedContentVersion) {
     onComplete("skipped");
     return;
   }
@@ -53,6 +54,7 @@ export function startThreadResponseGeneration(
       reportProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
       const scrapedBody = await getOrScrapeArticleBody(thread, reportProgress);
 
+      assertArticleVersion(threadId, thread.contentVersion);
       reportProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
       const articleSummary = getArticleSummary(threadId);
       const result = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, reportProgress);
@@ -106,7 +108,7 @@ async function getOrScrapeArticleBody(
   }
 
   scrapedBody = scrapeResult.contentText;
-  saveArticleBody(thread.id, thread.url, scrapedBody);
+  saveArticleBody(thread.id, thread.url, scrapedBody, thread.contentVersion);
   return scrapedBody;
 }
 
@@ -143,7 +145,8 @@ async function generateAndSaveThreadResponses(
     saveThreadResponsePosts(
       {
         feedItemId: thread.id,
-        posts: generated.posts
+        posts: generated.posts,
+        contentVersion: thread.contentVersion
       },
       getActiveModel(),
       promptHash

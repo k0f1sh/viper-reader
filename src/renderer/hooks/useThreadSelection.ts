@@ -97,7 +97,7 @@ export function useThreadSelection({
     }).finally(() => {
       if (selectedThreadIdRef.current === threadId) setIsArticleBodyLoading(false);
     });
-  }, [selectedThreadId, selectedThread?.generationStatus, shouldShowArticlePane]);
+  }, [selectedThreadId, selectedThread?.generationStatus, selectedThread?.contentVersion, selectedThread?.generatedContentVersion, shouldShowArticlePane]);
 
   return {
     selectedThreadId,

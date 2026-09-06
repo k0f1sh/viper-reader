@@ -3,6 +3,7 @@ import type { RefreshFeedResult, TitleGenerationAttempt } from "../../shared/typ
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 import {
   createInitialPosts,
+  createFirstPostBody,
   rawTitlePromptHash,
   rssSummaryPromptHash
 } from "../threads/initialThreadPosts.js";
@@ -70,7 +71,18 @@ export function upsertFeedItems(
   );
   const deleteDerivedTitles = db.prepare("DELETE FROM thread_titles WHERE feed_item_id = ?");
   const deleteDerivedSummaries = db.prepare("DELETE FROM thread_summaries WHERE feed_item_id = ?");
-  const deleteArticleBodies = db.prepare("DELETE FROM article_bodies WHERE feed_item_id = ?");
+  const invalidateArticle = db.prepare(`
+    DELETE FROM article_bodies WHERE feed_item_id IN (
+      SELECT id FROM feed_items WHERE COALESCE(NULLIF(canonical_url, ''), url) = ? OR id = ?
+    )
+  `);
+  const bumpContentVersion = db.prepare(`
+    UPDATE feed_items SET content_version = content_version + 1
+    WHERE COALESCE(NULLIF(canonical_url, ''), url) = ? OR id = ?
+  `);
+  const updateFirstPost = db.prepare(`
+    UPDATE thread_posts SET body = ? WHERE feed_item_id = ? AND no = 1 AND is_user = 0
+  `);
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
 
   db.exec("BEGIN");
@@ -111,8 +123,10 @@ export function upsertFeedItems(
       ) {
         deleteDerivedTitles.run(feedItemId);
         deleteDerivedSummaries.run(feedItemId);
-        if (existing.url !== item.url) {
-          deleteArticleBodies.run(feedItemId);
+        if (existing.title !== item.title || existing.url !== item.url || existing.raw_summary !== item.rawSummary) {
+          invalidateArticle.run(canonicalUrl, feedItemId);
+          bumpContentVersion.run(canonicalUrl, feedItemId);
+          updateFirstPost.run(createFirstPostBody(item.title, item.url, item.rawSummary), feedItemId);
         }
         updateItem.run(item.title, item.url, canonicalUrl, item.publishedAt, item.rawSummary, fetchedAt, feedItemId);
         updatedCount += 1;

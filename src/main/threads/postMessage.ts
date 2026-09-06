@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { assertArticleVersion } from "../db/articleRepository.js";
 import type { ThreadDetail } from "../../shared/types.js";
 import { generateReplyPosts, type ReplyGenerationMode } from "../ai/replyGenerator.js";
 import {
@@ -179,11 +180,13 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
       return;
     }
 
+    const version = getThread(threadId)?.contentVersion;
     const generated = await generateArticleSummary(threadId, feedId, fullBody);
     if (generated.log) {
       recordLlmRequestLog(generated.log);
     }
     if (generated.summary) {
+      if (version !== undefined) assertArticleVersion(threadId, version);
       saveArticleSummary(threadId, generated.summary);
     }
   } catch (err) {
@@ -196,6 +199,10 @@ async function generateAndSaveReplies(
   thread: ThreadDetail,
   mode: ReplyGenerationMode
 ): Promise<void> {
+  assertArticleVersion(threadId, thread.contentVersion);
+  if (thread.contentVersion !== thread.generatedContentVersion) {
+    throw new Error("記事に更新があります。「本文・AIレスを更新」を実行してから返信を生成してください。");
+  }
   const aiResult = await generateReplyPosts(thread, { mode });
   if (aiResult.log) {
     recordLlmRequestLog(aiResult.log);
@@ -211,6 +218,7 @@ async function generateAndSaveReplies(
   const maxNo = getMaxPostNo(thread);
   const postsToSave = fitPostsUnderLimit(aiResult.posts, maxNo);
   if (postsToSave.length > 0) {
+    assertArticleVersion(threadId, thread.contentVersion);
     saveGeneratedThreadPosts(threadId, postsToSave);
   }
 }

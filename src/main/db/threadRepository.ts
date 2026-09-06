@@ -33,6 +33,8 @@ type ThreadRow = {
   source: string;
   published_at: string | null;
   read_at: string | null;
+  content_version: number;
+  generated_content_version: number;
   last_read_post_no: number;
   raw_summary: string | null;
   response_count: number;
@@ -80,6 +82,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.last_read_post_no,
         fi.is_favorite,
         fi.generation_status,
+        fi.content_version,
+        fi.generated_content_version,
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
@@ -318,6 +322,8 @@ function listAllThreads(
       fi.last_read_post_no,
       fi.is_favorite,
       fi.generation_status,
+      fi.content_version,
+      fi.generated_content_version,
       CASE
         WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
         WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
@@ -468,6 +474,8 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.last_read_post_no,
         fi.is_favorite,
         fi.generation_status,
+        fi.content_version,
+        fi.generated_content_version,
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
@@ -505,6 +513,8 @@ export function getThread(threadId: string): ThreadDetail | null {
       source: string;
       published_at: string | null;
       read_at: string | null;
+      content_version: number;
+      generated_content_version: number;
       last_read_post_no: number;
       is_favorite: number;
       generation_status: ThreadListItem["generationStatus"];
@@ -526,6 +536,8 @@ export function getThread(threadId: string): ThreadDetail | null {
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
     isFavorite: threadInfoRow.is_favorite === 1,
+    contentVersion: threadInfoRow.content_version,
+    generatedContentVersion: threadInfoRow.generated_content_version,
     generationStatus: threadInfoRow.generation_status,
     titleGenerationStatus:
       threadInfoRow.title_generation_status === "failed" || threadInfoRow.title_generation_status === "skipped"
@@ -597,6 +609,8 @@ export function getThread(threadId: string): ThreadDetail | null {
       last_read_post_no: threadInfoRow.last_read_post_no,
       raw_summary: threadInfoRow.raw_summary,
       is_favorite: threadInfoRow.is_favorite,
+      content_version: threadInfoRow.content_version,
+      generated_content_version: threadInfoRow.generated_content_version,
       generation_status: threadInfoRow.generation_status,
       response_count: 0,
       posts_json: legacyRow?.posts_json ?? undefined,
@@ -630,6 +644,8 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     isRead: row.read_at !== null,
     isFavorite: row.is_favorite === 1,
     responseCount: Number(row.response_count),
+    contentVersion: row.content_version,
+    generatedContentVersion: row.generated_content_version,
     generationStatus: row.generation_status ?? null,
     titleGenerationStatus:
       row.title_generation_status === "failed" || row.title_generation_status === "skipped"
@@ -640,9 +656,11 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
 
 function getReadMarkerNo(readAt: string | null, lastReadPostNo: number, posts: ThreadPost[]): number | null {
   const maxPostNo = posts.reduce((max, post) => Math.max(max, post.no), 0);
-  return readAt !== null && lastReadPostNo > 0 && maxPostNo > lastReadPostNo
-    ? lastReadPostNo
-    : null;
+  if (readAt === null || lastReadPostNo <= 0 || maxPostNo <= lastReadPostNo) return null;
+  // A correction can remove the previously read AI post. Place the marker after
+  // the last remaining read post, so the new responses still have a visible boundary.
+  return posts.reduce<number | null>((marker, post) =>
+    post.no <= lastReadPostNo ? Math.max(marker ?? 0, post.no) : marker, null);
 }
 
 function parsePosts(postsJson: string | undefined): ThreadPost[] {
@@ -705,6 +723,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.read_at,
         fi.is_favorite,
         fi.generation_status,
+        fi.content_version,
+        fi.generated_content_version,
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
