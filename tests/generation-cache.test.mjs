@@ -20,6 +20,7 @@ const {
   markThreadRead,
   markThreadPostsRead,
   markThreadGenerationReviewed,
+  recoverInterruptedThreadGenerations,
   listTitleGenerationAttempts,
   recordTitleGenerationAttempts,
   setThreadRead,
@@ -32,6 +33,7 @@ const {
   saveThreadTitles
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
+const { acquireThreadLock, releaseThreadLock } = await import("../dist/main/threads/threadLocks.js");
 const { postThreadMessage } = await import("../dist/main/threads/postMessage.js");
 const { buildBoardThreadResponsePrompt } = await import("../dist/main/prompts/threadResponsePrompt.js");
 const { buildThreadTitlePromptHash } = await import("../dist/main/prompts/threadTitlePrompt.js");
@@ -296,6 +298,93 @@ test("生成失敗した記事は通常一覧に失敗状態のまま残る", ()
   assert.equal(failedItem.generationStatus, "failed");
 });
 
+test("起動時に中断された生成状態と試行履歴を失敗として回復する", () => {
+  insertFeed("interrupted-generation");
+  insertItem({ id: "stale-queued", feedId: "interrupted-generation" });
+  insertItem({ id: "stale-generating", feedId: "interrupted-generation" });
+  insertItem({ id: "stale-false-completed", feedId: "interrupted-generation" });
+  insertItem({ id: "real-completed", feedId: "interrupted-generation" });
+
+  setThreadGenerationState("stale-queued", "queued");
+  db.prepare(`
+    INSERT INTO thread_generation_attempts
+      (id, feed_item_id, status, stage, model, force, started_at)
+    VALUES (?, ?, 'running', 'generating-posts', ?, 0, ?)
+  `).run("attempt:generating", "stale-generating", responseModel, now);
+  setThreadGenerationState("stale-generating", "generating");
+  db.prepare(`
+    INSERT INTO thread_generation_attempts
+      (id, feed_item_id, status, stage, model, force, started_at)
+    VALUES (?, ?, 'running', 'saving-posts', ?, 0, ?)
+  `).run("attempt:false-completed", "stale-false-completed", responseModel, now);
+  setThreadGenerationState("stale-false-completed", "completed");
+  setThreadGenerationState("real-completed", "completed");
+
+  recoverInterruptedThreadGenerations();
+  recoverInterruptedThreadGenerations();
+
+  const statuses = db.prepare(`
+    SELECT id, generation_status AS status
+    FROM feed_items
+    WHERE feed_id = ?
+    ORDER BY id
+  `).all("interrupted-generation").map((row) => ({ ...row }));
+  assert.deepEqual(statuses, [
+    { id: "real-completed", status: "completed" },
+    { id: "stale-false-completed", status: "failed" },
+    { id: "stale-generating", status: "failed" },
+    { id: "stale-queued", status: "failed" }
+  ]);
+  const attempts = db.prepare(`
+    SELECT status, error_message, finished_at
+    FROM thread_generation_attempts
+    WHERE id IN (?, ?)
+    ORDER BY id
+  `).all("attempt:generating", "attempt:false-completed");
+  assert.ok(attempts.every((attempt) => attempt.status === "failed"));
+  assert.ok(attempts.every((attempt) => /アプリ終了により生成が中断/.test(attempt.error_message)));
+  assert.ok(attempts.every((attempt) => attempt.finished_at));
+});
+
+test("同一スレッドの重複依頼は既存の生成状態を上書きしない", () => {
+  insertFeed("duplicate-generation");
+  insertItem({ id: "duplicate-item", feedId: "duplicate-generation" });
+  setThreadGenerationState("duplicate-item", "generating");
+  assert.equal(acquireThreadLock("duplicate-item"), true);
+  let completionCount = 0;
+  try {
+    const result = startThreadResponseGeneration("duplicate-item", false, () => {
+      completionCount += 1;
+    });
+    assert.deepEqual(result, { status: "busy" });
+    assert.equal(getThread("duplicate-item").generationStatus, "generating");
+    assert.equal(listThreadGenerationAttempts("duplicate-item").length, 0);
+    assert.equal(completionCount, 0);
+  } finally {
+    releaseThreadLock("duplicate-item");
+  }
+});
+
+test("現在版の生成レスがある依頼は状態を変更せず再利用する", () => {
+  insertFeed("current-generation");
+  insertItem({ id: "current-item", feedId: "current-generation" });
+  saveGeneratedThreadPosts("current-item", [
+    { no: 1, name: "名無しさん", date: now, id: "current1", body: "記事概要" },
+    { no: 2, name: "名無しさん", date: now, id: "current2", body: "生成済みレス" }
+  ]);
+  setThreadGenerationState("current-item", "failed");
+  let completionCount = 0;
+
+  const result = startThreadResponseGeneration("current-item", false, () => {
+    completionCount += 1;
+  });
+
+  assert.deepEqual(result, { status: "already-current" });
+  assert.equal(getThread("current-item").generationStatus, "failed");
+  assert.equal(listThreadGenerationAttempts("current-item").length, 0);
+  assert.equal(completionCount, 0);
+});
+
 test("本文キャッシュがあれば再取得せず、実際の生成工程だけを通知する", async () => {
   insertFeed("progress");
   insertItem({ id: "cached", feedId: "progress" });
@@ -311,8 +400,9 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
   saveArticleBody("cached", initialItem.url, "キャッシュ済みの技術記事本文");
 
   const progress = [];
+  let startResult;
   const completion = await new Promise((resolve) => {
-    startThreadResponseGeneration(
+    startResult = startThreadResponseGeneration(
       "cached",
       false,
       resolve,
@@ -320,6 +410,7 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
     );
   });
 
+  assert.deepEqual(startResult, { status: "started" });
   assert.equal(completion, "error");
   assert.deepEqual(progress, [
     "checking-cache",

@@ -16,6 +16,7 @@ import type {
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationAttempt,
+  ThreadGenerationStartResult,
   TitleGenerationAttempt,
   ThreadGenerationStatus,
   ThreadGenerationProgress,
@@ -53,7 +54,7 @@ export type ViperReaderApi = {
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
   onToggleArticleBrowserExpanded: (callback: () => void) => () => void;
   regenerateThreadTitle: (threadId: string) => Promise<ThreadDetail | null>;
-  generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
+  generateThreadResponses: (threadId: string, force: boolean) => Promise<ThreadGenerationStartResult>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
   generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
   toggleFavorite: (threadId: string, isFavorite: boolean) => Promise<void>;

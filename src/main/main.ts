@@ -18,7 +18,6 @@ import {
   listFavoriteThreads,
   setThreadRead,
   markThreadPostsRead,
-  setThreadGenerationState,
   markThreadGenerationReviewed
 } from "./db/repository.js";
 import {
@@ -219,6 +218,12 @@ function createMainWindow(): void {
   }
 }
 
+function broadcastToRenderers(channel: string, ...args: unknown[]): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    sendIfAvailable(window.webContents, channel, ...args);
+  }
+}
+
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
 ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) => {
@@ -298,16 +303,13 @@ ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: b
 });
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
-ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
+ipcMain.handle("threads:generate", (_event, threadId: string, force: boolean) => {
   assertIdentifier(threadId, "thread ID");
   assertBoolean(force, "force flag");
-  setThreadGenerationState(threadId, "queued");
-  startThreadResponseGeneration(threadId, force, (status) => {
-    setThreadGenerationState(threadId, status === "done" || status === "skipped" ? "completed" : "failed");
-    sendIfAvailable(event.sender, "threads:generation-complete", { threadId, status });
+  return startThreadResponseGeneration(threadId, force, (status) => {
+    broadcastToRenderers("threads:generation-complete", { threadId, status });
   }, (progress) => {
-    setThreadGenerationState(threadId, "generating");
-    sendIfAvailable(event.sender, "threads:generation-progress", { threadId, ...progress });
+    broadcastToRenderers("threads:generation-progress", { threadId, ...progress });
   });
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => {

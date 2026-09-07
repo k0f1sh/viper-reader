@@ -1,10 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import { seedFeeds } from "../../shared/seedData.js";
 import { getDatabase } from "./database.js";
+import { recoverInterruptedThreadGenerations } from "./threadGenerationRepository.js";
 
 export function initializeRepository(seedDefaultFeeds = true): void {
   const db = getDatabase();
   if (seedDefaultFeeds) seedDatabase(db);
+  recoverInterruptedThreadGenerations();
 }
 
 export {
@@ -41,6 +43,7 @@ export {
   finishThreadGenerationAttempt,
   listThreadGenerationAttempts,
   markThreadGenerationReviewed,
+  recoverInterruptedThreadGenerations,
   setThreadGenerationState,
   startThreadGenerationAttempt
 } from "./threadGenerationRepository.js";

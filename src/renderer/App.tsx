@@ -240,7 +240,11 @@ export function App() {
   });
 
   const isRegeneratingSelectedTitle = selectedThread ? regeneratingTitleThreadId === selectedThread.id : false;
-  const isSelectedThreadGenerating = selectedThread ? generatingThreadIds.has(selectedThread.id) : false;
+  const isSelectedThreadGenerating = selectedThread
+    ? generatingThreadIds.has(selectedThread.id)
+      || selectedThread.generationStatus === "queued"
+      || selectedThread.generationStatus === "generating"
+    : false;
   const isArticleBrowserSuspended =
     statisticsSettings.isOpen
     || apiSettings.isOpen

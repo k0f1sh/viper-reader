@@ -47,6 +47,16 @@ export function useThreadGeneration({
     });
   }
 
+  async function refreshThreadGenerationState(threadId: string) {
+    const thread = await window.viperReader?.getThread(threadId);
+    if (!thread) return;
+    const isSelected = threadId === selectedThreadIdRef.current;
+    setThreadList((current) => current.map((item) =>
+      item.id === thread.id ? { ...item, ...thread, isRead: isSelected ? true : item.isRead } : item
+    ));
+    if (isSelected) setSelectedThread(thread);
+  }
+
   useEffect(() => {
     if (!window.viperReader) return;
     return window.viperReader.onThreadGenerationProgress((progress) => {
@@ -58,35 +68,32 @@ export function useThreadGeneration({
     if (!window.viperReader) return;
     return window.viperReader.onThreadGenerationComplete((status) => {
       clearGeneration(status.threadId);
-      const generationStatus = status.status === "error" ? "failed" : "completed";
-      setThreadList((current) => current.map((thread) =>
-        thread.id === status.threadId ? { ...thread, generationStatus } : thread
-      ));
-      setSelectedThread((thread) => thread?.id === status.threadId ? { ...thread, generationStatus } : thread);
 
       if (status.status === "done") {
         if (status.threadId !== selectedThreadIdRef.current) {
           setCompletedThreadIds((current) => new Set(current).add(status.threadId));
         }
-        void window.viperReader?.getThread(status.threadId).then((thread) => {
-          if (!thread) return;
-          const isSelected = status.threadId === selectedThreadIdRef.current;
-          setThreadList((current) => current.map((item) =>
-            item.id === thread.id ? { ...item, ...thread, isRead: isSelected ? true : item.isRead } : item
-          ));
-          if (isSelected) setSelectedThread(thread);
-        });
-        if (smartViewRef.current === "generated") callbacksRef.current.reloadGeneratedQueue();
       }
+      void refreshThreadGenerationState(status.threadId);
+      if (smartViewRef.current === "generated") callbacksRef.current.reloadGeneratedQueue();
       void callbacksRef.current.reloadQueueSummary();
     });
   }, [selectedThreadIdRef, setSelectedThread, setThreadList, smartViewRef]);
 
   async function generate(thread: ThreadDetail, force = false) {
-    if (!window.viperReader || generatingThreadIds.has(thread.id)) return;
+    if (
+      !window.viperReader
+      || generatingThreadIds.has(thread.id)
+      || thread.generationStatus === "queued"
+      || thread.generationStatus === "generating"
+    ) return;
     setGenerationStarted(thread.id);
     try {
-      await window.viperReader.generateThreadResponses(thread.id, force);
+      const result = await window.viperReader.generateThreadResponses(thread.id, force);
+      if (result.status !== "started") {
+        clearGeneration(thread.id);
+        await refreshThreadGenerationState(thread.id);
+      }
       await callbacksRef.current.reloadQueueSummary();
     } catch {
       clearGeneration(thread.id);
@@ -114,8 +121,13 @@ export function useThreadGeneration({
       thread.id === threadId ? { ...thread, generationStatus: "queued" } : thread
     ));
     try {
-      await window.viperReader.generateThreadResponses(threadId, true);
-      setFailureThreadId(null);
+      const result = await window.viperReader.generateThreadResponses(threadId, true);
+      if (result.status === "started") {
+        setFailureThreadId(null);
+      } else {
+        clearGeneration(threadId);
+        await refreshThreadGenerationState(threadId);
+      }
       await callbacksRef.current.reloadQueueSummary();
     } finally {
       setIsRetrying(false);

@@ -149,7 +149,9 @@ export function ThreadListPane({
       </div>
       <div className="thread-list" ref={threadListRef}>
         {threads.map((thread) => {
-          const isGenerating = generatingThreadIds.has(thread.id);
+          const isGenerating = generatingThreadIds.has(thread.id)
+            || thread.generationStatus === "queued"
+            || thread.generationStatus === "generating";
           const isCompleted = completedThreadIds.has(thread.id);
           const isQueued = thread.generationStatus === "queued";
           const isFailed = thread.generationStatus === "failed";

@@ -137,6 +137,10 @@ export type ThreadGenerationStatus = {
   status: "done" | "skipped" | "error";
 };
 
+export type ThreadGenerationStartResult = {
+  status: "started" | "busy" | "already-current" | "not-found";
+};
+
 export type ThreadGenerationProgress = {
   threadId: string;
   stage: "checking-cache" | "fetching-article" | "preparing-context" | "generating-posts" | "saving-posts";
