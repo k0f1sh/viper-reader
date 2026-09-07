@@ -86,6 +86,43 @@ test("更新生成の保存失敗は旧レス・書き込み・版をロール�
   } finally { db.exec("DROP TRIGGER fail_updated_post"); }
 });
 
+test("通常再生成の保存失敗は旧レス・旧キャッシュ・最新レス番号をロールバックする", () => {
+  const item = fixture("regular-rollback");
+  const beforeThread = getThread(item.id);
+  const beforeSummary = db.prepare("SELECT * FROM thread_summaries WHERE feed_item_id = ?").get(item.id);
+  const beforeLatestPostNo = db.prepare("SELECT latest_post_no FROM feed_items WHERE id = ?").get(item.id);
+  db.exec(`CREATE TEMP TRIGGER fail_regular_post BEFORE INSERT ON thread_posts WHEN NEW.body = '保存失敗' BEGIN SELECT RAISE(ABORT, 'injected'); END`);
+  try {
+    assert.throws(() => saveThreadResponsePosts({
+      feedItemId: item.id,
+      contentVersion: 1,
+      posts: [post(2, "新AIレス"), post(3, "保存失敗")]
+    }, "new-model", "new-hash"), /injected/);
+    assert.deepEqual(getThread(item.id), beforeThread);
+    assert.deepEqual(
+      db.prepare("SELECT * FROM thread_summaries WHERE feed_item_id = ?").get(item.id),
+      beforeSummary
+    );
+    assert.deepEqual(
+      db.prepare("SELECT latest_post_no FROM feed_items WHERE id = ?").get(item.id),
+      beforeLatestPostNo
+    );
+  } finally { db.exec("DROP TRIGGER fail_regular_post"); }
+});
+
+test("レス一括挿入の途中失敗は全レスをロールバックする", () => {
+  const item = fixture("generated-posts-rollback");
+  const before = getThread(item.id);
+  db.exec(`CREATE TEMP TRIGGER fail_generated_post BEFORE INSERT ON thread_posts WHEN NEW.body = '保存失敗' BEGIN SELECT RAISE(ABORT, 'injected'); END`);
+  try {
+    assert.throws(() => saveGeneratedThreadPosts(item.id, [
+      post(3, "追加レス"),
+      post(4, "保存失敗")
+    ]), /injected/);
+    assert.deepEqual(getThread(item.id), before);
+  } finally { db.exec("DROP TRIGGER fail_generated_post"); }
+});
+
 test("訂正済みスレッドは既存レスがあっても通常生成をスキップしない", async () => {
   const item = fixture("regenerate-update");
   upsertFeedItems(item.feedId, [{ ...item, rawSummary: "訂正概要" }]);
