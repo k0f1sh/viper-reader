@@ -10,6 +10,23 @@ const robotsParser = _robotsParser as unknown as (url: string, robotstxt: string
 
 const BOT_NAME = "*";
 const maxRobotsTxtBytes = 1024 * 1024;
+const robotsPolicyTtlMs = 5 * 60 * 1000;
+const robotsFailureTtlMs = 30 * 1000;
+
+type RobotsRules = ReturnType<typeof robotsParser>;
+
+type RobotsPolicy =
+  | { kind: "rules"; rules: RobotsRules }
+  | { kind: "allow"; reason: "fetch_error" }
+  | { kind: "block"; reason: "fetch_error" | "fetch_timeout" };
+
+type CachedRobotsPolicy = {
+  expiresAt: number;
+  policy: RobotsPolicy;
+};
+
+const robotsPolicyCache = new Map<string, CachedRobotsPolicy>();
+const pendingRobotsPolicies = new Map<string, Promise<RobotsPolicy>>();
 
 export type RobotsCheckResult = {
   allowed: boolean;
@@ -23,45 +40,87 @@ export type RobotsCheckResult = {
 export async function checkRobotsTxt(targetUrl: string): Promise<RobotsCheckResult> {
   try {
     const parsedUrl = new URL(targetUrl);
-    const robotsUrl = `${parsedUrl.protocol}//${parsedUrl.host}/robots.txt`;
+    const policy = await getRobotsPolicy(parsedUrl);
 
-    let response: Response;
-    try {
-      response = await safeFetch(robotsUrl, {
-        headers: {
-          "User-Agent": ARTICLE_FETCH_USER_AGENT
-        },
-        timeoutMs: 5_000
-      });
-    } catch (err) {
-      const isTimeout = err instanceof Error && err.name === "TimeoutError";
-      return {
-        allowed: true,
-        reason: isTimeout ? "fetch_timeout" : "fetch_error"
-      };
+    if (policy.kind === "allow") {
+      return { allowed: true, reason: policy.reason };
+    }
+    if (policy.kind === "block") {
+      return { allowed: false, reason: policy.reason };
     }
 
-    if (!response.ok) {
-      return {
-        allowed: true,
-        reason: "fetch_error"
-      };
-    }
-
-    const { text: robotsTxtContent } = await readResponseText(response, maxRobotsTxtBytes);
-    const robots = robotsParser(robotsUrl, robotsTxtContent);
-    const allowed = robots.isAllowed(targetUrl, BOT_NAME) ?? true;
-
-    return {
-      allowed,
-      reason: allowed ? "allowed" : "disallowed"
-    };
+    const allowed = policy.rules.isAllowed(targetUrl, BOT_NAME) ?? true;
+    return { allowed, reason: allowed ? "allowed" : "disallowed" };
   } catch (error) {
-    console.warn(`robots.txtの取得に失敗したためデフォルト許可します: ${targetUrl}`, error);
+    console.warn(`robots.txtを確認できないためスクレイピングを停止します: ${targetUrl}`, error);
     return {
-      allowed: true,
+      allowed: false,
       reason: "fetch_error"
     };
+  }
+}
+
+async function getRobotsPolicy(targetUrl: URL): Promise<RobotsPolicy> {
+  const cacheKey = targetUrl.origin;
+  const cached = robotsPolicyCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.policy;
+  }
+  if (cached) {
+    robotsPolicyCache.delete(cacheKey);
+  }
+
+  const pending = pendingRobotsPolicies.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const request = fetchRobotsPolicy(targetUrl);
+  pendingRobotsPolicies.set(cacheKey, request);
+  try {
+    const policy = await request;
+    robotsPolicyCache.set(cacheKey, {
+      policy,
+      expiresAt: Date.now() + (policy.kind === "block" ? robotsFailureTtlMs : robotsPolicyTtlMs)
+    });
+    return policy;
+  } finally {
+    pendingRobotsPolicies.delete(cacheKey);
+  }
+}
+
+async function fetchRobotsPolicy(targetUrl: URL): Promise<RobotsPolicy> {
+  const robotsUrl = `${targetUrl.origin}/robots.txt`;
+  let response: Response;
+  try {
+    response = await safeFetch(robotsUrl, {
+      headers: {
+        "User-Agent": ARTICLE_FETCH_USER_AGENT
+      },
+      timeoutMs: 5_000
+    });
+  } catch (error) {
+    const isTimeout = error instanceof Error && error.name === "TimeoutError";
+    return {
+      kind: "block",
+      reason: isTimeout ? "fetch_timeout" : "fetch_error"
+    };
+  }
+
+  if (response.status >= 400 && response.status <= 499) {
+    await response.body?.cancel();
+    return { kind: "allow", reason: "fetch_error" };
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    return { kind: "block", reason: "fetch_error" };
+  }
+
+  try {
+    const { text: robotsTxtContent } = await readResponseText(response, maxRobotsTxtBytes);
+    return { kind: "rules", rules: robotsParser(robotsUrl, robotsTxtContent) };
+  } catch {
+    return { kind: "block", reason: "fetch_error" };
   }
 }
 

@@ -39,6 +39,7 @@ for (const [network, prefix] of [
 }
 
 export type SafeFetchOptions = {
+  beforeRedirect?: (nextUrl: URL) => Promise<void>;
   headers?: HeadersInit;
   timeoutMs: number;
 };
@@ -79,7 +80,9 @@ export async function safeFetch(
     }
 
     await response.body?.cancel();
-    currentUrl = new URL(location, currentUrl);
+    const nextUrl = new URL(location, currentUrl);
+    await options.beforeRedirect?.(nextUrl);
+    currentUrl = nextUrl;
   }
 
   throw new Error("URLを取得できませんでした。");

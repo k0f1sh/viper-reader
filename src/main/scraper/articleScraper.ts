@@ -7,13 +7,19 @@ import { checkRobotsTxt } from "./robotsTxtChecker.js";
 export type ScrapingResult = {
   success: boolean;
   contentText: string;
-  reason?: "robots_disallowed" | "fetch_failed" | "parse_failed" | "no_content";
+  reason?: "robots_disallowed" | "robots_unavailable" | "fetch_failed" | "parse_failed" | "no_content";
   elapsedMs: number;
   contentSize: number; // 取得したHTMLのサイズ（バイト数）
   robotsResult: "allowed" | "disallowed" | "fetch_error" | "fetch_timeout";
 };
 
 const maxArticleBytes = 10 * 1024 * 1024;
+
+class RobotsCheckBlockedError extends Error {
+  constructor(readonly result: Awaited<ReturnType<typeof checkRobotsTxt>>) {
+    super(`robots.txtの確認結果により取得を停止しました: ${result.reason}`);
+  }
+}
 
 /**
  * 指定されたURLから記事の本文をスクレイピングして抽出します。
@@ -24,24 +30,51 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
   const startTime = performance.now();
   let contentSize = 0;
 
-  // 1. robots.txtのチェック
-  const robotsCheck = await checkRobotsTxt(targetUrl);
-  if (!robotsCheck.allowed) {
-    console.warn(`robots.txtによりスクレイピングが禁止されています: ${targetUrl}`);
+  try {
+    const parsedTargetUrl = new URL(targetUrl);
+    if (parsedTargetUrl.protocol !== "http:" && parsedTargetUrl.protocol !== "https:") {
+      throw new Error(`HTTPまたはHTTPS以外のURLは取得できません: ${parsedTargetUrl.protocol}`);
+    }
+  } catch (error) {
+    console.error(`記事URLが不正なため取得できません: ${targetUrl}`, error);
     return {
       success: false,
       contentText: "",
-      reason: "robots_disallowed",
+      reason: "fetch_failed",
       elapsedMs: Math.round(performance.now() - startTime),
       contentSize: 0,
-      robotsResult: "disallowed"
+      robotsResult: "fetch_error"
     };
   }
+
+  // 1. robots.txtのチェック
+  const robotsCheck = await checkRobotsTxt(targetUrl);
+  if (!robotsCheck.allowed) {
+    console.warn(`robots.txtの確認結果によりスクレイピングを停止します: ${targetUrl}`);
+    return {
+      success: false,
+      contentText: "",
+      reason: robotsCheck.reason === "disallowed" ? "robots_disallowed" : "robots_unavailable",
+      elapsedMs: Math.round(performance.now() - startTime),
+      contentSize: 0,
+      robotsResult: robotsCheck.reason
+    };
+  }
+  let robotsResult = robotsCheck.reason;
 
   // 2. HTMLの取得
   let html = "";
   try {
     const response = await safeFetch(targetUrl, {
+      beforeRedirect: async (nextUrl) => {
+        const redirectRobotsCheck = await checkRobotsTxt(nextUrl.href);
+        if (!redirectRobotsCheck.allowed) {
+          throw new RobotsCheckBlockedError(redirectRobotsCheck);
+        }
+        if (redirectRobotsCheck.reason !== "allowed") {
+          robotsResult = redirectRobotsCheck.reason;
+        }
+      },
       headers: {
         "User-Agent": ARTICLE_FETCH_USER_AGENT
       },
@@ -55,13 +88,24 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
         reason: "fetch_failed",
         elapsedMs: Math.round(performance.now() - startTime),
         contentSize: 0,
-        robotsResult: robotsCheck.reason
+        robotsResult
       };
     }
     const articleResponse = await readResponseText(response, maxArticleBytes);
     html = articleResponse.text;
     contentSize = articleResponse.byteLength;
   } catch (error) {
+    if (error instanceof RobotsCheckBlockedError) {
+      console.warn(`リダイレクト先のrobots.txt確認結果によりスクレイピングを停止します: ${targetUrl}`);
+      return {
+        success: false,
+        contentText: "",
+        reason: error.result.reason === "disallowed" ? "robots_disallowed" : "robots_unavailable",
+        elapsedMs: Math.round(performance.now() - startTime),
+        contentSize: 0,
+        robotsResult: error.result.reason
+      };
+    }
     console.error(`HTMLのフェッチに失敗しました: ${targetUrl}`, error);
     return {
       success: false,
@@ -69,7 +113,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
       reason: "fetch_failed",
       elapsedMs: Math.round(performance.now() - startTime),
       contentSize: 0,
-      robotsResult: robotsCheck.reason
+      robotsResult
     };
   }
 
@@ -89,7 +133,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
         reason: "no_content",
         elapsedMs: Math.round(performance.now() - startTime),
         contentSize,
-        robotsResult: robotsCheck.reason
+        robotsResult
       };
     }
 
@@ -105,7 +149,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
       contentText: cleanText,
       elapsedMs: Math.round(performance.now() - startTime),
       contentSize,
-      robotsResult: robotsCheck.reason
+      robotsResult
     };
   } catch (error) {
     console.error(`HTMLのパースに失敗しました: ${targetUrl}`, error);
@@ -115,7 +159,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
       reason: "parse_failed",
       elapsedMs: Math.round(performance.now() - startTime),
       contentSize,
-      robotsResult: robotsCheck.reason
+      robotsResult
     };
   }
 }
