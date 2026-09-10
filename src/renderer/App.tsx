@@ -152,6 +152,7 @@ export function App() {
     shouldShowArticlePane
   } = useThreadSelection({
     isArticlePaneEnabled: threadViewMode === "replies" && isArticlePaneVisible,
+    shouldScrollToReadMarker: smartView !== "generated",
     setThreadList,
     onSelectionStarted: (threadId) => {
       setReadMarkerNo(null);

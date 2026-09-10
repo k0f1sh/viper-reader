@@ -4,6 +4,7 @@ import type { ArticleBodyContent, ThreadDetail, ThreadListItem } from "../../sha
 
 type UseThreadSelectionOptions = {
   isArticlePaneEnabled: boolean;
+  shouldScrollToReadMarker: boolean;
   setThreadList: Dispatch<SetStateAction<ThreadListItem[]>>;
   onSelectionStarted: (threadId: string | undefined) => void;
   onThreadRead: () => void;
@@ -12,6 +13,7 @@ type UseThreadSelectionOptions = {
 
 export function useThreadSelection({
   isArticlePaneEnabled,
+  shouldScrollToReadMarker,
   setThreadList,
   onSelectionStarted,
   onThreadRead,
@@ -50,7 +52,7 @@ export function useThreadSelection({
       ));
       if (selectedThreadIdRef.current === selectedThreadId) {
         callbacksRef.current.onReadMarkerChange(thread.readMarkerNo);
-        if (thread.readMarkerNo !== null) {
+        if (shouldScrollToReadMarker && thread.readMarkerNo !== null) {
           requestAnimationFrame(() => requestAnimationFrame(() => {
             document.querySelector<HTMLElement>('[data-read-marker="true"]')?.scrollIntoView({ block: "start" });
           }));
@@ -60,7 +62,7 @@ export function useThreadSelection({
     }).catch(() => {
       if (selectedThreadIdRef.current === selectedThreadId) setSelectedThread(null);
     });
-  }, [selectedThreadId, setThreadList]);
+  }, [selectedThreadId, setThreadList, shouldScrollToReadMarker]);
 
   // A committed detail view acknowledges only the posts included in that snapshot.
   useEffect(() => {
