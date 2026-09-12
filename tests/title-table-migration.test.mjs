@@ -24,6 +24,11 @@ setupDb.exec(`
     prompt_hash TEXT NOT NULL, title TEXT NOT NULL, generated_at TEXT NOT NULL,
     UNIQUE (feed_item_id, model, prompt_hash)
   );
+  CREATE TABLE thread_titles (
+    id TEXT PRIMARY KEY, feed_item_id TEXT NOT NULL, model TEXT NOT NULL,
+    prompt_hash TEXT NOT NULL, title TEXT NOT NULL, generated_at TEXT NOT NULL,
+    UNIQUE (feed_item_id, model, prompt_hash)
+  );
   INSERT INTO feed_sources (id, title, url, created_at, updated_at)
   VALUES ('feed', 'Feed', 'https://example.com/feed.xml', '2026-07-31', '2026-07-31');
   INSERT INTO feed_items (id, feed_id, title, url, created_at, updated_at)
@@ -59,4 +64,17 @@ test("既存の板を最上位へ移行し、従来の順序値を補完する",
   assert.equal(row.parent_folder_id, null);
   assert.equal(row.sort_order, 0);
   assert.deepEqual(db.prepare("SELECT id FROM feed_folders").all(), []);
+});
+
+test("既存タイトルにタグ列を追加し、再接続時にもタイトルとタグを保持する", async () => {
+  assert.equal(db.prepare("SELECT tags_json FROM thread_titles WHERE id = 'title'").get().tags_json, null);
+  db.prepare("UPDATE thread_titles SET tags_json = ? WHERE id = 'title'").run('["AI","LLM"]');
+  const { getDatabase: reconnect } = await import("../dist/main/db/database.js?tag-migration-check");
+  const reopened = reconnect();
+  try {
+    assert.deepEqual({ ...reopened.prepare("SELECT title, tags_json FROM thread_titles WHERE id = 'title'").get() },
+      { title: "Converted", tags_json: '["AI","LLM"]' });
+  } finally {
+    reopened.close();
+  }
 });

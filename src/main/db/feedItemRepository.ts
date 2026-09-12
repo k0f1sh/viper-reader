@@ -24,6 +24,7 @@ export type FeedItemTitleGenerationSource = UnconvertedFeedItem & {
 export type ThreadTitleWrite = {
   feedItemId: string;
   title: string;
+  tags: string[];
 };
 
 export type FeedItemInitialCacheSource = {
@@ -363,8 +364,8 @@ export function saveThreadTitles(titles: ThreadTitleWrite[], model: string, prom
   const generatedAt = new Date().toISOString();
   const insertTitle = db.prepare(
     `
-    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at, tags_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     `
   );
   let savedCount = 0;
@@ -378,7 +379,8 @@ export function saveThreadTitles(titles: ThreadTitleWrite[], model: string, prom
         model,
         promptHash,
         title.title,
-        generatedAt
+        generatedAt,
+        JSON.stringify(title.tags)
       );
       savedCount += Number(result.changes);
     }
@@ -460,10 +462,11 @@ export function replaceThreadTitle(title: ThreadTitleWrite, model: string, promp
   const generatedAt = new Date().toISOString();
   db.prepare(
     `
-    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at, tags_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(feed_item_id, model, prompt_hash) DO UPDATE SET
       title = excluded.title,
+      tags_json = excluded.tags_json,
       generated_at = excluded.generated_at
     `
   ).run(
@@ -472,7 +475,8 @@ export function replaceThreadTitle(title: ThreadTitleWrite, model: string, promp
     model,
     promptHash,
     title.title,
-    generatedAt
+    generatedAt,
+    JSON.stringify(title.tags)
   );
 }
 

@@ -40,6 +40,7 @@ export type ThreadListItem = {
   originalTitle: string;
   url: string;
   threadTitle: string;
+  tags: string[] | null;
   source: string;
   publishedAt: string;
   responseCount: number;

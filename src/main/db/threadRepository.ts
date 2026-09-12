@@ -9,7 +9,7 @@ import {
   defaultResidentPromptHash,
   threadResponsePromptHash
 } from "../prompts/threadResponsePrompt.js";
-import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
+import { buildLegacyThreadTitlePromptHash, buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import {
   createFirstPostBody,
@@ -21,6 +21,12 @@ import { getDatabase } from "./database.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles } from "./threadStateRepository.js";
 import { runWithSlowQueryLog } from "./slowQueryLogger.js";
+import { parseArticleTags } from "../../shared/articleTags.js";
+
+const legacyTitleJoinSql = `LEFT JOIN thread_titles legacy_vt
+  ON legacy_vt.feed_item_id = fi.id
+  AND legacy_vt.model = ?
+  AND legacy_vt.prompt_hash = CASE WHEN fs.generate_title_from_summary = 1 THEN ? ELSE ? END`;
 
 const unreadSql = "fi.read_at IS NULL";
 const hasUnconfirmedRepliesSql = "fi.latest_post_no > fi.last_read_post_no";
@@ -30,6 +36,7 @@ type ThreadRow = {
   original_title: string;
   url: string;
   thread_title: string;
+  tags_json: string | null;
   source: string;
   published_at: string | null;
   read_at: string | null;
@@ -75,7 +82,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
@@ -87,6 +95,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          WHEN legacy_vt.id IS NOT NULL THEN NULL
           ELSE 'skipped'
         END AS title_generation_status,
         fi.raw_summary,
@@ -100,6 +109,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
+      ${legacyTitleJoinSql}
       LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -128,6 +138,9 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       titleModel,
       summaryTitlePromptHash,
       plainTitlePromptHash,
+      titleModel,
+      buildLegacyThreadTitlePromptHash(true),
+      buildLegacyThreadTitlePromptHash(false),
       titleModel,
       rawTitlePromptHash,
       activeModel,
@@ -306,7 +319,8 @@ function listAllThreads(
       fi.feed_id,
       fi.title AS original_title,
       fi.url,
-      CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
+      CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
+      CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
       (
         SELECT GROUP_CONCAT(title, ' / ')
         FROM (
@@ -327,6 +341,7 @@ function listAllThreads(
       CASE
         WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
         WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+        WHEN legacy_vt.id IS NOT NULL THEN NULL
         ELSE 'skipped'
       END AS title_generation_status,
       fi.raw_summary,
@@ -340,6 +355,7 @@ function listAllThreads(
         WHEN fs.generate_title_from_summary = 1 THEN ?
         ELSE ?
       END
+    ${legacyTitleJoinSql}
     LEFT JOIN thread_titles raw_vt
       ON raw_vt.feed_item_id = fi.id AND raw_vt.model = ? AND raw_vt.prompt_hash = ?
     LEFT JOIN thread_summaries rss_ts
@@ -362,6 +378,9 @@ function listAllThreads(
     titleModel,
     summaryTitlePromptHash,
     plainTitlePromptHash,
+    titleModel,
+    buildLegacyThreadTitlePromptHash(true),
+    buildLegacyThreadTitlePromptHash(false),
     titleModel,
     rawTitlePromptHash,
     activeModel,
@@ -457,7 +476,8 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         (
           SELECT GROUP_CONCAT(title, ' / ')
           FROM (
@@ -479,6 +499,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          WHEN legacy_vt.id IS NOT NULL THEN NULL
           ELSE 'skipped'
         END AS title_generation_status,
         fi.raw_summary
@@ -491,6 +512,7 @@ export function getThread(threadId: string): ThreadDetail | null {
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
+      ${legacyTitleJoinSql}
       LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -502,6 +524,9 @@ export function getThread(threadId: string): ThreadDetail | null {
       summaryTitlePromptHash,
       plainTitlePromptHash,
       titleModel,
+      buildLegacyThreadTitlePromptHash(true),
+      buildLegacyThreadTitlePromptHash(false),
+      titleModel,
       rawTitlePromptHash,
       threadId
     )) as {
@@ -510,6 +535,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       original_title: string;
       url: string;
       thread_title: string;
+      tags_json: string | null;
       source: string;
       published_at: string | null;
       read_at: string | null;
@@ -532,6 +558,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     originalTitle: threadInfoRow.original_title,
     url: threadInfoRow.url,
     threadTitle: threadInfoRow.thread_title,
+    tags: parseArticleTags(threadInfoRow.tags_json),
     source: threadInfoRow.source,
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
@@ -603,6 +630,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       original_title: threadInfoRow.original_title,
       url: threadInfoRow.url,
       thread_title: threadInfoRow.thread_title,
+      tags_json: threadInfoRow.tags_json,
       source: threadInfoRow.source,
       published_at: threadInfoRow.published_at,
       read_at: threadInfoRow.read_at,
@@ -639,6 +667,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     originalTitle: row.original_title,
     url: row.url,
     threadTitle: row.thread_title,
+    tags: parseArticleTags(row.tags_json),
     source: row.source,
     publishedAt: row.published_at ?? "",
     isRead: row.read_at !== null,
@@ -717,7 +746,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.feed_id,
         fi.title AS original_title,
         fi.url,
-        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
+        CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         fs.title AS source,
         fi.published_at,
         fi.read_at,
@@ -728,6 +758,7 @@ export function listFavoriteThreads(): ThreadListItem[] {
         CASE
           WHEN fs.skip_title_conversion = 1 OR generated_vt.id IS NOT NULL THEN NULL
           WHEN (SELECT status FROM title_generation_attempts WHERE feed_item_id = fi.id ORDER BY attempted_at DESC, rowid DESC LIMIT 1) = 'failed' THEN 'failed'
+          WHEN legacy_vt.id IS NOT NULL THEN NULL
           ELSE 'skipped'
         END AS title_generation_status,
         fi.raw_summary,
@@ -741,6 +772,7 @@ export function listFavoriteThreads(): ThreadListItem[] {
           WHEN fs.generate_title_from_summary = 1 THEN ?
           ELSE ?
         END
+      ${legacyTitleJoinSql}
       LEFT JOIN thread_titles raw_vt
         ON raw_vt.feed_item_id = fi.id
         AND raw_vt.model = ?
@@ -763,6 +795,9 @@ export function listFavoriteThreads(): ThreadListItem[] {
       titleModel,
       summaryTitlePromptHash,
       plainTitlePromptHash,
+      titleModel,
+      buildLegacyThreadTitlePromptHash(true),
+      buildLegacyThreadTitlePromptHash(false),
       titleModel,
       rawTitlePromptHash,
       activeModel,

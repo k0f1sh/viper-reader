@@ -10,16 +10,25 @@ import { BOARD_TITLE_SYSTEM_INSTRUCTION } from "../ai/promptParts.js";
  *
  * 出力:
  * - JSON配列のみ
- * - 各要素は { feedItemId, threadTitle }
+ * - 各要素は { feedItemId, threadTitle, tags }
  *
  * DBキャッシュ:
  * - promptHash は thread_titles.prompt_hash に保存する。
  * - プロンプトの意味や出力仕様を変えたら hash を更新し、既存キャッシュと区別する。
  */
 export function buildThreadTitlePromptHash(useSummary: boolean): string {
+  return titlePromptHash(useSummary, "v15");
+}
+
+// v14 は表示用フォールバック専用。新しい生成のキャッシュ判定には使わない。
+export function buildLegacyThreadTitlePromptHash(useSummary: boolean): string {
+  return titlePromptHash(useSummary, "v14");
+}
+
+function titlePromptHash(useSummary: boolean, version: string): string {
   return crypto
     .createHash("sha256")
-    .update(`thread-title-v14\n${BOARD_TITLE_SYSTEM_INSTRUCTION}\nsource:${useSummary ? "summary" : "title"}`)
+    .update(`thread-title-${version}\n${BOARD_TITLE_SYSTEM_INSTRUCTION}\nsource:${useSummary ? "summary" : "title"}`)
     .digest("hex")
     .slice(0, 16);
 }
@@ -38,8 +47,13 @@ export function buildThreadTitlePrompt(feedTitle: string, items: ThreadTitleProm
 
 ルール:
 - 出力はJSON配列だけ。Markdownや説明文は禁止。
-- 各要素は {"feedItemId":"...","threadTitle":"..."} の形にする。
+- 各要素は {"feedItemId":"...","threadTitle":"...","tags":["..."]} の形にする。
 - feedItemIdは入力値をそのまま返す。
+- tagsは元タイトル（title）だけから判断した技術名・製品名・分野を最大5個返す。rssSummary、URL、RSSソース名、変換後のスレタイからタグを推測しない。判断できない場合は空配列にする。
+- タグは簡潔な一般的表記（React、Rust、SQLなど）を使い、重複させない。
+- AI技術・製品の記事だけでなく、AIを道具として利用した記事にも「AI」を付ける。LLM関連には必ず「AI」と「LLM」の両方を付ける。この2つは優先して最大5個に含める。
+- 「人工知能」は「AI」、「大規模言語モデル」は「LLM」に統一する。画像生成など、LLMとは限らないAI記事には「LLM」を推測で付けない。同名の一般語をAI製品と決めつけない。
+- タグの例: 「ChatGPTでSQLを改善した」→ ["AI","LLM","ChatGPT","SQL"]、「Rustの所有権」→ ["Rust"]、「今日考えたこと」→ []。概要だけにAIの記述があっても元タイトルから判断できなければAIタグを付けない。
 ${useSummary
   ? "- rssSummaryの内容を材料にし、記事の要点が伝わるタイトルにする。rssSummaryが空の場合だけtitleへフォールバックする。"
   : "- 元タイトルの意味を残す。"}

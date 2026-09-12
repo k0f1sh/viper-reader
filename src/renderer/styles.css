@@ -1021,6 +1021,45 @@ body.is-article-pane-resizing * {
   white-space: nowrap;
 }
 
+.thread-tags {
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-right: 1px solid #d0d0d0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #000080;
+  font-size: 12px;
+}
+
+.thread-row.is-selected .thread-tags {
+  color: #ffffff;
+  border-right-color: #d4d0c8;
+}
+
+.thread-row.is-ai-highlighted .thread-generation-cell {
+  box-shadow: inset 4px 0 #e07800;
+}
+
+.thread-row.is-ai-highlighted .thread-tags {
+  background: #fff2a8;
+  color: #704000;
+  font-weight: 700;
+}
+
+.thread-row.is-ai-highlighted.is-selected .thread-tags {
+  background: #8a5a00;
+  color: #ffffff;
+}
+
+.article-tags {
+  margin-top: 2px;
+  color: #000080;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .thread-title {
   font-weight: 700;
 }

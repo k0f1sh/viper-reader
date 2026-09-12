@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS thread_titles (
   model TEXT NOT NULL,
   prompt_hash TEXT NOT NULL,
   title TEXT NOT NULL,
+  tags_json TEXT,
   generated_at TEXT NOT NULL,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, model, prompt_hash)

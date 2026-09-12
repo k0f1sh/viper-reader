@@ -17,6 +17,7 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
   const [apiKeyStatus, setApiKeyStatus] = useState<GeminiApiKeyStatus | null>(null);
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyMessage, setApiKeyMessage] = useState("");
+  const [highlightAiArticles, setHighlightAiArticles] = useState(false);
   const [browserSettingsOpen, setBrowserSettingsOpen] = useState(false);
   const [browserBlockingEnabled, setBrowserBlockingEnabled] = useState(true);
   const [browserSettingsSaving, setBrowserSettingsSaving] = useState(false);
@@ -36,11 +37,13 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
     void Promise.all([
       window.viperReader.getUserSetting("replyModel"),
       window.viperReader.getUserSetting("titleModel"),
-      window.viperReader.getUserSetting("articleBrowserBlockingEnabled")
-    ]).then(([savedReplyModel, savedTitleModel, savedBlocking]) => {
+      window.viperReader.getUserSetting("articleBrowserBlockingEnabled"),
+      window.viperReader.getUserSetting("highlightAiArticles")
+    ]).then(([savedReplyModel, savedTitleModel, savedBlocking, savedHighlightAiArticles]) => {
       if (savedReplyModel) setReplyModel(savedReplyModel);
       if (savedTitleModel) setTitleModel(savedTitleModel);
       setBrowserBlockingEnabled(savedBlocking !== "false");
+      setHighlightAiArticles(savedHighlightAiArticles === "true");
     }).catch((error) => console.error("ユーザー設定の読込に失敗しました:", error));
   }, []);
 
@@ -114,6 +117,17 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
       setApiKeyMessage(error instanceof Error ? error.message : "API キーの削除に失敗しました。");
     } finally {
       setApiKeySaving(false);
+    }
+  }
+
+  async function setAiArticleHighlight(enabled: boolean) {
+    if (!window.viperReader) return;
+    setHighlightAiArticles(enabled);
+    try {
+      await window.viperReader.saveUserSetting("highlightAiArticles", String(enabled));
+    } catch (error) {
+      setHighlightAiArticles(!enabled);
+      setApiKeyMessage(error instanceof Error ? error.message : "強調表示設定の保存に失敗しました。");
     }
   }
 
@@ -199,7 +213,7 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
 
   return {
     statistics: { isOpen: statisticsOpen, isLoading: statisticsLoading, value: statistics, open: openStatistics, close: () => setStatisticsOpen(false) },
-    api: { isOpen: apiSettingsOpen, key: apiKey, status: apiKeyStatus, isSaving: apiKeySaving, message: apiKeyMessage, setKey: setApiKey, open: openApiSettings, close: () => setApiSettingsOpen(false), save: saveApiKey, clear: clearApiKey },
+    api: { isOpen: apiSettingsOpen, key: apiKey, status: apiKeyStatus, isSaving: apiKeySaving, message: apiKeyMessage, highlightAiArticles, setHighlightAiArticles: setAiArticleHighlight, setKey: setApiKey, open: openApiSettings, close: () => setApiSettingsOpen(false), save: saveApiKey, clear: clearApiKey },
     browser: { isOpen: browserSettingsOpen, blockingEnabled: browserBlockingEnabled, isSaving: browserSettingsSaving, message: browserSettingsMessage, open: openBrowserSettings, close: () => setBrowserSettingsOpen(false), setBlocking: setBrowserBlocking },
     models: { isOpen: modelSettingsOpen, titleModel, replyModel, isSaving: modelSettingsSaving, open: () => setModelSettingsOpen(true), close: () => setModelSettingsOpen(false), save: saveModels },
     prompts: { isOpen: promptsOpen, feedId: promptFeedId, text: promptText, isLoading: promptLoading, message: promptMessage, setFeedId: setPromptFeedId, setText: setPromptText, open: openPrompts, close: () => setPromptsOpen(false), save: savePrompt, clear: clearPrompt }

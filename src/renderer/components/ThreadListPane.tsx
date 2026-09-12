@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
+import { formatArticleTags, hasAiArticleTag } from "../../shared/articleTags";
 
 type ThreadListPaneProps = {
   selectedFeed: FeedSource | undefined;
@@ -32,6 +33,7 @@ type ThreadListPaneProps = {
   onNextPage: () => void;
   smartView: SmartView | null;
   queueSummary: ReadingQueueSummary;
+  highlightAiArticles: boolean;
 };
 
 export function ThreadListPane({
@@ -62,7 +64,8 @@ export function ThreadListPane({
   onPreviousPage,
   onNextPage,
   smartView,
-  queueSummary
+  queueSummary,
+  highlightAiArticles
 }: ThreadListPaneProps) {
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +152,7 @@ export function ThreadListPane({
       </div>
       <div className="thread-list" ref={threadListRef}>
         {threads.map((thread) => {
+          const isAiHighlighted = highlightAiArticles && hasAiArticleTag(thread.tags);
           const isGenerating = generatingThreadIds.has(thread.id)
             || thread.generationStatus === "queued"
             || thread.generationStatus === "generating";
@@ -193,7 +197,9 @@ export function ThreadListPane({
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
                 thread.isRead ? "is-read" : ""
-              } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""}`}
+              } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""} ${
+                isAiHighlighted ? "is-ai-highlighted" : ""
+              }`}
               key={thread.id}
               onClick={() => onSelectThread(thread.id)}
               type="button"
@@ -224,6 +230,9 @@ export function ThreadListPane({
               </span>
               <span className="thread-title">
                 {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
+              </span>
+              <span className="thread-tags" title={formatArticleTags(thread.tags)}>
+                {formatArticleTags(thread.tags)}
               </span>
               <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>

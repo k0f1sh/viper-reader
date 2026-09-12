@@ -14,6 +14,7 @@ const rendererSettingKeys = new Set([
   "threadColumnWidths",
   "threadColumnWidthsV2",
   "threadColumnWidthsV3",
+  "threadColumnWidthsV4",
   "threadListHeight",
   "threadTabs",
   "feedPaneWidth",
@@ -21,7 +22,8 @@ const rendererSettingKeys = new Set([
   "collapsedFeedFolderIds",
   "articlePaneWidth",
   "articlePaneVisible",
-  "articleBrowserBlockingEnabled"
+  "articleBrowserBlockingEnabled",
+  "highlightAiArticles"
 ]);
 
 export function getUserSetting(key: string): string | null {

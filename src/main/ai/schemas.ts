@@ -35,8 +35,9 @@ export const threadTitleArraySchema = {
     type: "object",
     properties: {
       feedItemId: { type: "string" },
-      threadTitle: { type: "string" }
+      threadTitle: { type: "string" },
+      tags: { type: "array", items: { type: "string" }, maxItems: 5 }
     },
-    required: ["feedItemId", "threadTitle"]
+    required: ["feedItemId", "threadTitle", "tags"]
   }
 } as const;

@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
+import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
   selectedThread: ThreadDetail | null;
@@ -102,6 +103,7 @@ export function ThreadReaderPane({
             <div>
               <div className="thread-heading">{selectedThread.threadTitle}</div>
               <div className="original-title">元記事: {selectedThread.originalTitle}</div>
+              <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div>
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">

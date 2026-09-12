@@ -29,6 +29,7 @@ export function getDatabase(): DatabaseSync {
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   migrateLegacyTitleTable(db);
+  addColumnIfMissing(db, "thread_titles", "tags_json", "TEXT");
   addColumnIfMissing(db, "feed_items", "published_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");

@@ -14,7 +14,7 @@ import { usePosting } from "./hooks/usePosting";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { usePostPopup } from "./hooks/usePostPopup";
 
-const threadColumnLabels = ["状態", "スレタイ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
+const threadColumnLabels = ["状態", "スレタイ", "タグ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
 
 export function App() {
@@ -619,7 +619,8 @@ export function App() {
     onPreviousPage: () => changeThreadListPage(threadListPage - 1),
     onNextPage: () => changeThreadListPage(threadListPage + 1),
     smartView,
-    queueSummary
+    queueSummary,
+    highlightAiArticles: apiSettings.highlightAiArticles
   };
   const threadReaderProps = {
     selectedThread,
@@ -693,7 +694,7 @@ export function App() {
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
-        settings={apiSettings.isOpen ? { apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onClose: apiSettings.close } : null}
+        settings={apiSettings.isOpen ? { apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
         browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
         modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}

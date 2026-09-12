@@ -216,7 +216,7 @@ test("スレタイ変換の失敗・未変換を記事単位で保存し、成�
   recordTitleGenerationAttempts([
     { feedItemId: "title-status-item", status: "completed", errorMessage: null }
   ], currentTitleModel, promptHash);
-  saveThreadTitles([{ feedItemId: "title-status-item", title: "掲示板風タイトル" }], currentTitleModel, promptHash);
+  saveThreadTitles([{ feedItemId: "title-status-item", title: "掲示板風タイトル", tags: [] }], currentTitleModel, promptHash);
   assert.equal(listThreads("title-status").items[0].titleGenerationStatus, null);
 });
 
@@ -225,7 +225,7 @@ test("スレタイ変換しない板は既存の変換キャッシュがあっ�
   insertItem({ id: "raw-title-item", feedId: "raw-title-board" });
   const promptHash = buildThreadTitlePromptHash(false);
   const currentTitleModel = getTitleGenerationModel();
-  saveThreadTitles([{ feedItemId: "raw-title-item", title: "変換済みタイトル" }], currentTitleModel, promptHash);
+  saveThreadTitles([{ feedItemId: "raw-title-item", title: "変換済みタイトル", tags: [] }], currentTitleModel, promptHash);
 
   assert.equal(listThreads("raw-title-board").items[0].threadTitle, "変換済みタイトル");
   db.prepare("UPDATE feed_sources SET skip_title_conversion = 1 WHERE id = ?").run("raw-title-board");
@@ -581,6 +581,13 @@ test("広告ブロック設定をSQLiteへ保存して再読込できる", () =>
 
   saveRendererUserSetting("articleBrowserBlockingEnabled", "true");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "true");
+});
+
+test("AI関連記事の強調表示設定をSQLiteへ保存して再読込できる", () => {
+  saveRendererUserSetting("highlightAiArticles", "true");
+  assert.equal(getRendererUserSetting("highlightAiArticles"), "true");
+  saveRendererUserSetting("highlightAiArticles", "false");
+  assert.equal(getRendererUserSetting("highlightAiArticles"), "false");
 });
 
 test("ペインとカラムのレイアウト設定を保存できる", () => {

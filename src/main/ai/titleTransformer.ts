@@ -4,6 +4,7 @@ import { getTitleGenerationModel } from "../settings/settingsService.js";
 import { BOARD_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadTitleArraySchema } from "./schemas.js";
+import { normalizeArticleTags } from "../../shared/articleTags.js";
 
 export type TitleTransformResult = {
   titles: ThreadTitleWrite[];
@@ -22,6 +23,7 @@ export type TitleTransformOutcome = {
 type GeminiTitleResponse = Array<{
   feedItemId: string;
   threadTitle: string;
+  tags: string[];
 }>;
 
 const titleBatchSize = 12;
@@ -124,7 +126,7 @@ export async function transformTitlesToBoardStyle(
       outcomes.push(...chunk.map((item) => ({
         feedItemId: item.id,
         status: convertedIds.has(item.id) ? "completed" as const : "failed" as const,
-        errorMessage: convertedIds.has(item.id) ? null : "Gemini応答に有効なスレタイがありませんでした。"
+        errorMessage: convertedIds.has(item.id) ? null : "Gemini応答に有効なスレタイまたはタグがありませんでした。"
       })));
     } else {
       failedCount += chunk.length;
@@ -177,24 +179,29 @@ function waitForTitleRetry(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: UnconvertedFeedItem[]): ThreadTitleWrite[] {
+export function validateConvertedTitles(parsed: unknown[], sourceItems: UnconvertedFeedItem[]): ThreadTitleWrite[] {
   const sourceIds = new Set(sourceItems.map((item) => item.id));
   const seenIds = new Set<string>();
   const titles: ThreadTitleWrite[] = [];
 
-  for (const item of parsed) {
+  for (const value of parsed) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as { feedItemId?: unknown; threadTitle?: unknown; tags?: unknown };
+    if (typeof item.feedItemId !== "string") continue;
     if (!sourceIds.has(item.feedItemId) || seenIds.has(item.feedItemId)) {
       continue;
     }
 
     const title = normalizeThreadTitle(item.threadTitle);
-    if (!title) {
+    const tags = normalizeArticleTags(item.tags);
+    if (!title || tags === null) {
       continue;
     }
 
     titles.push({
       feedItemId: item.feedItemId,
-      title
+      title,
+      tags
     });
     seenIds.add(item.feedItemId);
   }

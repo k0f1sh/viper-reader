@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
-const defaultThreadColumnWidths = [44, 360, 170, 300, 54, 126, 260];
-const minThreadColumnWidths = [44, 220, 100, 180, 44, 96, 140];
+const defaultThreadColumnWidths = [44, 360, 180, 170, 300, 54, 126, 260];
+const minThreadColumnWidths = [44, 220, 100, 100, 180, 44, 96, 140];
 
-function parseThreadColumnWidths(v3Json: string | null, v2Json: string | null): number[] | null {
+export function parseThreadColumnWidths(v4Json: string | null, v3Json: string | null, v2Json: string | null): number[] | null {
   function parse(json: string | null): unknown {
     if (!json) return null;
     try {
@@ -14,27 +14,30 @@ function parseThreadColumnWidths(v3Json: string | null, v2Json: string | null): 
     }
   }
 
-  const v3 = parse(v3Json);
-  if (Array.isArray(v3) && v3.length === defaultThreadColumnWidths.length) {
-    return v3.map((width, index) =>
+  function normalize(widths: unknown[]): number[] {
+    return widths.map((width, index) =>
       typeof width === "number" && Number.isFinite(width)
         ? Math.max(minThreadColumnWidths[index], width)
         : defaultThreadColumnWidths[index]
     );
   }
 
+  const v4 = parse(v4Json);
+  if (Array.isArray(v4) && v4.length === defaultThreadColumnWidths.length) return normalize(v4);
+
+  function migrate(widths: unknown[]): number[] {
+    return normalize([...widths.slice(0, 2), defaultThreadColumnWidths[2], ...widths.slice(2)]);
+  }
+
+  const v3 = parse(v3Json);
+  if (Array.isArray(v3) && v3.length === 7) return migrate(v3);
+
   const v2 = parse(v2Json);
   if (Array.isArray(v2)) {
-    const migrated = v2.length === defaultThreadColumnWidths.length - 1
+    const migrated = v2.length === 6
       ? [defaultThreadColumnWidths[0], ...v2]
       : v2;
-    if (migrated.length === defaultThreadColumnWidths.length) {
-      return migrated.map((width, index) =>
-        typeof width === "number" && Number.isFinite(width)
-          ? Math.max(minThreadColumnWidths[index], width)
-          : defaultThreadColumnWidths[index]
-      );
-    }
+    if (migrated.length === 7) return migrate(migrated);
   }
   return null;
 }
@@ -55,13 +58,14 @@ export function usePaneLayout() {
 
     void Promise.all([
       window.viperReader.getUserSetting("threadListHeight"),
+      window.viperReader.getUserSetting("threadColumnWidthsV4"),
       window.viperReader.getUserSetting("threadColumnWidthsV3"),
       window.viperReader.getUserSetting("threadColumnWidthsV2"),
       window.viperReader.getUserSetting("feedPaneWidth"),
       window.viperReader.getUserSetting("feedTreeHeight"),
       window.viperReader.getUserSetting("articlePaneWidth"),
       window.viperReader.getUserSetting("articlePaneVisible")
-    ]).then(([height, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible]) => {
+    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible]) => {
       if (height) setThreadListHeight(Number.parseFloat(height));
       if (savedFeedPaneWidth) {
         const width = Number.parseFloat(savedFeedPaneWidth);
@@ -71,11 +75,11 @@ export function usePaneLayout() {
         const nextHeight = Number.parseFloat(savedFeedTreeHeight);
         if (Number.isFinite(nextHeight)) setFeedTreeHeight(Math.max(100, nextHeight));
       }
-      const savedWidths = parseThreadColumnWidths(widthsV3Json, widthsV2Json);
+      const savedWidths = parseThreadColumnWidths(widthsV4Json, widthsV3Json, widthsV2Json);
       if (savedWidths) {
         setThreadColumnWidths(savedWidths);
-        if (!widthsV3Json) {
-          void window.viperReader?.saveUserSetting("threadColumnWidthsV3", JSON.stringify(savedWidths));
+        if (widthsV4Json !== JSON.stringify(savedWidths)) {
+          void window.viperReader?.saveUserSetting("threadColumnWidthsV4", JSON.stringify(savedWidths));
         }
       }
       if (savedArticlePaneWidth) {
@@ -170,7 +174,7 @@ export function usePaneLayout() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", stopResize);
       document.body.classList.remove("is-column-resizing");
-      void window.viperReader?.saveUserSetting("threadColumnWidthsV3", JSON.stringify(currentWidths));
+      void window.viperReader?.saveUserSetting("threadColumnWidthsV4", JSON.stringify(currentWidths));
     }
     document.body.classList.add("is-column-resizing");
     window.addEventListener("mousemove", handleMouseMove);
