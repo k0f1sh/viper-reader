@@ -144,6 +144,34 @@ button {
   background: #d4d0c8;
 }
 
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.zoom-controls button {
+  min-width: 24px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  background: #d4d0c8;
+}
+
+.zoom-controls button:nth-child(2) {
+  min-width: 45px;
+}
+
+.zoom-controls button:active:not(:disabled) {
+  border-color: #404040 #ffffff #ffffff #404040;
+}
+
+.zoom-controls button:disabled {
+  color: #808080;
+}
+
 .menu-item {
   min-height: 20px;
   padding: 1px 12px 2px;

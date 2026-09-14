@@ -13,11 +13,13 @@ import { useFeedRefresh } from "./hooks/useFeedRefresh";
 import { usePosting } from "./hooks/usePosting";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { usePostPopup } from "./hooks/usePostPopup";
+import { useUiZoom } from "./hooks/useUiZoom";
 
 const threadColumnLabels = ["状態", "スレタイ", "タグ", "取得元", "元タイトル", "レス", "日時 ▼", "URL"] as const;
 const maxRendererLogs = 300;
 
 export function App() {
+  const uiZoom = useUiZoom();
   const {
     feeds: feedList,
     setFeeds: setFeedList,
@@ -557,7 +559,11 @@ export function App() {
     onOpenBrowserSettings: browserSettings.open,
     onOpenModelSettings: modelSettings.open,
     onOpenStatistics: () => void statisticsSettings.open(),
-    onOpenResidentPrompts: promptSettings.open
+    onOpenResidentPrompts: promptSettings.open,
+    zoomPercent: uiZoom.zoomPercent,
+    onZoomIn: uiZoom.zoomIn,
+    onZoomOut: uiZoom.zoomOut,
+    onResetZoom: uiZoom.resetZoom
   };
   const feedPaneProps = {
     feeds: feedList,
@@ -690,6 +696,7 @@ export function App() {
         onStartFeedPaneResize={startFeedPaneResize}
         onStartVerticalResize={startVerticalResize}
         onStartArticlePaneResize={startArticlePaneResize}
+        zoomFactor={uiZoom.zoomPercent / 100}
       />
 
       <AppDialogs

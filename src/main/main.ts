@@ -382,6 +382,12 @@ ipcMain.handle("settings:get", (_event, key: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });
   return getRendererUserSetting(key);
 });
+ipcMain.handle("ui:set-zoom-factor", (event, factor: number) => {
+  if (typeof factor !== "number" || !Number.isFinite(factor) || factor < 0.75 || factor > 1.5) {
+    throw new Error("UI zoom factor is invalid.");
+  }
+  event.sender.setZoomFactor(factor);
+});
 ipcMain.handle("settings:save", (_event, key: string, value: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });
   assertString(value, "setting value", { maxLength: 1_000_000 });

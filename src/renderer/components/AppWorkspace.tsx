@@ -25,6 +25,7 @@ type AppWorkspaceProps = {
   onStartFeedPaneResize: MouseEventHandler<HTMLDivElement>;
   onStartVerticalResize: MouseEventHandler<HTMLDivElement>;
   onStartArticlePaneResize: MouseEventHandler<HTMLDivElement>;
+  zoomFactor: number;
 };
 
 export function AppWorkspace({
@@ -45,12 +46,13 @@ export function AppWorkspace({
   threadContentRef,
   onStartFeedPaneResize,
   onStartVerticalResize,
-  onStartArticlePaneResize
+  onStartArticlePaneResize,
+  zoomFactor
 }: AppWorkspaceProps) {
   if (threadViewMode === "browser" && isArticleBrowserExpanded) {
     return (
       <div className="article-browser-expanded">
-        <ArticleBrowserPane {...articleBrowser} />
+        <ArticleBrowserPane {...articleBrowser} zoomFactor={zoomFactor} />
       </div>
     );
   }
@@ -66,7 +68,7 @@ export function AppWorkspace({
           <div aria-label="スレタイ一覧とスレ本文の境界" className="pane-splitter" onMouseDown={onStartVerticalResize} role="separator" />
           <section className="thread-workspace">
             {threadViewMode === "browser" ? (
-              <ArticleBrowserPane {...articleBrowser} />
+              <ArticleBrowserPane {...articleBrowser} zoomFactor={zoomFactor} />
             ) : (
               <section className={`thread-content ${showArticlePane ? "has-article-pane" : ""}`} ref={threadContentRef} style={{ "--article-pane-width": `${articlePaneWidth}px` } as React.CSSProperties}>
                 <ThreadReaderPane {...threadReader} />

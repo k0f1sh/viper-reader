@@ -12,6 +12,7 @@ type ArticleBrowserPaneProps = {
   isExpanded: boolean;
   onShowReplies: () => void;
   onToggleExpanded: () => void;
+  zoomFactor?: number;
 };
 
 const initialState: ArticleBrowserState = {
@@ -31,7 +32,8 @@ export function ArticleBrowserPane({
   isSuspended,
   isExpanded,
   onShowReplies,
-  onToggleExpanded
+  onToggleExpanded,
+  zoomFactor = 1
 }: ArticleBrowserPaneProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [browserState, setBrowserState] = useState<ArticleBrowserState>(initialState);
@@ -56,7 +58,7 @@ export function ArticleBrowserPane({
     }
 
     const frame = requestAnimationFrame(() => {
-      const bounds = getElementBounds(viewportRef.current);
+      const bounds = getElementBounds(viewportRef.current, zoomFactor);
       if (!bounds || !window.viperReader || !selectedThread) {
         return;
       }
@@ -68,7 +70,7 @@ export function ArticleBrowserPane({
       }).then(setBrowserState);
     });
     return () => cancelAnimationFrame(frame);
-  }, [isActive, isSuspended, selectedThread?.id, selectedThread?.url, allowUnprotected]);
+  }, [isActive, isSuspended, selectedThread?.id, selectedThread?.url, allowUnprotected, zoomFactor]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -77,7 +79,7 @@ export function ArticleBrowserPane({
     }
 
     const updateBounds = () => {
-      const bounds = getElementBounds(viewport);
+      const bounds = getElementBounds(viewport, zoomFactor);
       if (bounds && isActive && !isSuspended) {
         void window.viperReader?.setArticleBrowserBounds(bounds);
       }
@@ -89,7 +91,7 @@ export function ArticleBrowserPane({
       observer.disconnect();
       window.removeEventListener("resize", updateBounds);
     };
-  }, [isActive, isSuspended]);
+  }, [isActive, isSuspended, zoomFactor]);
 
   useEffect(() => () => {
     void window.viperReader?.hideArticleBrowser();
@@ -213,7 +215,7 @@ export function ArticleBrowserPane({
   );
 }
 
-function getElementBounds(element: HTMLElement | null): ArticleBrowserBounds | null {
+function getElementBounds(element: HTMLElement | null, zoomFactor: number): ArticleBrowserBounds | null {
   if (!element) {
     return null;
   }
@@ -222,10 +224,10 @@ function getElementBounds(element: HTMLElement | null): ArticleBrowserBounds | n
     return null;
   }
   return {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height
+    x: rect.left * zoomFactor,
+    y: rect.top * zoomFactor,
+    width: rect.width * zoomFactor,
+    height: rect.height * zoomFactor
   };
 }
 
