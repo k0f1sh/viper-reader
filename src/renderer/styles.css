@@ -952,14 +952,7 @@ body.is-article-pane-resizing * {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      #ffffff 0,
-      #ffffff 24px,
-      #e8f0ff 24px,
-      #e8f0ff 48px
-    );
+  background: #ffffff;
 }
 
 .thread-list-pagination {
@@ -1009,7 +1002,7 @@ body.is-article-pane-resizing * {
   border: 0;
   border-bottom: 1px solid #c8d8f0;
   color: #000000;
-  background: transparent;
+  background: #ffffff;
   text-align: left;
   cursor: default;
 }
