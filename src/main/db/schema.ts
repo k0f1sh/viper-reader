@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS feed_items (
   last_read_post_no INTEGER NOT NULL DEFAULT 0,
   latest_post_no INTEGER NOT NULL DEFAULT 0,
   is_favorite INTEGER NOT NULL DEFAULT 0,
+  content_version INTEGER NOT NULL DEFAULT 1,
+  generated_content_version INTEGER NOT NULL DEFAULT 1,
   generation_status TEXT,
   generation_requested_at TEXT,
   generation_completed_at TEXT,
