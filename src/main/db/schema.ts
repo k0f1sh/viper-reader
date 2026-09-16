@@ -90,19 +90,6 @@ CREATE TABLE IF NOT EXISTS thread_summaries (
   UNIQUE (feed_item_id, model, prompt_hash)
 );
 
-CREATE TABLE IF NOT EXISTS thread_deep_dives (
-  id TEXT PRIMARY KEY,
-  feed_item_id TEXT NOT NULL,
-  article_body_id TEXT NOT NULL,
-  model TEXT NOT NULL,
-  prompt_hash TEXT NOT NULL,
-  posts_json TEXT NOT NULL,
-  generated_at TEXT NOT NULL,
-  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
-  FOREIGN KEY (article_body_id) REFERENCES article_bodies(id) ON DELETE CASCADE,
-  UNIQUE (feed_item_id, article_body_id, model, prompt_hash)
-);
-
 CREATE TABLE IF NOT EXISTS rss_refresh_runs (
   id TEXT PRIMARY KEY,
   feed_id TEXT NOT NULL,
