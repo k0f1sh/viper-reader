@@ -696,7 +696,6 @@ export function App() {
         onStartFeedPaneResize={startFeedPaneResize}
         onStartVerticalResize={startVerticalResize}
         onStartArticlePaneResize={startArticlePaneResize}
-        zoomFactor={uiZoom.zoomPercent / 100}
       />
 
       <AppDialogs

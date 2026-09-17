@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const zoomSettingKey = "ui_zoom_percent_v1";
 const zoomLevels = [75, 85, 100, 110, 125, 150] as const;
@@ -11,34 +11,46 @@ function normalizeZoomPercent(value: string | null): number {
 
 export function useUiZoom() {
   const [zoomPercent, setZoomPercent] = useState(defaultZoomPercent);
+  const zoomPercentRef = useRef(defaultZoomPercent);
 
-  const applyZoom = useCallback((percent: number, persist: boolean) => {
+  const applyZoom = useCallback(async (percent: number, persist: boolean) => {
     if (!window.viperReader) return;
-    setZoomPercent(percent);
-    void window.viperReader.setUiZoomFactor(percent / 100);
+    zoomPercentRef.current = percent;
+    const appliedFactor = await window.viperReader.setUiZoomFactor(percent / 100);
+    const appliedPercent = Math.round(appliedFactor * 100);
+    zoomPercentRef.current = appliedPercent;
+    setZoomPercent(appliedPercent);
     if (persist) {
-      void window.viperReader.saveUserSetting(zoomSettingKey, String(percent));
+      await window.viperReader.saveUserSetting(zoomSettingKey, String(appliedPercent));
     }
   }, []);
 
   useEffect(() => {
     if (!window.viperReader) return;
     void window.viperReader.getUserSetting(zoomSettingKey).then((value) => {
-      applyZoom(normalizeZoomPercent(value), false);
+      void applyZoom(normalizeZoomPercent(value), false);
     });
   }, [applyZoom]);
 
   const zoomIn = useCallback(() => {
-    const next = zoomLevels.find((level) => level > zoomPercent) ?? zoomLevels.at(-1)!;
-    applyZoom(next, true);
-  }, [applyZoom, zoomPercent]);
+    const next = zoomLevels.find((level) => level > zoomPercentRef.current) ?? zoomLevels.at(-1)!;
+    void applyZoom(next, true);
+  }, [applyZoom]);
 
   const zoomOut = useCallback(() => {
-    const next = [...zoomLevels].reverse().find((level) => level < zoomPercent) ?? zoomLevels[0];
-    applyZoom(next, true);
-  }, [applyZoom, zoomPercent]);
+    const next = [...zoomLevels].reverse().find((level) => level < zoomPercentRef.current) ?? zoomLevels[0];
+    void applyZoom(next, true);
+  }, [applyZoom]);
 
-  const resetZoom = useCallback(() => applyZoom(defaultZoomPercent, true), [applyZoom]);
+  const resetZoom = useCallback(() => void applyZoom(defaultZoomPercent, true), [applyZoom]);
+
+  useEffect(() => {
+    if (!window.viperReader) return;
+    return window.viperReader.onUiZoomChanged((direction) => {
+      if (direction === "in") zoomIn();
+      else zoomOut();
+    });
+  }, [zoomIn, zoomOut]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

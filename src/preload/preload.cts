@@ -78,7 +78,8 @@ export type ViperReaderApi = {
   clearFeedResidentPrompt: (feedId: string) => Promise<void>;
   getUserSetting: (key: string) => Promise<string | null>;
   saveUserSetting: (key: string, value: string) => Promise<void>;
-  setUiZoomFactor: (factor: number) => Promise<void>;
+  setUiZoomFactor: (factor: number) => Promise<number>;
+  onUiZoomChanged: (callback: (direction: "in" | "out") => void) => () => void;
   getGeminiApiKeyStatus: () => Promise<GeminiApiKeyStatus>;
   saveGeminiApiKey: (apiKey: string) => Promise<GeminiApiKeyStatus>;
   clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
@@ -188,6 +189,11 @@ const api: ViperReaderApi = {
   getUserSetting: (key) => ipcRenderer.invoke("settings:get", key),
   saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value),
   setUiZoomFactor: (factor) => ipcRenderer.invoke("ui:set-zoom-factor", factor),
+  onUiZoomChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, direction: "in" | "out") => callback(direction);
+    ipcRenderer.on("ui:zoom-changed", listener);
+    return () => ipcRenderer.removeListener("ui:zoom-changed", listener);
+  },
   getGeminiApiKeyStatus: () => ipcRenderer.invoke("settings:get-gemini-api-key-status"),
   saveGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings:save-gemini-api-key", apiKey),
   clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),

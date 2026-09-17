@@ -161,6 +161,10 @@ function createMainWindow(): void {
       ]).popup({ window });
     }
   });
+  window.webContents.on("zoom-changed", (event, direction) => {
+    event.preventDefault();
+    sendIfAvailable(window.webContents, "ui:zoom-changed", direction);
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (!isTrustedRendererUrl(url)) {
@@ -271,12 +275,15 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
 });
 ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
   assertShowArticleBrowserRequest(request);
-  return getArticleBrowserController(event).show(request);
+  return getArticleBrowserController(event).show({
+    ...request,
+    bounds: scaleArticleBrowserBounds(request.bounds, event.sender.getZoomFactor())
+  });
 });
 ipcMain.handle("article-browser:hide", (event) => getArticleBrowserController(event).hide());
 ipcMain.handle("article-browser:set-bounds", (event, bounds: ArticleBrowserBounds) => {
   assertArticleBrowserBounds(bounds);
-  getArticleBrowserController(event).setBounds(bounds);
+  getArticleBrowserController(event).setBounds(scaleArticleBrowserBounds(bounds, event.sender.getZoomFactor()));
 });
 ipcMain.handle("article-browser:back", (event) => getArticleBrowserController(event).goBack());
 ipcMain.handle("article-browser:forward", (event) => getArticleBrowserController(event).goForward());
@@ -387,7 +394,17 @@ ipcMain.handle("ui:set-zoom-factor", (event, factor: number) => {
     throw new Error("UI zoom factor is invalid.");
   }
   event.sender.setZoomFactor(factor);
+  return event.sender.getZoomFactor();
 });
+
+function scaleArticleBrowserBounds(bounds: ArticleBrowserBounds, zoomFactor: number): ArticleBrowserBounds {
+  return {
+    x: bounds.x * zoomFactor,
+    y: bounds.y * zoomFactor,
+    width: bounds.width * zoomFactor,
+    height: bounds.height * zoomFactor
+  };
+}
 ipcMain.handle("settings:save", (_event, key: string, value: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });
   assertString(value, "setting value", { maxLength: 1_000_000 });
