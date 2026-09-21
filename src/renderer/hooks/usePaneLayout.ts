@@ -48,6 +48,7 @@ export function usePaneLayout() {
   const [feedTreeHeight, setFeedTreeHeight] = useState(300);
   const [articlePaneWidth, setArticlePaneWidth] = useState(360);
   const [isArticlePaneVisible, setIsArticlePaneVisible] = useState(false);
+  const [isWritePanelVisible, setIsWritePanelVisible] = useState(true);
   const [threadColumnWidths, setThreadColumnWidths] = useState(defaultThreadColumnWidths);
   const appShellRef = useRef<HTMLDivElement>(null);
   const contentPaneRef = useRef<HTMLElement>(null);
@@ -64,8 +65,9 @@ export function usePaneLayout() {
       window.viperReader.getUserSetting("feedPaneWidth"),
       window.viperReader.getUserSetting("feedTreeHeight"),
       window.viperReader.getUserSetting("articlePaneWidth"),
-      window.viperReader.getUserSetting("articlePaneVisible")
-    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible]) => {
+      window.viperReader.getUserSetting("articlePaneVisible"),
+      window.viperReader.getUserSetting("writePanelVisible")
+    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedWritePanelVisible]) => {
       if (height) setThreadListHeight(Number.parseFloat(height));
       if (savedFeedPaneWidth) {
         const width = Number.parseFloat(savedFeedPaneWidth);
@@ -87,6 +89,7 @@ export function usePaneLayout() {
         if (Number.isFinite(width)) setArticlePaneWidth(Math.min(640, Math.max(260, width)));
       }
       setIsArticlePaneVisible(savedArticlePaneVisible === "true");
+      setIsWritePanelVisible(savedWritePanelVisible !== "false");
     }).catch((error) => {
       console.error("ペイン設定の読込に失敗しました:", error);
     });
@@ -211,6 +214,15 @@ export function usePaneLayout() {
     });
   }
 
+  function setWritePanelVisible(visible: boolean) {
+    setIsWritePanelVisible(visible);
+    void window.viperReader?.saveUserSetting("writePanelVisible", String(visible));
+  }
+
+  function toggleWritePanel() {
+    setWritePanelVisible(!isWritePanelVisible);
+  }
+
   return {
     appShellRef,
     contentPaneRef,
@@ -220,6 +232,7 @@ export function usePaneLayout() {
     feedTreeHeight,
     articlePaneWidth,
     isArticlePaneVisible,
+    isWritePanelVisible,
     threadGridColumns: threadColumnWidths.map((width) => `${width}px`).join(" "),
     threadListMinWidth: threadColumnWidths.reduce((total, width) => total + width, 0),
     startVerticalResize,
@@ -227,6 +240,8 @@ export function usePaneLayout() {
     startFeedTreeResize,
     startThreadColumnResize,
     startArticlePaneResize,
-    toggleArticlePane
+    toggleArticlePane,
+    setWritePanelVisible,
+    toggleWritePanel
   };
 }

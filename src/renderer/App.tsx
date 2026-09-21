@@ -99,6 +99,7 @@ export function App() {
     feedTreeHeight,
     articlePaneWidth,
     isArticlePaneVisible,
+    isWritePanelVisible,
     threadGridColumns,
     threadListMinWidth,
     startVerticalResize,
@@ -106,7 +107,9 @@ export function App() {
     startFeedTreeResize,
     startThreadColumnResize,
     startArticlePaneResize,
-    toggleArticlePane
+    toggleArticlePane,
+    setWritePanelVisible,
+    toggleWritePanel
   } = usePaneLayout();
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
   const { form: addFeedForm, update: updateAddFeedForm, reset: resetAddFeedForm } = useAddFeedForm();
@@ -248,6 +251,13 @@ export function App() {
       || selectedThread.generationStatus === "queued"
       || selectedThread.generationStatus === "generating"
     : false;
+
+  function focusWritePanel() {
+    setWritePanelVisible(true);
+    requestAnimationFrame(() => {
+      if (!replyBodyRef.current?.readOnly) replyBodyRef.current?.focus();
+    });
+  }
   const isArticleBrowserSuspended =
     statisticsSettings.isOpen
     || apiSettings.isOpen
@@ -297,6 +307,7 @@ export function App() {
       return "browser";
     }),
     onToggleArticleBrowserExpanded: () => setIsArticleBrowserExpanded((current) => !current),
+    onFocusWritePanel: focusWritePanel,
     onClearExtractedPost: clearExtractedPostId
   });
 
@@ -651,7 +662,10 @@ export function App() {
     onReplyNameChange: (name: string) => updateReplyComposer({ name }),
     onReplyMailChange: (mail: string) => updateReplyComposer({ mail }),
     onReplyBodyChange: setReplyBody,
-    onReplyToPost: replyToPost,
+    onReplyToPost: (postNo: number) => {
+      setWritePanelVisible(true);
+      replyToPost(postNo);
+    },
     onScrollToPost: scrollToPost,
     onPostNoMouseEnter: handlePostNoMouseEnter,
     onPostNoMouseLeave: handleMouseLeaveWithDelay,
@@ -662,7 +676,9 @@ export function App() {
     onAnchorMouseLeave: handleMouseLeaveWithDelay,
     isArticlePaneVisible: shouldShowArticlePane,
     onToggleArticlePane: toggleArticlePane,
-    onShowArticleBrowser: () => setThreadViewMode("browser")
+    onShowArticleBrowser: () => setThreadViewMode("browser"),
+    isWritePanelVisible,
+    onToggleWritePanel: toggleWritePanel
   };
 
   return (

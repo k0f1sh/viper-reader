@@ -22,6 +22,7 @@ const rendererSettingKeys = new Set([
   "collapsedFeedFolderIds",
   "articlePaneWidth",
   "articlePaneVisible",
+  "writePanelVisible",
   "articleBrowserBlockingEnabled",
   "highlightAiArticles"
 ]);

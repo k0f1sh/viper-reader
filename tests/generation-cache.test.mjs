@@ -603,6 +603,14 @@ test("ペインとカラムのレイアウト設定を保存できる", () => {
   );
 });
 
+test("書き込み欄の表示状態をSQLiteへ保存して再読込できる", () => {
+  saveRendererUserSetting("writePanelVisible", "false");
+  assert.equal(getRendererUserSetting("writePanelVisible"), "false");
+
+  saveRendererUserSetting("writePanelVisible", "true");
+  assert.equal(getRendererUserSetting("writePanelVisible"), "true");
+});
+
 test("板フォルダの開閉状態をSQLiteへ保存できる", () => {
   saveRendererUserSetting("collapsedFeedFolderIds", '["folder:development"]');
   assert.equal(getRendererUserSetting("collapsedFeedFolderIds"), '["folder:development"]');

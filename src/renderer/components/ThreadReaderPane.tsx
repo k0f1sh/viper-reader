@@ -39,6 +39,8 @@ type ThreadReaderPaneProps = {
   isArticlePaneVisible: boolean;
   onToggleArticlePane: () => void;
   onShowArticleBrowser: () => void;
+  isWritePanelVisible: boolean;
+  onToggleWritePanel: () => void;
 };
 
 export function ThreadReaderPane({
@@ -75,7 +77,9 @@ export function ThreadReaderPane({
   onAnchorMouseLeave,
   isArticlePaneVisible,
   onToggleArticlePane,
-  onShowArticleBrowser
+  onShowArticleBrowser,
+  isWritePanelVisible,
+  onToggleWritePanel
 }: ThreadReaderPaneProps) {
   const hasArticleUpdate = Boolean(selectedThread && selectedThread.contentVersion !== selectedThread.generatedContentVersion);
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
@@ -116,6 +120,17 @@ export function ThreadReaderPane({
                   type="button"
                 >
                   {isArticlePaneVisible ? "記事本文を閉じる" : "記事本文"}
+                </button>
+              ) : null}
+              {selectedThread.posts.length > 1 ? (
+                <button
+                  className={`deep-dive-button ${isWritePanelVisible ? "is-active" : ""}`}
+                  onClick={onToggleWritePanel}
+                  type="button"
+                  aria-expanded={isWritePanelVisible}
+                  aria-controls="write-panel"
+                >
+                  {isWritePanelVisible ? "書き込み欄を隠す" : "書き込み欄を表示"}
                 </button>
               ) : null}
               <button
@@ -233,8 +248,9 @@ export function ThreadReaderPane({
               </div>
             ) : null}
           </div>
-          {selectedThread.posts.length > 1 ? (
+          {selectedThread.posts.length > 1 && isWritePanelVisible ? (
             <form
+              id="write-panel"
               className={`write-panel ${isWritePanelBusy ? "is-busy" : ""}`}
               onSubmit={onPostMessage}
               aria-busy={isWritePanelBusy}

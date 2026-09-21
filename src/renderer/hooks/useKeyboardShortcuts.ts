@@ -28,6 +28,7 @@ type UseKeyboardShortcutsOptions = {
   onToggleThreadRead: () => void;
   onToggleThreadView: () => void;
   onToggleArticleBrowserExpanded: () => void;
+  onFocusWritePanel: () => void;
   onClearExtractedPost: () => void;
 };
 
@@ -146,9 +147,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         if ((current.selectedThread?.posts.length ?? 0) <= 1) current.onGenerateResponses();
         else if (current.selectedThread && current.selectedThread.posts.length < 1000) current.onGenerateReplies();
       } else if (event.key === "w") {
-        if (current.replyBodyRef.current && !current.replyBodyRef.current.disabled) {
+        if (current.selectedThread && current.selectedThread.posts.length > 1 && current.selectedThread.posts.length < 1000) {
           event.preventDefault();
-          current.replyBodyRef.current.focus();
+          current.onFocusWritePanel();
         }
       } else if (event.key === "b") {
         event.preventDefault();
