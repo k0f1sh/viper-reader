@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
   getArticleBody,
+  deleteThreadContent,
   getStatistics,
   initializeRepository,
   listThreads,
@@ -54,6 +55,7 @@ import {
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
+import { acquireThreadLock, releaseThreadLock } from "./threads/threadLocks.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
 import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
@@ -272,6 +274,18 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
+});
+ipcMain.handle("threads:delete-content", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!acquireThreadLock(threadId)) {
+    throw new Error("このスレッドは現在処理中です。完了してからもう一度試してください。");
+  }
+  try {
+    deleteThreadContent(threadId);
+    return openThread(threadId);
+  } finally {
+    releaseThreadLock(threadId);
+  }
 });
 ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
   assertShowArticleBrowserRequest(request);

@@ -23,6 +23,8 @@ type ThreadReaderPaneProps = {
   onRegenerateThreadTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
   onGenerateReplies: () => void;
+  onDeleteContent: () => void;
+  isDeletingContent: boolean;
   onPostMessage: (event: FormEvent) => void;
   onReplyNameChange: (value: string) => void;
   onReplyMailChange: (value: string) => void;
@@ -62,6 +64,8 @@ export function ThreadReaderPane({
   onRegenerateThreadTitle,
   onGenerateResponses,
   onGenerateReplies,
+  onDeleteContent,
+  isDeletingContent,
   onPostMessage,
   onReplyNameChange,
   onReplyMailChange,
@@ -152,6 +156,15 @@ export function ThreadReaderPane({
                   {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
                 </button>
               ) : null}
+              <button
+                className="deep-dive-button"
+                onClick={onDeleteContent}
+                disabled={isDeletingContent || isWritePanelBusy}
+                type="button"
+                title="記事本文のキャッシュと、このスレの書き込みを物理削除"
+              >
+                {isDeletingContent ? "削除中..." : "本文・レス削除"}
+              </button>
               {selectedThread.posts.length <= 1 ? (
                 <button
                   className="deep-dive-button"

@@ -83,6 +83,7 @@ export function App() {
     }
   });
   const [regeneratingTitleThreadId, setRegeneratingTitleThreadId] = useState<string | null>(null);
+  const [deletingContentThreadId, setDeletingContentThreadId] = useState<string | null>(null);
   const {
     statistics: statisticsSettings,
     api: apiSettings,
@@ -488,6 +489,30 @@ export function App() {
     if (selectedThread) await generateThreadResponses(selectedThread, force);
   }
 
+  async function deleteSelectedThreadContent() {
+    const thread = selectedThread;
+    if (!thread || !window.viperReader || deletingContentThreadId) return;
+    if (!confirm(`「${thread.threadTitle}」の取得済み本文と全レス（自分の書き込みを含む）を完全に削除しますか？\n同じURLの記事で共有している本文キャッシュも消えます。`)) return;
+    setDeletingContentThreadId(thread.id);
+    try {
+      const updated = await window.viperReader.deleteThreadContent(thread.id);
+      if (selectedThreadIdRef.current === thread.id) {
+        if (smartView === "generated" || smartView === "reviewed") {
+          setSelectedThreadId(undefined);
+          setSelectedThread(null);
+        } else {
+          setSelectedThread(updated);
+        }
+      }
+      await reloadCurrentThreadList(smartView ? undefined : thread.id);
+      await reloadQueueSummary();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "本文とレスを削除できませんでした。");
+    } finally {
+      setDeletingContentThreadId(null);
+    }
+  }
+
   async function showTitleGenerationStatus(threadId: string) {
     if (!window.viperReader) return;
     setTitleGenerationThreadId(threadId);
@@ -657,6 +682,8 @@ export function App() {
     onToggleFavorite: () => void toggleFavorite(),
     onRegenerateThreadTitle: () => void regenerateSelectedThreadTitle(),
     onGenerateResponses: (force = false) => void generateResponses(force),
+    onDeleteContent: () => void deleteSelectedThreadContent(),
+    isDeletingContent: deletingContentThreadId === selectedThread?.id,
     onGenerateReplies: () => void handleGenerateReplies(),
     onPostMessage: handlePostMessage,
     onReplyNameChange: (name: string) => updateReplyComposer({ name }),

@@ -39,6 +39,7 @@ export {
   saveArticleBody,
   saveArticleSummary
 } from "./articleRepository.js";
+export { deleteThreadContent } from "./threadContentRepository.js";
 export {
   finishThreadGenerationAttempt,
   listThreadGenerationAttempts,
