@@ -10,6 +10,7 @@ import {
   getStatistics,
   initializeRepository,
   listThreads,
+  searchThreads,
   listGeneratedQueue,
   listThreadGenerationAttempts,
   listTitleGenerationAttempts,
@@ -237,6 +238,13 @@ ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unr
   assertPage(page);
   assertBoolean(unreadOnly, "unread-only flag");
   return listThreads(feedId, page, 100, unreadOnly);
+});
+ipcMain.handle("threads:search", (_event, feedId: string | null, query: string, page: number, unreadOnly: boolean) => {
+  if (feedId !== null) assertIdentifier(feedId, "feed ID");
+  assertString(query, "search query", { minLength: 1, maxLength: 200 });
+  assertPage(page);
+  assertBoolean(unreadOnly, "unread-only flag");
+  return searchThreads(feedId, query, page, 100, unreadOnly);
 });
 ipcMain.handle("threads:list-generated-queue", (_event, page: number) => {
   assertPage(page);

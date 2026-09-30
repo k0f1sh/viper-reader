@@ -92,7 +92,8 @@ export {
   getThread,
   listFavoriteThreads,
   listGeneratedQueue,
-  listThreads
+  listThreads,
+  searchThreads
 } from "./threadRepository.js";
 
 function seedDatabase(db: DatabaseSync): void {

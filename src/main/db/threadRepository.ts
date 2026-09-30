@@ -55,7 +55,38 @@ type ThreadRow = {
 
 
 
-export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false): ThreadListPage {
+const searchConditionSql = `(
+  fi.title LIKE ? ESCAPE '!'
+  OR fi.raw_summary LIKE ? ESCAPE '!'
+  OR EXISTS (
+    SELECT 1 FROM thread_titles search_title
+    WHERE search_title.feed_item_id = fi.id AND search_title.title LIKE ? ESCAPE '!'
+  )
+  OR EXISTS (
+    SELECT 1 FROM article_bodies search_body
+    INNER JOIN feed_items source_item ON source_item.id = search_body.feed_item_id
+    WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
+      = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
+      AND search_body.content_text LIKE ? ESCAPE '!'
+  )
+)`;
+const allFeedsSearchConditionSql = `EXISTS (
+  SELECT 1 FROM feed_items matched_item
+  WHERE COALESCE(NULLIF(matched_item.canonical_url, ''), matched_item.url)
+    = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
+    AND ${searchConditionSql.replaceAll("fi.", "matched_item.")}
+)`;
+
+function searchParameters(query: string): string[] {
+  const pattern = `%${query.replace(/[!%_]/g, "!$&")}%`;
+  return [pattern, pattern, pattern, pattern];
+}
+
+export function searchThreads(feedId: string | null, query: string, page = 0, pageSize = 100, unreadOnly = false): ThreadListPage {
+  return listThreads(feedId, page, pageSize, unreadOnly, query.trim());
+}
+
+export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false, searchQuery = ""): ThreadListPage {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
@@ -64,8 +95,10 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const filterUnread = unreadOnly ? 1 : 0;
+  const searchParams = searchQuery ? searchParameters(searchQuery) : [];
+  const searchFilter = searchQuery ? `AND ${searchConditionSql}` : "";
   if (feedId === null) {
-    return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread);
+    return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread, "none", searchParams);
   }
   const unreadCondition = unreadOnly ? `AND ${unreadSql}` : "";
   const countRow = runWithSlowQueryLog("listThreads.count", () => db.prepare(`
@@ -73,7 +106,8 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
     FROM feed_items fi
     WHERE fi.feed_id = ?
       ${unreadCondition}
-  `).get(feedId)) as { total_count: number };
+      ${searchFilter}
+  `).get(feedId, ...searchParams)) as { total_count: number };
   const rows = runWithSlowQueryLog("listThreads.items", () => db
     .prepare(
       `
@@ -126,6 +160,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
       WHERE fi.feed_id = ?
         ${unreadCondition}
+        ${searchFilter}
       ORDER BY
         CASE WHEN ${unreadSql} THEN 0 ELSE 1 END ASC,
         COALESCE(fi.published_at, fi.created_at) DESC,
@@ -149,6 +184,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       threadResponsePromptHash,
       defaultResidentPromptHash,
       feedId,
+      ...searchParams,
       safePageSize,
       safePage * safePageSize
     ) as ThreadRow[]);
@@ -168,12 +204,14 @@ function listAllThreads(
   page: number,
   pageSize: number,
   filterUnread: number,
-  generationQueueMode: "none" | "unreviewed" | "reviewed" = "none"
+  generationQueueMode: "none" | "unreviewed" | "reviewed" = "none",
+  searchParams: string[] = []
 ): ThreadListPage {
   const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
   const allUnreadCondition = filterUnread ? `AND ${unreadSql}` : "";
+  const searchFilter = searchParams.length ? `AND ${allFeedsSearchConditionSql}` : "";
   const candidateUnreadCondition = filterUnread ? "AND candidate.read_at IS NULL" : "";
   const generationCondition =
     generationQueueMode === "unreviewed"
@@ -190,6 +228,7 @@ function listAllThreads(
         FROM feed_items fi
         WHERE 1 = 1
           ${allUnreadCondition}
+          ${searchFilter}
           AND fi.id = (
             SELECT candidate.id
             FROM feed_items candidate
@@ -307,10 +346,11 @@ function listAllThreads(
        FROM feed_items fi
        WHERE 1 = 1
          ${allUnreadCondition}
+         ${searchFilter}
          ${generationCondition}`;
   const countRow = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.count`, () => {
     const statement = db.prepare(countSql);
-    return statement.get();
+    return statement.get(...searchParams);
   }) as { total_count: number };
   const rows = runWithSlowQueryLog(`listAllThreads.${generationQueueMode}.items`, () => db.prepare(`
     WITH ${pageItemsSql}
@@ -373,6 +413,7 @@ function listAllThreads(
       fi.created_at DESC,
       fi.id DESC
   `).all(
+    ...searchParams,
     pageSize,
     page * pageSize,
     titleModel,

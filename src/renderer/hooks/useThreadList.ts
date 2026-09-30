@@ -36,6 +36,8 @@ export function useThreadList({
   const [totalCount, setTotalCount] = useState(0);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [smartView, setSmartView] = useState<SmartView | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState<{ feedId: string; query: string } | null>(null);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>(emptyQueueSummary);
   const requestIdRef = useRef(0);
   const summaryReloadRef = useRef<{ promise: Promise<void>; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -55,16 +57,15 @@ export function useThreadList({
   const isUnreadOnlyLocked = selectedFeedId === allFeedsId && smartView === null;
   const effectiveShowUnreadOnly = smartView === "unread"
     || (smartView === null && !isUnreadOnlyLocked && showUnreadOnly);
+  const activeSearchQuery = smartView === null && search?.feedId === selectedFeedId ? search.query : null;
   effectiveUnreadOnlyRef.current = effectiveShowUnreadOnly;
 
   async function reloadThreads(feedId: string, preferredThreadId?: string, nextPage = page, pageSelection?: PageSelection) {
     if (!window.viperReader) return;
     const requestId = ++requestIdRef.current;
-    const result = await window.viperReader.listThreads(
-      feedId === allFeedsId ? null : feedId,
-      nextPage,
-      effectiveUnreadOnlyRef.current
-    );
+    const result = activeSearchQuery
+      ? await window.viperReader.searchThreads(feedId === allFeedsId ? null : feedId, activeSearchQuery, nextPage, effectiveUnreadOnlyRef.current)
+      : await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId, nextPage, effectiveUnreadOnlyRef.current);
     if (requestId !== requestIdRef.current) return;
     setThreads(result.items);
     setPage(result.page);
@@ -125,6 +126,31 @@ export function useThreadList({
     return promise;
   }
 
+  function submitSearch() {
+    if (smartView !== null) return;
+    const query = searchInput.trim();
+    if (!query) {
+      clearSearch();
+      return;
+    }
+    callbacksRef.current.onClearSelection();
+    setPage(0);
+    if (query === activeSearchQuery) void reloadThreads(selectedFeedId, undefined, 0);
+    else setSearch({ feedId: selectedFeedId, query });
+  }
+
+  function clearSearch() {
+    setSearchInput("");
+    setSearch(null);
+    setPage(0);
+    if (activeSearchQuery) callbacksRef.current.onClearSelection();
+  }
+
+  useEffect(() => {
+    setSearchInput("");
+    setSearch(null);
+  }, [selectedFeedId, smartView]);
+
   async function reloadCurrent(preferredThreadId?: string) {
     if (smartViewRef.current === "generated") await reloadGenerated(0);
     else if (smartViewRef.current === "reviewed") await reloadReviewed(0);
@@ -141,7 +167,7 @@ export function useThreadList({
     if (smartView === "generated") void reloadGenerated(0);
     else if (smartView === "reviewed") void reloadReviewed(0);
     else void reloadThreads(selectedFeedId, undefined, 0);
-  }, [selectedFeedId, showUnreadOnly, smartView]);
+  }, [selectedFeedId, showUnreadOnly, smartView, activeSearchQuery]);
 
   function changePage(nextPage: number, pageSelection?: PageSelection) {
     if (!selectedFeedId || nextPage < 0) return;
@@ -195,6 +221,11 @@ export function useThreadList({
     queueSummary,
     isUnreadOnlyLocked,
     effectiveShowUnreadOnly,
+    searchInput,
+    setSearchInput,
+    activeSearchQuery,
+    submitSearch,
+    clearSearch,
     reloadThreads,
     reloadGenerated,
     reloadReviewed,

@@ -34,6 +34,11 @@ type ThreadListPaneProps = {
   smartView: SmartView | null;
   queueSummary: ReadingQueueSummary;
   highlightAiArticles: boolean;
+  searchInput: string;
+  activeSearchQuery: string | null;
+  onSearchInputChange: (value: string) => void;
+  onSubmitSearch: () => void;
+  onClearSearch: () => void;
 };
 
 export function ThreadListPane({
@@ -65,7 +70,12 @@ export function ThreadListPane({
   onNextPage,
   smartView,
   queueSummary,
-  highlightAiArticles
+  highlightAiArticles,
+  searchInput,
+  activeSearchQuery,
+  onSearchInputChange,
+  onSubmitSearch,
+  onClearSearch
 }: ThreadListPaneProps) {
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +109,18 @@ export function ThreadListPane({
           <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
         </div>
         <div className="thread-toolbar-right">
+          <form className="thread-search" onSubmit={(event) => { event.preventDefault(); onSubmitSearch(); }} role="search">
+            <input
+              aria-label="スレッド検索"
+              disabled={smartView !== null}
+              maxLength={200}
+              onChange={(event) => onSearchInputChange(event.target.value)}
+              placeholder="記事を検索"
+              type="search"
+              value={searchInput}
+            />
+            <button className="refresh-button" disabled={smartView !== null || !searchInput.trim()} type="submit">検索</button>
+          </form>
           <div className="queue-status" role="status">
             <span>未読 {queueSummary.unreadCount}</span>
             <span>待ち {queueSummary.queuedCount}</span>
@@ -132,6 +154,12 @@ export function ThreadListPane({
         <div className={`refresh-status ${isRefreshing ? "is-loading" : ""}`}>
           <span>{refreshMessage}</span>
           {isRefreshing ? <span className="progress-blocks" aria-hidden="true" /> : null}
+        </div>
+      ) : null}
+      {activeSearchQuery ? (
+        <div className="thread-search-status" role="status">
+          <span>検索中: {activeSearchQuery}（{totalCount}件）</span>
+          <button onClick={onClearSearch} type="button">解除</button>
         </div>
       ) : null}
 

@@ -61,6 +61,11 @@ export function App() {
     queueSummary,
     isUnreadOnlyLocked,
     effectiveShowUnreadOnly,
+    searchInput,
+    setSearchInput,
+    activeSearchQuery,
+    submitSearch,
+    clearSearch,
     reloadThreads,
     reloadGenerated: reloadGeneratedQueue,
     reloadReviewed: reloadReviewedGenerationQueue,
@@ -662,7 +667,12 @@ export function App() {
     onNextPage: () => changeThreadListPage(threadListPage + 1),
     smartView,
     queueSummary,
-    highlightAiArticles: apiSettings.highlightAiArticles
+    highlightAiArticles: apiSettings.highlightAiArticles,
+    searchInput,
+    activeSearchQuery,
+    onSearchInputChange: setSearchInput,
+    onSubmitSearch: submitSearch,
+    onClearSearch: clearSearch
   };
   const threadReaderProps = {
     selectedThread,
