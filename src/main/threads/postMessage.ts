@@ -1,4 +1,6 @@
+import { needsArticleSummary } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
+import { ensureLocalArticleSummaryPost } from "./localArticleSummaryPost.js";
 import { assertArticleVersion } from "../db/articleRepository.js";
 import type { ThreadDetail } from "../../shared/types.js";
 import { generateReplyPosts, type ReplyGenerationMode } from "../ai/replyGenerator.js";
@@ -110,8 +112,8 @@ async function completePostGeneration(
   onStatus?: PostStatusCallback
 ): Promise<void> {
   try {
-    await ensureArticleSummary(threadId, thread.feedId);
-    await generateAndSaveReplies(threadId, thread, "reply_to_user");
+    if (needsArticleSummary(thread)) await ensureArticleSummary(threadId, thread.feedId);
+    await generateAndSaveReplies(threadId, getThread(threadId) ?? thread, "reply_to_user");
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -121,7 +123,7 @@ async function completePostGeneration(
   }
 }
 
-function getUserBoardId(): string {
+export function getUserBoardId(): string {
   const dateStr = formatLocalDateKey(new Date());
   const hash = crypto.createHash("sha1").update(`${dateStr}:viper-user-salt`).digest("hex");
   return hash.slice(0, 8);
@@ -143,7 +145,7 @@ export async function generateRepliesOnly(
       return null;
     }
 
-    await ensureArticleSummary(threadId, thread.feedId);
+    if (needsArticleSummary(thread)) await ensureArticleSummary(threadId, thread.feedId);
 
     const maxNo = getMaxPostNo(thread);
 
@@ -154,7 +156,7 @@ export async function generateRepliesOnly(
     }
 
     onStatus?.("generating");
-    await generateAndSaveReplies(threadId, thread, "continue_thread");
+    await generateAndSaveReplies(threadId, getThread(threadId) ?? thread, "continue_thread");
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
@@ -172,6 +174,7 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
   try {
     const summary = getArticleSummary(threadId);
     if (summary) {
+      await ensureLocalArticleSummaryPost(threadId);
       return;
     }
 
@@ -188,6 +191,7 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
     if (generated.summary) {
       if (version !== undefined) assertArticleVersion(threadId, version);
       saveArticleSummary(threadId, generated.summary);
+      await ensureLocalArticleSummaryPost(threadId);
     }
   } catch (err) {
     console.error("要約生成中にエラーが発生しました（処理は継続します）:", err);

@@ -53,7 +53,7 @@ export function deleteFeedFolder(folderId: string): void {
 
 export function saveFeedTreeLayout(placements: FeedTreePlacement[]): void {
   const db = getDatabase();
-  const feedIds = new Set((db.prepare("SELECT id FROM feed_sources").all() as Array<{ id: string }>).map((row) => row.id));
+  const feedIds = new Set((db.prepare("SELECT id FROM feed_sources WHERE kind = 'rss'").all() as Array<{ id: string }>).map((row) => row.id));
   const folderIds = new Set((db.prepare("SELECT id FROM feed_folders").all() as Array<{ id: string }>).map((row) => row.id));
   if (placements.length !== feedIds.size + folderIds.size) throw new Error("板ツリーの配置が不正です。");
 

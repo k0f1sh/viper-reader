@@ -1,3 +1,4 @@
+import { canUseThreadPane } from "../../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ArticleBodyContent, ThreadDetail, ThreadListItem } from "../../shared/types";
@@ -29,7 +30,7 @@ export function useThreadSelection({
   callbacksRef.current = { onSelectionStarted, onThreadRead, onReadMarkerChange };
 
   const shouldShowArticlePane = isArticlePaneEnabled
-    && Boolean(selectedThread && selectedThread.posts.length > 1);
+    && canUseThreadPane(selectedThread);
 
   useEffect(() => {
     callbacksRef.current.onSelectionStarted(selectedThreadId);

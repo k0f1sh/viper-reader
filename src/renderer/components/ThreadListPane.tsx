@@ -1,3 +1,4 @@
+import { isLocalBoard } from "../../shared/boardPolicy";
 import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
@@ -18,6 +19,8 @@ type ThreadListPaneProps = {
   threadGridColumns: string;
   threadListMinWidth: number;
   onRefresh: () => void;
+  onCreateThread: () => void;
+  onOpenResidents: () => void;
   onSelectThread: (threadId: string) => void;
   onShowGenerationFailure: (threadId: string) => void;
   onShowTitleGenerationStatus: (threadId: string) => void;
@@ -55,6 +58,8 @@ export function ThreadListPane({
   threadGridColumns,
   threadListMinWidth,
   onRefresh,
+  onCreateThread,
+  onOpenResidents,
   onSelectThread,
   onShowGenerationFailure,
   onShowTitleGenerationStatus,
@@ -84,6 +89,8 @@ export function ThreadListPane({
     selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [selectedThreadId, threads]);
 
+  const isLocal = isLocalBoard(selectedFeed);
+
   return (
     <section
       className="thread-list-pane"
@@ -106,7 +113,7 @@ export function ThreadListPane({
                   ? "生成済み・確認済み"
                   : "スレタイ一覧"}
           </div>
-          <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
+          <div className="pane-subtitle">{isLocal ? "記事本文を入力、またはURLを指定してスレ立て" : selectedFeed?.url ?? ""}</div>
         </div>
         <div className="thread-toolbar-right">
           <form className="thread-search" onSubmit={(event) => { event.preventDefault(); onSubmitSearch(); }} role="search">
@@ -115,18 +122,18 @@ export function ThreadListPane({
               disabled={smartView !== null}
               maxLength={200}
               onChange={(event) => onSearchInputChange(event.target.value)}
-              placeholder="記事を検索"
+              placeholder={isLocal ? "スレを検索" : "記事を検索"}
               type="search"
               value={searchInput}
             />
             <button className="refresh-button" disabled={smartView !== null || !searchInput.trim()} type="submit">検索</button>
           </form>
-          <div className="queue-status" role="status">
+          {!isLocal ? <div className="queue-status" role="status">
             <span>未読 {queueSummary.unreadCount}</span>
             <span>待ち {queueSummary.queuedCount}</span>
             <span>生成中 {queueSummary.generatingCount}</span>
             <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>生成済 {queueSummary.completedCount}</span>
-          </div>
+          </div> : null}
           <div className="thread-toolbar-actions">
             <button
               className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`}
@@ -139,14 +146,17 @@ export function ThreadListPane({
             <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">
               すべて既読
             </button>
-            <button
+            {isLocal ? <>
+              <button className="refresh-button" onClick={onOpenResidents} type="button">住民設定</button>
+              <button className="refresh-button" onClick={onCreateThread} type="button">スレ立て</button>
+            </> : <button
               className="refresh-button"
               disabled={isRefreshing || !selectedFeed || !canRefresh}
               onClick={onRefresh}
               type="button"
             >
               {isRefreshing ? "取得中" : refreshLabel}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
@@ -259,8 +269,8 @@ export function ThreadListPane({
               <span className="thread-title">
                 {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
               </span>
-              <span className="thread-tags" title={formatArticleTags(thread.tags)}>
-                {formatArticleTags(thread.tags)}
+              <span className="thread-tags" title={isLocalBoard(thread) ? undefined : formatArticleTags(thread.tags)}>
+                {isLocalBoard(thread) ? "—" : formatArticleTags(thread.tags)}
               </span>
               <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>

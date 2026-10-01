@@ -33,10 +33,11 @@ export type ThreadResponsePromptInput = {
   scrapedBody: string | null;
   publishedAt: string;
   residentPrompt: string | null;
+  summaryOnly?: boolean;
 };
 
-export function buildBoardThreadResponsePromptHash(residentPromptHash: string | null): string {
-  return `${threadResponsePromptHash}:${residentPromptHash ?? defaultResidentPromptHash}`;
+export function buildBoardThreadResponsePromptHash(residentPromptHash: string | null, summaryOnly = false): string {
+  return `${threadResponsePromptHash}:${residentPromptHash ?? defaultResidentPromptHash}${summaryOnly ? ":summary-only-v1" : ""}`;
 }
 
 export function buildBoardThreadResponsePrompt(input: ThreadResponsePromptInput): string {
@@ -123,5 +124,8 @@ URL: ${input.url}
 記事日時: ${input.publishedAt || "不明"}
 
 # 情報ソース（記事要約・スクレイピング本文）
-${bodyText}`;
+${bodyText}${input.summaryOnly ? `
+
+# 今回の生成範囲
+今回は no: 2 の情報整理レスだけを1件生成してください。上記の10〜15件という件数指定より、この指定を優先してください。no: 3以降の議論レスは生成しないでください。` : ""}`;
 }

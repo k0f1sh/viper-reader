@@ -1,4 +1,15 @@
+export type BoardKind = "rss" | "local";
+
+export const localBoardId = "board:local";
+
+export type CreateLocalThreadRequest =
+  | { mode: "text"; title: string; body: string }
+  | { mode: "url"; title: string; url: string };
+
+export type CreateLocalThreadResult = { thread: ThreadDetail; warning: string | null };
+
 export type FeedSource = {
+  kind: BoardKind;
   id: string;
   title: string;
   url: string;
@@ -35,6 +46,7 @@ export type ThreadPost = {
 };
 
 export type ThreadListItem = {
+  kind: BoardKind;
   id: string;
   feedId: string;
   originalTitle: string;

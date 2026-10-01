@@ -2,6 +2,7 @@ import type { FeedSource } from "./types.js";
 
 export const seedFeeds: FeedSource[] = [
   {
+    kind: "rss",
     id: "1",
     title: "はてなブックマーク 人気エントリー IT・プログラミング",
     url: "https://b.hatena.ne.jp/hotentry/it.rss",
@@ -14,6 +15,7 @@ export const seedFeeds: FeedSource[] = [
     lastFetchedAt: null
   },
   {
+    kind: "rss",
     id: "2",
     title: "Hacker News",
     url: "https://news.ycombinator.com/rss",

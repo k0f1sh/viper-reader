@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS feed_folders (
 
 CREATE TABLE IF NOT EXISTS feed_sources (
   id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'rss' CHECK (kind IN ('rss', 'local')),
   title TEXT NOT NULL,
   url TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS feed_items (
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   canonical_url TEXT,
+  source_url TEXT,
   published_at TEXT,
   raw_summary TEXT,
   read_at TEXT,

@@ -1,3 +1,4 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import { assertArticleVersion } from "../db/articleRepository.js";
 import type { ThreadDetail, ThreadGenerationProgress, ThreadGenerationStartResult } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
@@ -33,6 +34,7 @@ export function startThreadResponseGeneration(
   if (!thread) {
     return { status: "not-found" };
   }
+  if (isLocalBoard(thread)) throw new Error("自由板では返信生成を使ってください。");
   if (!force && thread.posts.length > 1 && thread.contentVersion === thread.generatedContentVersion) {
     return { status: "already-current" };
   }

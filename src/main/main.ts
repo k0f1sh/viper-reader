@@ -1,3 +1,7 @@
+import { isLocalBoard } from "../shared/boardPolicy.js";
+import { deleteLocalThread } from "./threads/deleteLocalThread.js";
+import { createLocalThread } from "./threads/createLocalThread.js";
+import type { CreateLocalThreadRequest } from "../shared/types.js";
 import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
 import { writeFile } from "node:fs/promises";
@@ -268,6 +272,7 @@ ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: stri
   return listTitleGenerationAttempts(threadId, 5);
 });
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
+ipcMain.handle("threads:create-local", (_event, request: CreateLocalThreadRequest) => createLocalThread(request));
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
@@ -283,6 +288,10 @@ ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
 });
+ipcMain.handle("threads:delete-local", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  deleteLocalThread(threadId);
+});
 ipcMain.handle("threads:delete-content", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   if (!acquireThreadLock(threadId)) {
@@ -297,6 +306,8 @@ ipcMain.handle("threads:delete-content", (_event, threadId: string) => {
 });
 ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
   assertShowArticleBrowserRequest(request);
+  const thread = openThread(request.threadId);
+  if (isLocalBoard(thread) && (!thread.url || request.url !== thread.url)) throw new Error("元記事URLが不正です。");
   return getArticleBrowserController(event).show({
     ...request,
     bounds: scaleArticleBrowserBounds(request.bounds, event.sender.getZoomFactor())

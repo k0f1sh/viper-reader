@@ -11,7 +11,7 @@ async function loadHook(name) {
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
   });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText.replaceAll('from "react"', `from "${import.meta.resolve("react")}"`)).toString("base64")}`);
+  return import(`data:text/javascript;base64,${Buffer.from(outputText.replaceAll('from "../../shared/boardPolicy"', `from "${new URL("../dist/shared/boardPolicy.js", import.meta.url).href}"`).replaceAll('from "react"', `from "${import.meta.resolve("react")}"`)).toString("base64")}`);
 }
 const { useThreadSelection } = await loadHook("useThreadSelection");
 const { useThreadGeneration } = await loadHook("useThreadGeneration");

@@ -1,3 +1,4 @@
+import { isLocalBoard, canUseThreadPane } from "../../shared/boardPolicy";
 import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import type { ThreadDetail } from "../../shared/types";
@@ -85,6 +86,8 @@ export function ThreadReaderPane({
   isWritePanelVisible,
   onToggleWritePanel
 }: ThreadReaderPaneProps) {
+  const isLocal = isLocalBoard(selectedThread);
+  const canUsePane = canUseThreadPane(selectedThread);
   const hasArticleUpdate = Boolean(selectedThread && selectedThread.contentVersion !== selectedThread.generatedContentVersion);
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
@@ -110,14 +113,14 @@ export function ThreadReaderPane({
           <div className="thread-header">
             <div>
               <div className="thread-heading">{selectedThread.threadTitle}</div>
-              <div className="original-title">元記事: {selectedThread.originalTitle}</div>
-              <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div>
+              {!isLocal ? <div className="original-title">元記事: {selectedThread.originalTitle}</div> : null}
+              {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
+              {selectedThread.url ? <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
                 元記事
-              </button>
-              {selectedThread.posts.length > 1 ? (
+              </button> : null}
+              {canUsePane ? (
                 <button
                   className={`deep-dive-button ${isArticlePaneVisible ? "is-active" : ""}`}
                   onClick={onToggleArticlePane}
@@ -126,7 +129,7 @@ export function ThreadReaderPane({
                   {isArticlePaneVisible ? "記事本文を閉じる" : "記事本文"}
                 </button>
               ) : null}
-              {selectedThread.posts.length > 1 ? (
+              {canUsePane ? (
                 <button
                   className={`deep-dive-button ${isWritePanelVisible ? "is-active" : ""}`}
                   onClick={onToggleWritePanel}
@@ -145,7 +148,7 @@ export function ThreadReaderPane({
               >
                 {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
               </button>
-              {!skipTitleConversion ? (
+              {!isLocal && !skipTitleConversion ? (
                 <button
                   className="deep-dive-button"
                   onClick={onRegenerateThreadTitle}
@@ -161,11 +164,11 @@ export function ThreadReaderPane({
                 onClick={onDeleteContent}
                 disabled={isDeletingContent || isWritePanelBusy}
                 type="button"
-                title="記事本文のキャッシュと、このスレの書き込みを物理削除"
+                title={isLocal ? "このスレを本文・全レスごと物理削除" : "記事本文のキャッシュと、このスレの書き込みを物理削除"}
               >
-                {isDeletingContent ? "削除中..." : "本文・レス削除"}
+                {isDeletingContent ? "削除中..." : isLocal ? "スレ削除" : "本文・レス削除"}
               </button>
-              {selectedThread.posts.length <= 1 ? (
+              {!isLocal && selectedThread.posts.length <= 1 ? (
                 <button
                   className="deep-dive-button"
                   onClick={() => onGenerateResponses()}
@@ -176,7 +179,7 @@ export function ThreadReaderPane({
                   {isSelectedThreadGenerating ? "生成中..." : "生成"}
                 </button>
               ) : null}
-              {selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
+              {!isLocal && selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
                 <button
                   className="deep-dive-button"
                   onClick={() => onGenerateResponses(true)}
@@ -231,7 +234,7 @@ export function ThreadReaderPane({
                 </Fragment>
               );
             })}
-            {selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
+            {!isLocal && selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
               <div className="thread-load-trigger">
                 <button
                   className="load-button"
@@ -242,7 +245,7 @@ export function ThreadReaderPane({
                 </button>
               </div>
             ) : null}
-            {selectedThread.posts.length > 1 && !isSelectedThreadGenerating && getMaxPostNo(selectedThread) < 1000 ? (
+            {canUsePane && !isSelectedThreadGenerating && getMaxPostNo(selectedThread) < 1000 ? (
               <div className="thread-load-trigger" style={{ marginTop: "12px", marginBottom: "12px", textAlign: "center" }}>
                 <button
                   className="load-button"
@@ -250,7 +253,7 @@ export function ThreadReaderPane({
                   disabled={isPosting || hasArticleUpdate}
                   type="button"
                 >
-                  {postStatus === "generating" ? "レス生成中..." : "再読み込み(続きのレス生成)"}
+                  {postStatus === "generating" ? "レス生成中..." : isLocal ? "返信生成" : "再読み込み(続きのレス生成)"}
                 </button>
               </div>
             ) : null}
@@ -261,7 +264,7 @@ export function ThreadReaderPane({
               </div>
             ) : null}
           </div>
-          {selectedThread.posts.length > 1 && isWritePanelVisible ? (
+          {canUsePane && isWritePanelVisible ? (
             <form
               id="write-panel"
               className={`write-panel ${isWritePanelBusy ? "is-busy" : ""}`}
@@ -338,7 +341,7 @@ export function ThreadReaderPane({
           ) : null}
         </section>
       ) : (
-        <div className="empty-state">記事がありません。RSSを選んで更新してください。</div>
+        <div className="empty-state">スレッドがありません。板を選んで更新するか、自由板でスレを立ててください。</div>
       )}
     </section>
   );

@@ -1,3 +1,4 @@
+import { isRssBoard } from "../dist/shared/boardPolicy.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,23 +30,23 @@ test("板一覧の並び順をSQLiteへ保存する", () => {
 
   reorderFeedSources([third.id, first.id, second.id]);
 
-  assert.deepEqual(listFeeds().map((feed) => feed.id), [third.id, first.id, second.id]);
+  assert.deepEqual(listFeeds().filter(isRssBoard).map((feed) => feed.id), [third.id, first.id, second.id]);
 });
 
 test("一部の板だけを指定した不正な並び順は保存しない", () => {
-  const currentOrder = listFeeds().map((feed) => feed.id);
+  const currentOrder = listFeeds().filter(isRssBoard).map((feed) => feed.id);
 
   assert.throws(() => reorderFeedSources(currentOrder.slice(1)), /並び順が不正/);
-  assert.deepEqual(listFeeds().map((feed) => feed.id), currentOrder);
+  assert.deepEqual(listFeeds().filter(isRssBoard).map((feed) => feed.id), currentOrder);
 });
 
 test("板の設定からタイトルとスレタイ生成方法を更新できる", () => {
-  const feed = listFeeds()[0];
+  const feed = listFeeds().filter(isRssBoard)[0];
   const updated = updateFeedSettings(feed.id, "  新しい板タイトル  ", true, true, true);
 
   assert.equal(updated.title, "新しい板タイトル");
   assert.equal(updated.generateTitleFromSummary, true);
   assert.equal(updated.skipTitleConversion, true);
   assert.equal(updated.defaultToArticleBrowser, true);
-  assert.equal(listFeeds().find((candidate) => candidate.id === feed.id)?.title, "新しい板タイトル");
+  assert.equal(listFeeds().filter(isRssBoard).find((candidate) => candidate.id === feed.id)?.title, "新しい板タイトル");
 });

@@ -192,7 +192,7 @@ export function recordLlmRequestLog(log: LlmRequestLogWrite): void {
 }
 
 export type ArticleFetchLogWrite = {
-  feedItemId: string;
+  feedItemId: string | null;
   url: string;
   status: "success" | "error" | "skipped";
   robotsResult: "allowed" | "disallowed" | "fetch_error" | "fetch_timeout";

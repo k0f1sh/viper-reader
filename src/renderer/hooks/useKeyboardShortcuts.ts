@@ -1,3 +1,4 @@
+import { isLocalBoard, canUseThreadPane } from "../../shared/boardPolicy";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { FeedSource, SmartView, ThreadDetail, ThreadListItem } from "../../shared/types";
@@ -118,19 +119,25 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
           event.preventDefault();
           current.onSelectThread(last, current.selectedFeedId === allFeedsId ? allFeedsId : undefined);
         }
-      } else if (event.key === "h" || event.key === "l") {
-        const navigationTargets = [
+      } else if (event.key.toLowerCase() === "h" || event.key.toLowerCase() === "l") {
+        const targetById = new Map([
           { id: "__unread_queue__", select: () => current.onSelectSmartView("unread") },
           { id: "__generated_queue__", select: () => current.onSelectSmartView("generated") },
           { id: "__reviewed_queue__", select: () => current.onSelectSmartView("reviewed") },
           { id: allFeedsId, select: () => current.onSelectFeed(allFeedsId) },
           ...current.feeds.map((feed) => ({ id: feed.id, select: () => current.onSelectFeed(feed.id) }))
-        ];
+        ].map((target) => [target.id, target]));
+        // Follow the visible sidebar, including folder order and collapsed children.
+        const navigationTargets = Array.from(document.querySelectorAll<HTMLElement>(".feed-tree [data-navigation-id]"))
+          .flatMap((row) => {
+            const target = targetById.get(row.dataset.navigationId ?? "");
+            return target ? [target] : [];
+          });
         const currentTargetId = current.smartView
           ? `__${current.smartView}_queue__`
           : current.selectedFeedId;
         const currentIndex = navigationTargets.findIndex((item) => item.id === currentTargetId);
-        const delta = event.key === "l" ? 1 : -1;
+        const delta = event.key.toLowerCase() === "l" ? 1 : -1;
         const nextIndex = currentIndex < 0
           ? (delta > 0 ? 0 : navigationTargets.length - 1)
           : currentIndex + delta;
@@ -144,10 +151,11 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         current.onRefresh();
       } else if (event.key === "g" || event.key === "u") {
         event.preventDefault();
-        if ((current.selectedThread?.posts.length ?? 0) <= 1) current.onGenerateResponses();
+        if (isLocalBoard(current.selectedThread)) current.onGenerateReplies();
+        else if ((current.selectedThread?.posts.length ?? 0) <= 1) current.onGenerateResponses();
         else if (current.selectedThread && current.selectedThread.posts.length < 1000) current.onGenerateReplies();
       } else if (event.key === "w") {
-        if (current.selectedThread && current.selectedThread.posts.length > 1 && current.selectedThread.posts.length < 1000) {
+        if (canUseThreadPane(current.selectedThread) && current.selectedThread.posts.length < 1000) {
           event.preventDefault();
           current.onFocusWritePanel();
         }

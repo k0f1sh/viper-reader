@@ -1,3 +1,4 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
 import Parser from "rss-parser";
 import type { RefreshFeedResult } from "../../shared/types.js";
@@ -49,6 +50,8 @@ async function refreshFeedOnce(
   if (!feed) {
     throw new Error(`Feed not found: ${feedId}`);
   }
+
+  if (isLocalBoard(feed)) throw new Error("自由板はRSS更新できません。");
 
   try {
     onProgress("RSS取得中...");

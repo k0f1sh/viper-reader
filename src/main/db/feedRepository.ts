@@ -1,9 +1,11 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
 import type { FeedSource } from "../../shared/types.js";
 import { getDatabase } from "./database.js";
 
 type FeedRow = {
   id: string;
+  kind: FeedSource["kind"];
   title: string;
   url: string;
   unread_count: number;
@@ -17,6 +19,7 @@ type FeedRow = {
 
 type FeedSourceRow = {
   id: string;
+  kind: FeedSource["kind"];
   title: string;
   url: string;
   last_fetched_at: string | null;
@@ -31,6 +34,7 @@ export function listFeeds(): FeedSource[] {
   const rows = getDatabase().prepare(`
     SELECT
       fs.id,
+      fs.kind,
       fs.title,
       fs.url,
       fs.last_fetched_at,
@@ -48,6 +52,7 @@ export function listFeeds(): FeedSource[] {
 
   return rows.map((row) => ({
     id: row.id,
+    kind: row.kind,
     title: row.title,
     url: row.url,
     unreadCount: Number(row.unread_count),
@@ -63,7 +68,7 @@ export function listFeeds(): FeedSource[] {
 export function getFeedSource(feedId: string): FeedSource | null {
   const db = getDatabase();
   const row = db.prepare(`
-    SELECT id, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion, default_to_article_browser, parent_folder_id, sort_order
+    SELECT id, kind, title, url, last_fetched_at, generate_title_from_summary, skip_title_conversion, default_to_article_browser, parent_folder_id, sort_order
     FROM feed_sources
     WHERE id = ?
   `).get(feedId) as FeedSourceRow | undefined;
@@ -76,6 +81,7 @@ export function getFeedSource(feedId: string): FeedSource | null {
 
   return {
     id: row.id,
+    kind: row.kind,
     title: row.title,
     url: row.url,
     unreadCount: Number(unreadRow?.unread_count ?? 0),
@@ -95,6 +101,7 @@ export function markAllFeedsRead(): void {
       read_at = COALESCE(read_at, ?),
       last_read_post_no = COALESCE((SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id), 0),
       updated_at = ?
+    WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss')
   `).run(now, now);
 }
 
@@ -162,6 +169,7 @@ export function addFeedSource(
 
   return {
     id,
+    kind: "rss",
     title,
     url,
     unreadCount: 0,
@@ -186,7 +194,7 @@ function getNextChildSortOrder(db: ReturnType<typeof getDatabase>, parentFolderI
 
 export function reorderFeedSources(feedIds: string[]): void {
   const db = getDatabase();
-  const existingRows = db.prepare("SELECT id FROM feed_sources").all() as Array<{ id: string }>;
+  const existingRows = db.prepare("SELECT id FROM feed_sources WHERE kind = 'rss'").all() as Array<{ id: string }>;
   const existingIds = new Set(existingRows.map((row) => row.id));
   if (
     feedIds.length !== existingIds.size
@@ -209,6 +217,7 @@ export function reorderFeedSources(feedIds: string[]): void {
 }
 
 export function deleteFeedSource(feedId: string): void {
+  assertRssFeed(feedId);
   getDatabase().prepare("DELETE FROM feed_sources WHERE id = ?").run(feedId);
 }
 
@@ -222,6 +231,7 @@ export function updateFeedSettings(
   if (typeof generateTitleFromSummary !== "boolean" || typeof skipTitleConversion !== "boolean" || typeof defaultToArticleBrowser !== "boolean") {
     throw new Error("スレタイ生成設定が不正です。");
   }
+  assertRssFeed(feedId);
   const normalizedTitle = title.trim();
   if (!normalizedTitle || normalizedTitle.length > 200) {
     throw new Error("板タイトルが不正です。");
@@ -239,4 +249,8 @@ export function updateFeedSettings(
     throw new Error(`Feed not found: ${feedId}`);
   }
   return feed;
+}
+
+export function assertRssFeed(feedId: string): void {
+  if (isLocalBoard(getFeedSource(feedId))) throw new Error("自由板では記事用の操作はできません。");
 }

@@ -1,3 +1,4 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import type {
   ReadingQueueSummary,
   ThreadDetail,
@@ -32,9 +33,11 @@ const unreadSql = "fi.read_at IS NULL";
 const hasUnconfirmedRepliesSql = "fi.latest_post_no > fi.last_read_post_no";
 type ThreadRow = {
   id: string;
+  kind: ThreadListItem["kind"];
   feed_id: string;
   original_title: string;
   url: string;
+  source_url: string | null;
   thread_title: string;
   tags_json: string | null;
   source: string;
@@ -114,8 +117,10 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
       SELECT
         fi.id,
         fi.feed_id,
+        fs.kind,
         fi.title AS original_title,
         fi.url,
+        fi.source_url,
         CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
         CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         fs.title AS source,
@@ -226,7 +231,7 @@ function listAllThreads(
     ? `page_item_ids AS (
         SELECT fi.id, ${canonicalKey} AS article_key
         FROM feed_items fi
-        WHERE 1 = 1
+        WHERE fi.feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss')
           ${allUnreadCondition}
           ${searchFilter}
           AND fi.id = (
@@ -258,7 +263,7 @@ function listAllThreads(
       ? `page_item_ids AS (
         SELECT fi.id, ${canonicalKey} AS article_key
         FROM feed_items fi
-        WHERE fi.generation_status = 'completed'
+        WHERE fi.feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND fi.generation_status = 'completed'
           AND fi.generation_reviewed_at IS NOT NULL
           AND fi.id = (
             SELECT candidate.id
@@ -289,10 +294,10 @@ function listAllThreads(
       )`
       : `candidate_items AS (
         SELECT id FROM feed_items
-        WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+        WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND generation_status = 'completed' AND generation_reviewed_at IS NULL
         UNION ALL
         SELECT id FROM feed_items
-        WHERE latest_post_no > last_read_post_no
+        WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND latest_post_no > last_read_post_no
       ),
       ranked_items AS (
         SELECT
@@ -336,15 +341,15 @@ function listAllThreads(
        FROM (
          SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
          FROM feed_items
-         WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+         WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND generation_status = 'completed' AND generation_reviewed_at IS NULL
          UNION ALL
          SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
          FROM feed_items
-         WHERE latest_post_no > last_read_post_no
+         WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND latest_post_no > last_read_post_no
        )`
     : `SELECT COUNT(DISTINCT ${canonicalKey}) AS total_count
        FROM feed_items fi
-       WHERE 1 = 1
+       WHERE fi.feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss')
          ${allUnreadCondition}
          ${searchFilter}
          ${generationCondition}`;
@@ -357,8 +362,10 @@ function listAllThreads(
     SELECT
       fi.id,
       fi.feed_id,
+      fs.kind,
       fi.title AS original_title,
       fi.url,
+      fi.source_url,
       CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
       CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
       (
@@ -454,7 +461,7 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
   const rows = runWithSlowQueryLog("readingQueueSummary.statuses", () => db.prepare(`
     SELECT generation_status AS status, COUNT(*) AS count
     FROM feed_items
-    WHERE generation_status IN ('queued', 'generating', 'completed')
+    WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND generation_status IN ('queued', 'generating', 'completed')
       AND (generation_status != 'completed' OR generation_reviewed_at IS NULL)
     GROUP BY generation_status
   `).all()) as Array<{ status: string; count: number }>;
@@ -464,19 +471,19 @@ export function getReadingQueueSummary(): ReadingQueueSummary {
     FROM (
       SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
       FROM feed_items
-      WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL
+      WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND generation_status = 'completed' AND generation_reviewed_at IS NULL
 
       UNION ALL
 
       SELECT COALESCE(NULLIF(canonical_url, ''), url) AS article_key
       FROM feed_items
-      WHERE latest_post_no > last_read_post_no
+      WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND latest_post_no > last_read_post_no
     )
   `).get()) as { count: number };
   const reviewedRow = runWithSlowQueryLog("readingQueueSummary.reviewed", () => db.prepare(`
     SELECT COUNT(*) AS count
     FROM feed_items
-    WHERE generation_status = 'completed' AND generation_reviewed_at IS NOT NULL
+    WHERE feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss') AND generation_status = 'completed' AND generation_reviewed_at IS NOT NULL
   `).get()) as { count: number };
   return {
     unreadCount,
@@ -515,8 +522,10 @@ export function getThread(threadId: string): ThreadDetail | null {
       SELECT
         fi.id,
         fi.feed_id,
+        fs.kind,
         fi.title AS original_title,
         fi.url,
+        fi.source_url,
         CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
         CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         (
@@ -573,8 +582,10 @@ export function getThread(threadId: string): ThreadDetail | null {
     )) as {
       id: string;
       feed_id: string;
+      kind: ThreadListItem["kind"];
       original_title: string;
       url: string;
+      source_url: string | null;
       thread_title: string;
       tags_json: string | null;
       source: string;
@@ -596,8 +607,9 @@ export function getThread(threadId: string): ThreadDetail | null {
   const listItem = {
     id: threadInfoRow.id,
     feedId: threadInfoRow.feed_id,
+    kind: threadInfoRow.kind,
     originalTitle: threadInfoRow.original_title,
-    url: threadInfoRow.url,
+    url: isLocalBoard(threadInfoRow) ? threadInfoRow.source_url ?? "" : threadInfoRow.url,
     threadTitle: threadInfoRow.thread_title,
     tags: parseArticleTags(threadInfoRow.tags_json),
     source: threadInfoRow.source,
@@ -632,6 +644,8 @@ export function getThread(threadId: string): ThreadDetail | null {
       readMarkerNo
     };
   }
+
+  if (isLocalBoard(threadInfoRow)) throw new Error("自由板の本文が見つかりません。");
 
   // 2. thread_posts にデータがない場合は、古い thread_summaries または RSS から復元（移行）する
   const legacyRow = runWithSlowQueryLog("getThread.legacy", () => db
@@ -668,8 +682,10 @@ export function getThread(threadId: string): ThreadDetail | null {
     {
       id: threadInfoRow.id,
       feed_id: threadInfoRow.feed_id,
+      kind: threadInfoRow.kind,
       original_title: threadInfoRow.original_title,
       url: threadInfoRow.url,
+      source_url: threadInfoRow.source_url,
       thread_title: threadInfoRow.thread_title,
       tags_json: threadInfoRow.tags_json,
       source: threadInfoRow.source,
@@ -705,8 +721,9 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
   return {
     id: row.id,
     feedId: row.feed_id,
+    kind: row.kind,
     originalTitle: row.original_title,
-    url: row.url,
+    url: isLocalBoard(row) ? row.source_url ?? "" : row.url,
     threadTitle: row.thread_title,
     tags: parseArticleTags(row.tags_json),
     source: row.source,
@@ -785,8 +802,10 @@ export function listFavoriteThreads(): ThreadListItem[] {
       SELECT
         fi.id,
         fi.feed_id,
+        fs.kind,
         fi.title AS original_title,
         fi.url,
+        fi.source_url,
         CASE WHEN fs.skip_title_conversion = 1 THEN fi.title ELSE COALESCE(generated_vt.title, legacy_vt.title, raw_vt.title, fi.title) END AS thread_title,
         CASE WHEN fs.skip_title_conversion = 1 THEN NULL ELSE generated_vt.tags_json END AS tags_json,
         fs.title AS source,

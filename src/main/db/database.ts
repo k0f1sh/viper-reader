@@ -1,6 +1,7 @@
 import * as electron from "electron";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { localBoardId } from "../../shared/types.js";
 import { schemaSql } from "./schema.js";
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 
@@ -29,6 +30,7 @@ export function getDatabase(): DatabaseSync {
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   migrateLegacyTitleTable(db);
+  addColumnIfMissing(db, "feed_sources", "kind", "TEXT NOT NULL DEFAULT 'rss'");
   addColumnIfMissing(db, "thread_titles", "tags_json", "TEXT");
   addColumnIfMissing(db, "feed_items", "published_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
@@ -36,6 +38,7 @@ function migrate(db: DatabaseSync): void {
   const addedLatestPostNo = addColumnIfMissing(db, "feed_items", "latest_post_no", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
+  addColumnIfMissing(db, "feed_items", "source_url", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_status", "TEXT");
   addColumnIfMissing(db, "feed_items", "content_version", "INTEGER NOT NULL DEFAULT 1");
   addColumnIfMissing(db, "feed_items", "generated_content_version", "INTEGER NOT NULL DEFAULT 1");
@@ -103,6 +106,12 @@ function migrate(db: DatabaseSync): void {
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(2, new Date().toISOString());
+  const now = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO feed_sources
+    (id, kind, title, url, created_at, updated_at, skip_title_conversion, sort_order)
+    VALUES (?, 'local', '自由板', 'viper-local://board', ?, ?, 1, -1)
+  `).run(localBoardId, now, now);
+  db.prepare("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (3, ?)").run(now);
 }
 
 function backfillLatestPostNo(db: DatabaseSync): void {

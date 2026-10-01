@@ -1,3 +1,4 @@
+import { isRssBoard, isLocalBoard } from "../../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, FeedTreePlacement, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
@@ -46,7 +47,7 @@ export function FeedPane(props: FeedPaneProps) {
   const feedTreeRef = useRef<HTMLDivElement>(null);
 
   const nodes: TreeNode[] = [
-    ...feeds.map((item): TreeNode => ({ type: "feed", item })),
+    ...feeds.filter(isRssBoard).map((item): TreeNode => ({ type: "feed", item })),
     ...folders.map((item): TreeNode => ({ type: "folder", item }))
   ];
   const nodeByKey = new Map(nodes.map((node) => [`${node.type}:${node.item.id}`, node]));
@@ -109,6 +110,7 @@ export function FeedPane(props: FeedPaneProps) {
               draggedNode?.type === node.type && draggedNode.id === node.item.id ? "is-dragging" : "",
               target ? `is-drop-${target.position}` : ""
             ].filter(Boolean).join(" ")}
+            data-navigation-id={!isFolder ? node.item.id : undefined}
             draggable
             onDragStart={(event) => {
               setDraggedNode({ type: node.type, id: node.item.id });
@@ -152,23 +154,32 @@ export function FeedPane(props: FeedPaneProps) {
   }, [contextMenu]);
 
   return (
-    <aside className="feed-pane" aria-label="RSS ソース" style={{ "--feed-tree-height": `${props.feedTreeHeight}px` } as CSSProperties}>
+    <aside className="feed-pane" aria-label="板一覧" style={{ "--feed-tree-height": `${props.feedTreeHeight}px` } as CSSProperties}>
       <div className="pane-title"><span>板一覧</span><div className="pane-title-actions">
         <button onClick={props.onAddFeed} title="板を追加" type="button">+</button>
         <button onClick={props.onAddFolder} title="フォルダを追加" type="button">F+</button>
-        <button onClick={props.onDeleteSelectedNode} disabled={!selectedTreeNode} title="選択中の板またはフォルダを削除" type="button">-</button>
+        <button onClick={props.onDeleteSelectedNode} disabled={!selectedTreeNode || isLocalBoard(feeds.find((feed) => feed.id === selectedTreeNode.id))} title="選択中の板またはフォルダを削除" type="button">-</button>
       </div></div>
       <div className="feed-tree" ref={feedTreeRef}>
+        <div className="tree-heading">特別板</div>
+        {feeds.filter(isLocalBoard).map((feed) => (
+          <button key={feed.id} data-navigation-id={feed.id} type="button" className={`feed-row ${props.activeSmartView === null && props.selectedFeedId === feed.id ? "is-selected" : ""}`}
+            onClick={() => props.onSelectFeed(feed.id)} onContextMenu={(event) => {
+              event.preventDefault(); props.onSelectFeed(feed.id); props.onOpenFeedSettings(feed);
+            }}>
+            <span className="feed-name">{feed.title}</span><span className="feed-count">{feed.unreadCount}</span>
+          </button>
+        ))}
         <div className="tree-heading">キュー</div>
-        <SmartRow label="未読" count={props.queueSummary.unreadCount} selected={props.activeSmartView === "unread"} onClick={() => props.onSelectSmartView("unread")} />
-        <SmartRow label="生成済み・未確認" count={props.queueSummary.completedCount} selected={props.activeSmartView === "generated"} onClick={() => props.onSelectSmartView("generated")} />
-        <SmartRow label="生成済み・確認済み" selected={props.activeSmartView === "reviewed"} onClick={() => props.onSelectSmartView("reviewed")} />
+        <SmartRow navigationId="__unread_queue__" label="未読" count={props.queueSummary.unreadCount} selected={props.activeSmartView === "unread"} onClick={() => props.onSelectSmartView("unread")} />
+        <SmartRow navigationId="__generated_queue__" label="生成済み・未確認" count={props.queueSummary.completedCount} selected={props.activeSmartView === "generated"} onClick={() => props.onSelectSmartView("generated")} />
+        <SmartRow navigationId="__reviewed_queue__" label="生成済み・確認済み" selected={props.activeSmartView === "reviewed"} onClick={() => props.onSelectSmartView("reviewed")} />
         <div
           className={`tree-heading rss-tree-root ${dropTarget?.type === "root" ? "is-drop-inside" : ""}`}
           onDragOver={(event) => { if (draggedNode) { event.preventDefault(); setDropTarget({ type: "root" }); } }}
           onDrop={completeDrop}
         >RSS</div>
-        <button className={`feed-row ${props.activeSmartView === null && props.selectedFeedId === props.allFeedsId && !selectedTreeNode ? "is-selected" : ""}`} onClick={() => props.onSelectFeed(props.allFeedsId)} title="全板の記事を新着順で表示" type="button">
+        <button data-navigation-id={props.allFeedsId} className={`feed-row ${props.activeSmartView === null && props.selectedFeedId === props.allFeedsId && !selectedTreeNode ? "is-selected" : ""}`} onClick={() => props.onSelectFeed(props.allFeedsId)} title="全板の記事を新着順で表示" type="button">
           <span className="feed-name">全体共通</span><span className="feed-count">{props.allUnreadCount}</span>
         </button>
         {renderNodes(null, 0)}
@@ -188,8 +199,8 @@ export function FeedPane(props: FeedPaneProps) {
   );
 }
 
-function SmartRow({ label, count, selected, onClick }: { label: string; count?: number; selected: boolean; onClick: () => void }) {
-  return <button className={`feed-row smart-feed-row ${selected ? "is-selected" : ""}`} onClick={onClick} type="button"><span className="feed-name">{label}</span>{count !== undefined ? <span className="feed-count">{count}</span> : null}</button>;
+function SmartRow({ navigationId, label, count, selected, onClick }: { navigationId: string; label: string; count?: number; selected: boolean; onClick: () => void }) {
+  return <button data-navigation-id={navigationId} className={`feed-row smart-feed-row ${selected ? "is-selected" : ""}`} onClick={onClick} type="button"><span className="feed-name">{label}</span>{count !== undefined ? <span className="feed-count">{count}</span> : null}</button>;
 }
 
 function countFolderUnread(folderId: string, feeds: FeedSource[], folders: FeedFolder[]): number {

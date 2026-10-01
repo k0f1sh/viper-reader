@@ -1,3 +1,4 @@
+import { isRssBoard, isLocalBoard } from "../../shared/boardPolicy";
 import { useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { FeedSource, ThreadListItem } from "../../shared/types";
@@ -22,7 +23,7 @@ export function useFeedRefresh(options: UseFeedRefreshOptions) {
 
   async function refreshFeed(feedId: string) {
     const current = optionsRef.current;
-    if (!window.viperReader || !feedId || isRefreshing) return;
+    if (!window.viperReader || !feedId || isRefreshing || isLocalBoard(current.feeds.find((feed) => feed.id === feedId))) return;
     const preferredThreadId = current.threads.some(
       (thread) => thread.feedId === feedId && thread.id === current.selectedThreadIdRef.current
     ) ? current.selectedThreadIdRef.current : undefined;
@@ -48,7 +49,8 @@ export function useFeedRefresh(options: UseFeedRefreshOptions) {
   async function refreshAllFeeds() {
     const current = optionsRef.current;
     if (!window.viperReader || current.feeds.length === 0 || isRefreshing) return;
-    const feedsToRefresh = [...current.feeds];
+    const feedsToRefresh = current.feeds.filter(isRssBoard);
+    if (!feedsToRefresh.length) return;
     const totals = { fetchedCount: 0, insertedCount: 0, updatedCount: 0, skippedCount: 0, convertedCount: 0, conversionFailedCount: 0, conversionSkippedCount: 0 };
     const failedFeeds: string[] = [];
     const feedById = new Map(feedsToRefresh.map((feed) => [feed.id, feed]));

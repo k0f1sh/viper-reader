@@ -28,6 +28,7 @@ export async function generateThreadResponses(
     promptHash: string;
     scrapedBody: string | null;
     articleSummary: string | null;
+    summaryOnly?: boolean;
   }
 ): Promise<ThreadResponseGenerationResult> {
   const modelToUse = getActiveModel();
@@ -49,6 +50,7 @@ export async function generateThreadResponses(
     rssBody: thread.posts[0]?.body ?? "",
     scrapedBody: articleContext,
     publishedAt: thread.publishedAt,
+    summaryOnly: options.summaryOnly,
     residentPrompt: options.residentPrompt
   });
   if (!resolveApiKey()) {
@@ -86,7 +88,7 @@ export async function generateThreadResponses(
   });
 
   const finishedAt = new Date().toISOString();
-  const posts = result.value ?? [];
+  const posts = options.summaryOnly ? (result.value ?? []).slice(0, 1) : result.value ?? [];
 
   return {
     posts,

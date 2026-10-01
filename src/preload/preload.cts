@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
+  CreateLocalThreadRequest,
+  CreateLocalThreadResult,
   AppLogEntry,
   ArticleBrowserBounds,
   ArticleBrowserState,
@@ -38,7 +40,9 @@ export type ViperReaderApi = {
   listTitleGenerationAttempts: (threadId: string) => Promise<TitleGenerationAttempt[]>;
   countUnreadArticles: () => Promise<number>;
   markThreadPostsRead: (threadId: string, postNo: number) => Promise<void>;
+  createLocalThread: (request: CreateLocalThreadRequest) => Promise<CreateLocalThreadResult>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
+  deleteLocalThread: (threadId: string) => Promise<void>;
   deleteThreadContent: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
   showArticleBrowser: (request: ShowArticleBrowserRequest) => Promise<ArticleBrowserState>;
@@ -109,7 +113,9 @@ const api: ViperReaderApi = {
   listTitleGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-title-generation-attempts", threadId),
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
   markThreadPostsRead: (threadId, postNo) => ipcRenderer.invoke("threads:mark-posts-read", threadId, postNo),
+  createLocalThread: (request) => ipcRenderer.invoke("threads:create-local", request),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
+  deleteLocalThread: (threadId) => ipcRenderer.invoke("threads:delete-local", threadId),
   deleteThreadContent: (threadId) => ipcRenderer.invoke("threads:delete-content", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
   showArticleBrowser: (request) => ipcRenderer.invoke("article-browser:show", request),

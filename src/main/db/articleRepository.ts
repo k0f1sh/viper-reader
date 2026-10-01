@@ -10,7 +10,7 @@ export function getArticleBody(feedItemId: string): string | null {
       INNER JOIN feed_items target_item ON target_item.id = ?
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     `)
     .get(feedItemId) as { content_text: string } | undefined;
@@ -38,7 +38,7 @@ export function getArticleSummary(feedItemId: string): string | null {
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
         AND ab.summary_text IS NOT NULL
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     `)
     .get(feedItemId) as { summary_text: string | null } | undefined;
@@ -54,7 +54,7 @@ export function saveArticleSummary(feedItemId: string, summaryText: string): voi
       INNER JOIN feed_items target_item ON target_item.id = ?
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     )
   `).run(summaryText, feedItemId);

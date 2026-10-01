@@ -1,3 +1,4 @@
+import { isRssBoard } from "../dist/shared/boardPolicy.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +20,7 @@ test("フォルダをネストし、板とフォルダの混在順を保存で�
   const rootFolder = createFeedFolder(" 開発 ", null);
   const childFolder = createFeedFolder("言語", rootFolder.id);
   const nestedFeed = addFeedSource("Rust", "https://example.com/rust.xml", false, false, childFolder.id);
-  assert.equal(listFeeds().find((feed) => feed.id === nestedFeed.id)?.unreadCount, 0);
+  assert.equal(listFeeds().filter(isRssBoard).find((feed) => feed.id === nestedFeed.id)?.unreadCount, 0);
 
   saveFeedTreeLayout([
     { type: "folder", id: rootFolder.id, parentFolderId: null },
@@ -31,8 +32,8 @@ test("フォルダをネストし、板とフォルダの混在順を保存で�
 
   assert.equal(rootFolder.name, "開発");
   assert.equal(listFeedFolders().find((folder) => folder.id === childFolder.id)?.parentFolderId, rootFolder.id);
-  assert.equal(listFeeds().find((feed) => feed.id === nestedFeed.id)?.parentFolderId, childFolder.id);
-  assert.equal(listFeeds().find((feed) => feed.id === first.id)?.sortOrder, 1);
+  assert.equal(listFeeds().filter(isRssBoard).find((feed) => feed.id === nestedFeed.id)?.parentFolderId, childFolder.id);
+  assert.equal(listFeeds().filter(isRssBoard).find((feed) => feed.id === first.id)?.sortOrder, 1);
   assert.equal(renameFeedFolder(childFolder.id, "プログラミング言語").name, "プログラミング言語");
 });
 
@@ -43,7 +44,7 @@ test("循環配置と中身のあるフォルダ削除を拒否する", () => {
   assert.throws(() => saveFeedTreeLayout([
     { type: "folder", id: root.id, parentFolderId: child.id },
     { type: "folder", id: child.id, parentFolderId: root.id },
-    ...listFeeds().map((feed) => ({ type: "feed", id: feed.id, parentFolderId: feed.parentFolderId }))
+    ...listFeeds().filter(isRssBoard).map((feed) => ({ type: "feed", id: feed.id, parentFolderId: feed.parentFolderId }))
   ]), /自身または子孫/);
   assert.equal(listFeedFolders().find((folder) => folder.id === root.id)?.parentFolderId, null);
 });
@@ -56,12 +57,12 @@ test("空フォルダだけを削除できる", () => {
 
 test("欠落・重複・存在しない親を含む配置は保存せず、既存配置を維持する", () => {
   const beforeFolders = listFeedFolders().map((folder) => ({ id: folder.id, parentFolderId: folder.parentFolderId, sortOrder: folder.sortOrder }));
-  const beforeFeeds = listFeeds().map((feed) => ({ id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder }));
+  const beforeFeeds = listFeeds().filter(isRssBoard).map((feed) => ({ id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder }));
   assert.throws(() => saveFeedTreeLayout([]), /配置が不正/);
   assert.throws(() => saveFeedTreeLayout([
     ...beforeFolders.map((folder) => ({ type: "folder", id: folder.id, parentFolderId: folder.parentFolderId })),
     ...beforeFeeds.map((feed) => ({ type: "feed", id: feed.id, parentFolderId: "folder:missing" }))
   ]), /配置先フォルダ/);
   assert.deepEqual(listFeedFolders().map((folder) => ({ id: folder.id, parentFolderId: folder.parentFolderId, sortOrder: folder.sortOrder })), beforeFolders);
-  assert.deepEqual(listFeeds().map((feed) => ({ id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder })), beforeFeeds);
+  assert.deepEqual(listFeeds().filter(isRssBoard).map((feed) => ({ id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder })), beforeFeeds);
 });

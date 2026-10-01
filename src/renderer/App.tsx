@@ -1,5 +1,7 @@
+import { isRssBoard, isLocalBoard } from "../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, TitleGenerationAttempt } from "../shared/types";
+import { CreateLocalThreadModal } from "./components/CreateLocalThreadModal";
 import { AppDialogs } from "./components/AppDialogs";
 import { AppWorkspace } from "./components/AppWorkspace";
 import { useAddFeedForm, useFeedSettingsForm, useFolderForm } from "./hooks/useAppForms";
@@ -117,6 +119,8 @@ export function App() {
     setWritePanelVisible,
     toggleWritePanel
   } = usePaneLayout();
+  const [isCreateThreadOpen, setIsCreateThreadOpen] = useState(false);
+  const [creationWarning, setCreationWarning] = useState<{ threadId: string; message: string; summaryPostBody: string | undefined } | null>(null);
   const [isAddFeedOpen, setIsAddFeedOpen] = useState(false);
   const { form: addFeedForm, update: updateAddFeedForm, reset: resetAddFeedForm } = useAddFeedForm();
   const { form: folderForm, openCreate: openCreateFolderForm, openRename: openRenameFolderForm, update: updateFolderForm, close: closeFolderForm } = useFolderForm();
@@ -175,6 +179,15 @@ export function App() {
     onThreadRead: scheduleReadMetadataReload,
     onReadMarkerChange: setReadMarkerNo
   });
+  useEffect(() => {
+    if (!creationWarning || selectedThread?.id !== creationWarning.threadId) return;
+    const summaryPost = selectedThread.posts.find((post) => post.no === 2 && !post.isUser);
+    // A successful retry replaces the reserved summary response, even if reply generation fails afterward.
+    if (summaryPost && summaryPost.body !== creationWarning.summaryPostBody) {
+      setCreationWarning(null);
+    }
+  }, [selectedThread, creationWarning]);
+
   const {
     composer: replyComposer,
     update: updateReplyComposer,
@@ -271,6 +284,7 @@ export function App() {
     || modelSettings.isOpen
     || promptSettings.isOpen
     || isAddFeedOpen
+    || isCreateThreadOpen
     || folderModalMode !== null
     || settingsFeed !== null
     || generationFailureThreadId !== null
@@ -305,14 +319,20 @@ export function App() {
     onGenerateReplies: () => void handleGenerateReplies(),
     onToggleFavorite: () => void toggleFavorite(),
     onToggleThreadRead: () => void toggleSelectedThreadRead(),
-    onToggleThreadView: () => setThreadViewMode((current) => {
-      if (current === "browser") {
-        setIsArticleBrowserExpanded(false);
-        return "replies";
-      }
-      return "browser";
-    }),
-    onToggleArticleBrowserExpanded: () => setIsArticleBrowserExpanded((current) => !current),
+    onToggleThreadView: () => {
+      if (isLocalBoard(selectedThread) && !selectedThread.url) return;
+      setThreadViewMode((current) => {
+        if (current === "browser") {
+          setIsArticleBrowserExpanded(false);
+          return "replies";
+        }
+        return "browser";
+      });
+    },
+    onToggleArticleBrowserExpanded: () => {
+      if (isLocalBoard(selectedThread) && !selectedThread.url) return;
+      setIsArticleBrowserExpanded((current) => !current);
+    },
     onFocusWritePanel: focusWritePanel,
     onClearExtractedPost: clearExtractedPostId
   });
@@ -367,6 +387,10 @@ export function App() {
     if (selectedThreadId !== thread.id) {
       switchReplyThread(selectedThreadId, thread.id);
       closePostPopup();
+    }
+    if (isLocalBoard(thread)) {
+      setSmartView(null);
+      setSelectedTreeNode({ type: "feed", id: thread.feedId });
     }
     const feed = feedList.find((candidate) => candidate.id === thread.feedId);
     setIsArticleBrowserExpanded(false);
@@ -463,6 +487,11 @@ export function App() {
   }
 
   function openFeedSettings(feed: FeedSource) {
+    if (isLocalBoard(feed)) {
+      promptSettings.open();
+      promptSettings.setFeedId(feed.id);
+      return;
+    }
     openFeedSettingsForm(feed);
   }
 
@@ -491,25 +520,39 @@ export function App() {
   }
 
   async function generateResponses(force = false) {
-    if (selectedThread) await generateThreadResponses(selectedThread, force);
+    if (isLocalBoard(selectedThread)) await handleGenerateReplies();
+    else if (selectedThread) await generateThreadResponses(selectedThread, force);
   }
 
   async function deleteSelectedThreadContent() {
     const thread = selectedThread;
     if (!thread || !window.viperReader || deletingContentThreadId) return;
-    if (!confirm(`「${thread.threadTitle}」の取得済み本文と全レス（自分の書き込みを含む）を完全に削除しますか？\n同じURLの記事で共有している本文キャッシュも消えます。`)) return;
+    const isLocal = isLocalBoard(thread);
+    const message = isLocal
+      ? `「${thread.threadTitle}」を本文・全レス（自分の書き込みを含む）ごと完全に削除しますか？\nこの操作は取り消せません。`
+      : `「${thread.threadTitle}」の取得済み本文と全レス（自分の書き込みを含む）を完全に削除しますか？\n同じURLの記事で共有している本文キャッシュも消えます。`;
+    if (!confirm(message)) return;
     setDeletingContentThreadId(thread.id);
     try {
-      const updated = await window.viperReader.deleteThreadContent(thread.id);
+      let updated: ThreadDetail | null;
+      if (isLocal) {
+        await window.viperReader.deleteLocalThread(thread.id);
+        updated = null;
+        setCreationWarning((warning) => warning?.threadId === thread.id ? null : warning);
+        await loadFavoriteThreads();
+      } else {
+        updated = await window.viperReader.deleteThreadContent(thread.id);
+      }
       if (selectedThreadIdRef.current === thread.id) {
-        if (smartView === "generated" || smartView === "reviewed") {
+        if (isLocal || smartView === "generated" || smartView === "reviewed") {
           setSelectedThreadId(undefined);
           setSelectedThread(null);
         } else {
           setSelectedThread(updated);
         }
       }
-      await reloadCurrentThreadList(smartView ? undefined : thread.id);
+      await reloadCurrentThreadList(isLocal || smartView ? undefined : thread.id);
+      if (isLocal) await reloadFeeds();
       await reloadQueueSummary();
     } catch (error) {
       alert(error instanceof Error ? error.message : "本文とレスを削除できませんでした。");
@@ -650,6 +693,8 @@ export function App() {
     threadGridColumns,
     threadListMinWidth,
     onRefresh: () => void refreshSelectedFeed(),
+    onCreateThread: () => setIsCreateThreadOpen(true),
+    onOpenResidents: () => { if (selectedFeed) openFeedSettings(selectedFeed); },
     onSelectThread: selectThreadById,
     onShowGenerationFailure: (threadId: string) => void showGenerationFailure(threadId),
     onShowTitleGenerationStatus: (threadId: string) => void showTitleGenerationStatus(threadId),
@@ -658,7 +703,7 @@ export function App() {
     },
     onMarkAllRead: () => void markAllThreadsRead(),
     onStartColumnResize: startThreadColumnResize,
-    canRefresh: selectedFeedId !== allFeedsId || feedList.length > 0,
+    canRefresh: !isLocalBoard(selectedFeed) && (selectedFeedId !== allFeedsId || feedList.some(isRssBoard)),
     refreshLabel: selectedFeedId === allFeedsId ? "全板更新" : "更新",
     page: threadListPage,
     pageSize: 100,
@@ -682,7 +727,7 @@ export function App() {
     skipTitleConversion: feedList.find((feed) => feed.id === selectedThread?.feedId)?.skipTitleConversion ?? false,
     isPosting,
     postStatus,
-    postError,
+    postError: postError || (creationWarning && creationWarning.threadId === selectedThreadId ? creationWarning.message : ""),
     replyName,
     replyMail,
     replyBody,
@@ -750,6 +795,18 @@ export function App() {
         onStartVerticalResize={startVerticalResize}
         onStartArticlePaneResize={startArticlePaneResize}
       />
+
+      {isCreateThreadOpen ? <CreateLocalThreadModal onClose={() => setIsCreateThreadOpen(false)} onCreated={({ thread, warning }) => {
+        setIsCreateThreadOpen(false);
+        setSmartView(null);
+        selectThread(thread);
+        setSelectedTreeNode({ type: "feed", id: thread.feedId });
+        setWritePanelVisible(true);
+        setCreationWarning(warning ? { threadId: thread.id, message: warning,
+          summaryPostBody: thread.posts.find((post) => post.no === 2 && !post.isUser)?.body } : null);
+        void reloadFeeds();
+        void reloadThreads(thread.feedId, thread.id, 0);
+      }} /> : null}
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}

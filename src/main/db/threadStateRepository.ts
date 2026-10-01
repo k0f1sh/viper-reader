@@ -5,7 +5,7 @@ export function countAllUnreadArticles(): number {
   const row = runWithSlowQueryLog("countAllUnreadArticles", () => getDatabase().prepare(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(canonical_url, ''), url)) AS count
     FROM feed_items
-    WHERE read_at IS NULL
+    WHERE read_at IS NULL AND feed_id IN (SELECT id FROM feed_sources WHERE kind = 'rss')
   `).get()) as { count: number };
   return Number(row.count);
 }

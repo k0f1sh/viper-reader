@@ -2678,3 +2678,45 @@ body.is-article-pane-resizing * {
   color: #000080;
   font-weight: bold;
 }
+
+.local-input-modes {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.local-thread-body {
+  min-height: 220px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.local-thread-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.local-thread-modal .modal-content {
+  padding: 14px;
+}
+
+.local-thread-modal .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.local-thread-modal .form-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px;
+}
+
+.local-thread-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 14px 14px;
+}

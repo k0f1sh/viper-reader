@@ -1,3 +1,4 @@
+import { isRssBoard, isLocalBoard } from "../../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { FeedFolder, FeedSource, FeedTreePlacement } from "../../shared/types";
 import type { FeedTreeSelection } from "../components/FeedPane";
@@ -86,7 +87,7 @@ export function useFeedTree({ onReload, onFeedDeleted }: UseFeedTreeOptions) {
     if (!selectedTreeNode || !window.viperReader) return;
     if (selectedTreeNode.type === "feed") {
       const feed = feeds.find((candidate) => candidate.id === selectedTreeNode.id);
-      if (!feed || !confirm(`板「${feed.title}」を削除しますか？\n（この板に含まれるすべての記事やキャッシュも消去されます）`)) return;
+      if (!feed || isLocalBoard(feed) || !confirm(`板「${feed.title}」を削除しますか？\n（この板に含まれるすべての記事やキャッシュも消去されます）`)) return;
       try {
         await window.viperReader.deleteFeedSource(feed.id);
         onFeedDeletedRef.current(feed.id);
@@ -124,9 +125,9 @@ export function useFeedTree({ onReload, onFeedDeleted }: UseFeedTreeOptions) {
       ? selectedTreeNode.id
       : selectedFeed?.parentFolderId ?? null;
     const folder = await window.viperReader.createFeedFolder(name, parentFolderId);
-    if (selectedFeed) {
+    if (isRssBoard(selectedFeed)) {
       const placements = [
-        ...feeds.map((feed) => ({ type: "feed" as const, id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder })),
+        ...feeds.filter(isRssBoard).map((feed) => ({ type: "feed" as const, id: feed.id, parentFolderId: feed.parentFolderId, sortOrder: feed.sortOrder })),
         ...folders.map((item) => ({ type: "folder" as const, id: item.id, parentFolderId: item.parentFolderId, sortOrder: item.sortOrder })),
         { type: "folder" as const, id: folder.id, parentFolderId: folder.parentFolderId, sortOrder: folder.sortOrder }
       ].sort((a, b) => (a.parentFolderId ?? "").localeCompare(b.parentFolderId ?? "") || a.sortOrder - b.sortOrder);
@@ -148,9 +149,10 @@ export function useFeedTree({ onReload, onFeedDeleted }: UseFeedTreeOptions) {
   const selectedFeed = selectedFeedId === allFeedsId
     ? {
         id: allFeedsId,
+        kind: "rss" as const,
         title: "全体共通",
         url: "登録済みの全板・記事時刻の新しい順",
-        unreadCount: feeds.reduce((sum, feed) => sum + feed.unreadCount, 0),
+        unreadCount: feeds.filter(isRssBoard).reduce((sum, feed) => sum + feed.unreadCount, 0),
         lastFetchedAt: null,
         generateTitleFromSummary: false,
         skipTitleConversion: false,

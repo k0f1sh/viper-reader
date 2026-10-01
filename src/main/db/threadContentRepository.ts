@@ -1,10 +1,13 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
+import type { BoardKind } from "../../shared/types.js";
 import { getDatabase } from "./database.js";
 
 export function deleteThreadContent(threadId: string): void {
   const db = getDatabase();
   db.exec("BEGIN");
   try {
-    const item = db.prepare("SELECT id FROM feed_items WHERE id = ?").get(threadId);
+    const item = db.prepare(`SELECT fs.kind FROM feed_items fi JOIN feed_sources fs ON fs.id = fi.feed_id WHERE fi.id = ?`).get(threadId) as { kind: BoardKind } | undefined;
+    if (isLocalBoard(item)) throw new Error("自由板の本文・レスは削除できません。");
     if (!item) throw new Error("記事が見つかりません。");
 
     // Article bodies are shared by canonical URL when read, so remove every matching cache.
