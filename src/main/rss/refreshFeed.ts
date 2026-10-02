@@ -20,6 +20,7 @@ import { getActiveModel, getTitleGenerationModel } from "../settings/settingsSer
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
 import { runFeedRefreshSingleFlight } from "./feedRefreshSingleFlight.js";
+import { getRssSummary } from "./rssSummary.js";
 
 type ParsedItem = {
   id: string;
@@ -29,6 +30,7 @@ type ParsedItem = {
   url: string;
   publishedAt: string | null;
   rawSummary: string | null;
+  rawSummaryHtml: string | null;
 };
 
 const parser = new Parser();
@@ -78,7 +80,8 @@ async function refreshFeedOnce(
           title,
           url,
           publishedAt: normalizeDate(item.isoDate ?? item.pubDate),
-          rawSummary: item.contentSnippet ?? item.summary ?? item.content ?? null
+          rawSummary: getRssSummary(item),
+          rawSummaryHtml: item.content ?? item.summary ?? null
         };
       })
       .filter((item): item is ParsedItem => item !== null);

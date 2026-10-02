@@ -413,6 +413,7 @@ function FragmentPost({
         <div className="post-body">
           <PostBody
             body={post.body}
+            rssContent={post.rssContent}
             onAnchorClick={onScrollToPost}
             onAnchorMouseEnter={onAnchorMouseEnter}
             onAnchorMouseLeave={onAnchorMouseLeave}

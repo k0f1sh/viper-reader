@@ -33,6 +33,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_sources", "kind", "TEXT NOT NULL DEFAULT 'rss'");
   addColumnIfMissing(db, "thread_titles", "tags_json", "TEXT");
   addColumnIfMissing(db, "feed_items", "published_at", "TEXT");
+  addColumnIfMissing(db, "feed_items", "raw_summary_html", "TEXT");
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");
   const addedLatestPostNo = addColumnIfMissing(db, "feed_items", "latest_post_no", "INTEGER NOT NULL DEFAULT 0");

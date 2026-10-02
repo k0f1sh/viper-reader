@@ -14,11 +14,13 @@ import { buildLegacyThreadTitlePromptHash, buildThreadTitlePromptHash } from "..
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import {
   createFirstPostBody,
+  createFirstPostHeader,
   createInitialPosts,
   rawTitlePromptHash,
   rssSummaryPromptHash
 } from "../threads/initialThreadPosts.js";
 import { getDatabase } from "./database.js";
+import { sanitizeRssHtml } from "../rss/sanitizeRssHtml.js";
 import { saveGeneratedThreadPosts } from "./threadPostRepository.js";
 import { countAllUnreadArticles } from "./threadStateRepository.js";
 import { runWithSlowQueryLog } from "./slowQueryLogger.js";
@@ -552,7 +554,8 @@ export function getThread(threadId: string): ThreadDetail | null {
           WHEN legacy_vt.id IS NOT NULL THEN NULL
           ELSE 'skipped'
         END AS title_generation_status,
-        fi.raw_summary
+        fi.raw_summary,
+        fi.raw_summary_html
       FROM feed_items fi
       INNER JOIN feed_sources fs ON fs.id = fi.feed_id
       LEFT JOIN thread_titles generated_vt
@@ -598,11 +601,21 @@ export function getThread(threadId: string): ThreadDetail | null {
       generation_status: ThreadListItem["generationStatus"];
       title_generation_status: "completed" | "failed" | "skipped" | null;
       raw_summary: string | null;
+      raw_summary_html: string | null;
     } | undefined;
 
   if (!threadInfoRow) {
     return null;
   }
+
+  const withRssContent = (posts: ThreadPost[]): ThreadPost[] => {
+    if (isLocalBoard(threadInfoRow) || !threadInfoRow.raw_summary_html) return posts;
+    const html = sanitizeRssHtml(threadInfoRow.raw_summary_html, threadInfoRow.url);
+    if (!html.trim()) return posts;
+    return posts.map((post) => post.no === 1 && !post.isUser
+      ? { ...post, rssContent: { header: createFirstPostHeader(threadInfoRow.original_title, threadInfoRow.url), html } }
+      : post);
+  };
 
   const listItem = {
     id: threadInfoRow.id,
@@ -640,7 +653,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     return {
       ...listItem,
       responseCount: posts.length,
-      posts,
+      posts: withRssContent(posts),
       readMarkerNo
     };
   }
@@ -712,7 +725,7 @@ export function getThread(threadId: string): ThreadDetail | null {
   return {
     ...listItem,
     responseCount: initialPosts.length,
-    posts: initialPosts,
+    posts: withRssContent(initialPosts),
     readMarkerNo
   };
 }

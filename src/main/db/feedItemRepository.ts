@@ -45,6 +45,7 @@ export function upsertFeedItems(
     url: string;
     publishedAt: string | null;
     rawSummary: string | null;
+    rawSummaryHtml?: string | null;
   }>
 ): RefreshFeedResult & { insertedItemIds: string[] } {
   const db = getDatabase();
@@ -85,6 +86,7 @@ export function upsertFeedItems(
     UPDATE thread_posts SET body = ? WHERE feed_item_id = ? AND no = 1 AND is_user = 0
   `);
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
+  const updateSummaryHtml = db.prepare("UPDATE feed_items SET raw_summary_html = ? WHERE id = ?");
 
   db.exec("BEGIN");
   try {
@@ -134,6 +136,8 @@ export function upsertFeedItems(
       } else {
         skippedCount += 1;
       }
+
+      if (item.rawSummaryHtml !== undefined) updateSummaryHtml.run(item.rawSummaryHtml, feedItemId);
 
     }
 

@@ -42,6 +42,8 @@ export type ThreadPost = {
   date: string;
   id: string;
   body: string;
+  /** MainでサニタイズしたRSS説明欄。RSS由来のレス1だけに付与する。 */
+  rssContent?: { header: string; html: string };
   isUser?: boolean;
 };
 

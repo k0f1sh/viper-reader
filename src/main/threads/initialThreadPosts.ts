@@ -24,13 +24,17 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
 
 export function createFirstPostBody(title: string, url: string, rawSummary: string | null): string {
   const body = normalizeRssBody(rawSummary);
+  return `${createFirstPostHeader(title, url)}${body}`;
+}
+
+export function createFirstPostHeader(title: string, url: string): string {
   return `元記事タイトル:
 ${title}
 
 URL:
 ${url}
 
-${body}`;
+`;
 }
 
 function normalizeRssBody(rawSummary: string | null): string {
@@ -41,6 +45,7 @@ function normalizeRssBody(rawSummary: string | null): string {
   return rawSummary
     .replace(/\r\n?/g, "\n")
     .replace(/\t/g, "  ")
+    .replace(/Comments URL:\s*(https:\/\/news\.ycombinator\.com\/item\?id=\d+)(?=\s|$)/gi, "コメントURL:\n$1")
     .replace(/[ \u00a0]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

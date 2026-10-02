@@ -1503,6 +1503,37 @@ body.is-article-pane-resizing * {
   color: #551a8b;
 }
 
+.rss-post-content {
+  white-space: pre-wrap;
+}
+
+.rss-post-content p {
+  margin: 0 0 0.75em;
+}
+
+.rss-post-content a[href] {
+  color: #0000ee;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.rss-post-content code {
+  white-space: pre-wrap;
+}
+
+.rss-post-content ul,
+.rss-post-content ol,
+.rss-post-content blockquote {
+  margin: 0 0 0.75em;
+  padding-left: 1.5em;
+}
+
+.rss-post-content pre {
+  margin: 0 0 0.75em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .post-url-copy-button {
   display: inline-grid;
   width: 19px;
