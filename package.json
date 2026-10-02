@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.1",
-    "@google/genai": "^1.9.0",
+    "@google/genai": "^2.13.0",
     "@mozilla/readability": "^0.6.0",
     "cheerio": "^1.0.0",
     "dotenv": "^17.4.2",
