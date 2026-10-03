@@ -22,6 +22,7 @@ type UseKeyboardShortcutsOptions = {
   onSelectSmartView: (view: SmartView) => void;
   onMoveToNextPage: () => void;
   onMoveToPreviousPage: () => void;
+  onRunCommandHook: () => void;
   onRefresh: () => void;
   onGenerateResponses: () => void;
   onGenerateReplies: () => void;
@@ -74,6 +75,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         current.onToggleArticleBrowserExpanded();
         return;
       }
+      if (event.isComposing || event.keyCode === 229) return;
       if (document.querySelector("[role='dialog']")) return;
       if (isEditableTarget(target)) return;
 
@@ -154,6 +156,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         if (isLocalBoard(current.selectedThread)) current.onGenerateReplies();
         else if ((current.selectedThread?.posts.length ?? 0) <= 1) current.onGenerateResponses();
         else if (current.selectedThread && current.selectedThread.posts.length < 1000) current.onGenerateReplies();
+      } else if (event.key === "t" && !event.shiftKey && current.threadViewMode === "replies") {
+        event.preventDefault();
+        if (!event.repeat) current.onRunCommandHook();
       } else if (event.key === "w") {
         if (canUseThreadPane(current.selectedThread) && current.selectedThread.posts.length < 1000) {
           event.preventDefault();

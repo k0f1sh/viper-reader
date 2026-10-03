@@ -1,3 +1,4 @@
+import { getCommandHook, saveCommandHook, clearCommandHook, runCommandHook, stopCommandHook } from "./hooks/commandHookService.js";
 import { isLocalBoard } from "../shared/boardPolicy.js";
 import { deleteLocalThread } from "./threads/deleteLocalThread.js";
 import { createLocalThread } from "./threads/createLocalThread.js";
@@ -234,6 +235,19 @@ function broadcastToRenderers(channel: string, ...args: unknown[]): void {
     sendIfAvailable(window.webContents, channel, ...args);
   }
 }
+
+app.on("before-quit", stopCommandHook);
+ipcMain.handle("hooks:get-command", () => getCommandHook());
+ipcMain.handle("hooks:save-command", (_event, config: unknown) => saveCommandHook(config));
+ipcMain.handle("hooks:clear-command", () => clearCommandHook());
+ipcMain.handle("hooks:run-command", (event, threadId: unknown) => {
+  assertIdentifier(threadId, "thread ID");
+  return runCommandHook(threadId, (output) => {
+    sendIfAvailable(event.sender, "hooks:command-output", { threadId, output });
+  }, (process) => {
+    sendIfAvailable(event.sender, "hooks:command-process", { threadId, process });
+  });
+});
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());

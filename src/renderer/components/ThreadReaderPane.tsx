@@ -1,11 +1,18 @@
 import { isLocalBoard, canUseThreadPane } from "../../shared/boardPolicy";
 import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import type { ThreadDetail } from "../../shared/types";
+import type { ThreadDetail, CommandHookProcessState } from "../../shared/types";
 import { PostBody } from "./PostBody";
 import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
+  canRunCommandHook: boolean;
+  commandHookRunning: boolean;
+  commandHookMessage: string;
+  commandHookOutput: string;
+  commandHookProcess: CommandHookProcessState | null;
+  onDismissCommandHookMessage: () => void;
+  onRunCommandHook: () => void;
   selectedThread: ThreadDetail | null;
   isSelectedThreadGenerating: boolean;
   generationProgressMessage: string;
@@ -47,6 +54,13 @@ type ThreadReaderPaneProps = {
 };
 
 export function ThreadReaderPane({
+  canRunCommandHook,
+  commandHookRunning,
+  commandHookMessage,
+  commandHookOutput,
+  commandHookProcess,
+  onDismissCommandHookMessage,
+  onRunCommandHook,
   selectedThread,
   isSelectedThreadGenerating,
   generationProgressMessage,
@@ -117,6 +131,9 @@ export function ThreadReaderPane({
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
+                {commandHookRunning ? "フック実行中..." : "フック実行"}
+              </button>
               {selectedThread.url ? <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
                 元記事
               </button> : null}
@@ -191,6 +208,25 @@ export function ThreadReaderPane({
               ) : null}
             </div>
           </div>
+          {commandHookMessage ? (
+            <div className="id-extraction-bar command-hook-notice" role="status">
+              <div className="command-hook-notice-content">
+                <span>{commandHookMessage}</span>
+                {commandHookProcess ? (
+                  <div className="command-hook-process" aria-label="外部プロセスの状態">
+                    <div>コマンド: {commandHookProcess.command}</div>
+                    <div>
+                      PID: {commandHookProcess.pid ?? "—"} / 状態: {{ running: "実行中", completed: "正常終了", failed: "異常終了", "spawn-failed": "起動失敗" }[commandHookProcess.status]}
+                      {commandHookProcess.exitCode !== null ? ` / 終了コード: ${commandHookProcess.exitCode}` : ""}
+                      {commandHookProcess.signal ? ` / シグナル: ${commandHookProcess.signal}` : ""}
+                    </div>
+                  </div>
+                ) : commandHookRunning ? <div className="command-hook-process">状態: 起動中</div> : null}
+                {commandHookOutput ? <pre className="command-hook-output" aria-label="外部コマンドの出力">{commandHookOutput}</pre> : null}
+              </div>
+              <button type="button" aria-label="フック通知を閉じる" title="通知を閉じる" onClick={onDismissCommandHookMessage}>✗</button>
+            </div>
+          ) : null}
           {hasArticleUpdate ? (
             <div className="id-extraction-bar" role="status">
               <span>記事に更新あり。既存のAIレスは更新前の内容です。更新すると本文を取得し直し、AIレスを置き換えます。書き込みとその番号は保持します。</span>

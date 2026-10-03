@@ -1,3 +1,16 @@
+export type CommandHookProcessState = {
+  command: string;
+  pid: number | null;
+  status: "running" | "completed" | "failed" | "spawn-failed";
+  exitCode: number | null;
+  signal: string | null;
+};
+export type CommandHookProcessEvent = { threadId: string; process: CommandHookProcessState };
+
+export type CommandHookOutput = { threadId: string; output: string };
+
+export type CommandHookConfig = { command: string; args: string[] };
+
 export type BoardKind = "rss" | "local";
 
 export const localBoardId = "board:local";

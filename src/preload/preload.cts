@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
+  CommandHookConfig,
+  CommandHookOutput,
+  CommandHookProcessEvent,
   CreateLocalThreadRequest,
   CreateLocalThreadResult,
   AppLogEntry,
@@ -28,6 +31,12 @@ import type {
 } from "../shared/types.js";
 
 export type ViperReaderApi = {
+  onCommandHookProcess: (callback: (data: CommandHookProcessEvent) => void) => () => void;
+  onCommandHookOutput: (callback: (data: CommandHookOutput) => void) => () => void;
+  getCommandHook: () => Promise<CommandHookConfig | null>;
+  saveCommandHook: (config: CommandHookConfig) => Promise<void>;
+  clearCommandHook: () => Promise<void>;
+  runCommandHook: (threadId: string) => Promise<void>;
   getAppInfo: () => Promise<typeof appInfo>;
   listFeeds: () => Promise<FeedSource[]>;
   listThreads: (feedId: string | null, page: number, unreadOnly: boolean) => Promise<ThreadListPage>;
@@ -101,6 +110,20 @@ export type ViperReaderApi = {
 };
 
 const api: ViperReaderApi = {
+  onCommandHookProcess: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: CommandHookProcessEvent) => callback(data);
+    ipcRenderer.on("hooks:command-process", listener);
+    return () => ipcRenderer.removeListener("hooks:command-process", listener);
+  },
+  onCommandHookOutput: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: CommandHookOutput) => callback(data);
+    ipcRenderer.on("hooks:command-output", listener);
+    return () => ipcRenderer.removeListener("hooks:command-output", listener);
+  },
+  getCommandHook: () => ipcRenderer.invoke("hooks:get-command"),
+  saveCommandHook: (config) => ipcRenderer.invoke("hooks:save-command", config),
+  clearCommandHook: () => ipcRenderer.invoke("hooks:clear-command"),
+  runCommandHook: (threadId) => ipcRenderer.invoke("hooks:run-command", threadId),
   getAppInfo: () => ipcRenderer.invoke("app:get-info"),
   listFeeds: () => ipcRenderer.invoke("feeds:list"),
   listThreads: (feedId, page, unreadOnly) => ipcRenderer.invoke("threads:list", feedId, page, unreadOnly),

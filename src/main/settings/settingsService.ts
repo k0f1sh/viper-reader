@@ -9,6 +9,7 @@ const geminiApiKeySettingKey = "geminiApiKey";
 const encryptedSettingPrefix = "safe-storage:v1:";
 const plainTextSettingPrefix = "plain-text:v1:";
 const rendererSettingKeys = new Set([
+  "ui_zoom_percent_v1",
   "replyModel",
   "titleModel",
   "threadColumnWidths",

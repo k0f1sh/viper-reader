@@ -1,3 +1,4 @@
+import { CommandHookSettings } from "./CommandHookSettings";
 import type { FormEvent } from "react";
 import type { GeminiApiKeyStatus } from "../../shared/types";
 
@@ -12,6 +13,7 @@ type SettingsModalProps = {
   onClear: () => void;
   onHighlightAiArticlesChange: (enabled: boolean) => void;
   onClose: () => void;
+  onCommandHookSaved: () => void;
 };
 
 export function SettingsModal({
@@ -24,7 +26,8 @@ export function SettingsModal({
   onSave,
   onClear,
   onHighlightAiArticlesChange,
-  onClose
+  onClose,
+  onCommandHookSaved
 }: SettingsModalProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,6 +86,8 @@ export function SettingsModal({
               AIまたはLLMタグが付いた記事のタグ欄と行頭を強調します。
             </p>
           </fieldset>
+
+          <CommandHookSettings onSaved={onCommandHookSaved} />
 
           {statusMessage ? <div className="settings-status-message">{statusMessage}</div> : null}
 

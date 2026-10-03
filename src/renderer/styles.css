@@ -2047,6 +2047,9 @@ body.is-article-pane-resizing * {
 
 /* アプリ設定モーダル */
 .settings-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 94vh;
   width: min(520px, 96vw);
   border-top: 2px solid #ffffff;
   border-right: 2px solid #404040;
@@ -2057,6 +2060,8 @@ body.is-article-pane-resizing * {
 }
 
 .settings-content {
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2750,4 +2755,50 @@ body.is-article-pane-resizing * {
   justify-content: flex-end;
   gap: 8px;
   padding: 0 14px 14px;
+}
+
+.settings-content textarea.settings-input {
+  height: auto;
+  resize: vertical;
+}
+
+.settings-content fieldset > .settings-buttons,
+.settings-content fieldset > .settings-status-message {
+  grid-column: 1 / -1;
+}
+
+.thread-reader-pane > .id-extraction-bar[role="status"] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.command-hook-notice-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.command-hook-notice > button {
+  min-width: 24px;
+}
+
+.command-hook-notice {
+  align-items: flex-start;
+}
+
+.command-hook-output {
+  max-height: 180px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 6px;
+  border: 1px solid #808080;
+  background: #ffffff;
+  color: #000000;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px monospace;
+}
+
+.command-hook-process {
+  margin-top: 4px;
+  font: 12px monospace;
 }

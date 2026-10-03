@@ -91,6 +91,7 @@ export function AppWorkspace({
         <span><kbd>Space</kbd>/<kbd>Shift</kbd>+<kbd>Space</kbd> 元記事スクロール</span>
         <span><kbd>h</kbd>/<kbd>l</kbd> 板移動</span>
         <span><kbd>g</kbd>/<kbd>u</kbd> AIレス</span>
+        <span><kbd>t</kbd> 外部フック</span>
         <span><kbd>w</kbd> 書き込み</span>
         <span><kbd>r</kbd>/<kbd>y</kbd> 更新</span>
         <span><kbd>b</kbd> お気に入り</span>

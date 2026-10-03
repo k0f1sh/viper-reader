@@ -1,3 +1,4 @@
+import { useCommandHook } from "./hooks/useCommandHook";
 import { isRssBoard, isLocalBoard } from "../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, SmartView, ThreadDetail, ThreadListItem, TitleGenerationAttempt } from "../shared/types";
@@ -292,6 +293,8 @@ export function App() {
   // 未読巡回中は、開いて既読になった行もセッション内に残して一覧の並びを安定させる。
   const visibleThreads = threadList;
 
+  const commandHook = useCommandHook(selectedThread, threadViewMode);
+
   useKeyboardShortcuts({
     feeds: feedList,
     threads: visibleThreads,
@@ -314,6 +317,7 @@ export function App() {
     onMoveToPreviousPage: () => {
       if (threadListPage > 0) changeThreadListPage(threadListPage - 1, "last");
     },
+    onRunCommandHook: () => void commandHook.run(),
     onRefresh: () => void refreshSelectedFeed(),
     onGenerateResponses: () => void generateResponses(false),
     onGenerateReplies: () => void handleGenerateReplies(),
@@ -720,6 +724,13 @@ export function App() {
     onClearSearch: clearSearch
   };
   const threadReaderProps = {
+    canRunCommandHook: commandHook.canRun,
+    commandHookRunning: commandHook.running,
+    commandHookMessage: commandHook.message,
+    commandHookOutput: commandHook.output,
+    commandHookProcess: commandHook.process,
+    onDismissCommandHookMessage: commandHook.clearMessage,
+    onRunCommandHook: () => void commandHook.run(),
     selectedThread,
     isSelectedThreadGenerating,
     generationProgressMessage: selectedThread ? threadGenerationProgress.get(selectedThread.id) ?? "" : "",
@@ -810,7 +821,7 @@ export function App() {
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
-        settings={apiSettings.isOpen ? { apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
+        settings={apiSettings.isOpen ? { onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
         browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
         modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}
