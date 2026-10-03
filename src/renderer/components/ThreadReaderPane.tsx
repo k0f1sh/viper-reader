@@ -130,7 +130,7 @@ export function ThreadReaderPane({
               {!isLocal ? <div className="original-title">元記事: {selectedThread.originalTitle}</div> : null}
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
-            <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <div className="thread-header-actions">
               <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
                 {commandHookRunning ? "フック実行中..." : "フック実行"}
               </button>

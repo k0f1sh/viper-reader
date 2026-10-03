@@ -806,12 +806,18 @@ body.is-article-pane-resizing * {
 }
 
 .toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   min-height: 46px;
   border-bottom: 2px solid #808080;
   background: #d4d0c8;
+}
+
+.toolbar > :first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .toolbar .pane-title {
@@ -1120,6 +1126,7 @@ body.is-article-pane-resizing * {
 
 .thread-toolbar-right {
   display: flex;
+  flex: 1 1 400px;
   align-items: flex-start;
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -1227,7 +1234,8 @@ body.is-article-pane-resizing * {
   top: 0;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 0 0 auto;
   align-items: start;
   gap: 8px;
   min-height: 54px;
@@ -1235,6 +1243,24 @@ body.is-article-pane-resizing * {
   border-top: 1px solid #ffffff;
   border-bottom: 1px solid #808080;
   background: #d4d0c8;
+}
+
+.thread-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.thread-header-actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.thread-heading,
+.original-title {
+  overflow-wrap: anywhere;
 }
 
 .thread-heading {
