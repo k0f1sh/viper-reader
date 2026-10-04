@@ -7,6 +7,7 @@ import { getActiveModel } from "../settings/settingsService.js";
 import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
+import { createSequentialBoardDates } from "../threads/boardDate.js";
 
 export type ThreadResponseGenerationResult = {
   posts: ThreadPost[];
@@ -27,6 +28,7 @@ export async function generateThreadResponses(
     promptHash: string;
     scrapedBody: string | null;
     articleSummary: string | null;
+    summaryOnly?: boolean;
   }
 ): Promise<ThreadResponseGenerationResult> {
   const modelToUse = getActiveModel();
@@ -48,6 +50,7 @@ export async function generateThreadResponses(
     rssBody: thread.posts[0]?.body ?? "",
     scrapedBody: articleContext,
     publishedAt: thread.publishedAt,
+    summaryOnly: options.summaryOnly,
     residentPrompt: options.residentPrompt
   });
   if (!resolveApiKey()) {
@@ -85,7 +88,7 @@ export async function generateThreadResponses(
   });
 
   const finishedAt = new Date().toISOString();
-  const posts = result.value ?? [];
+  const posts = options.summaryOnly ? (result.value ?? []).slice(0, 1) : result.value ?? [];
 
   return {
     posts,
@@ -146,6 +149,7 @@ function buildArticleContext(params: {
 
 function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
   const posts: ThreadPost[] = [];
+  const dates = createSequentialBoardDates(15);
 
   for (const item of parsed) {
     if (!isRecord(item)) {
@@ -160,7 +164,7 @@ function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
       no: 2 + posts.length,
       name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
-      date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
+      date: dates[posts.length],
       id: normalizeId(item.id),
       body
     });
@@ -236,10 +240,6 @@ function createLlmLog(params: {
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createFallbackDate(): string {
-  return "2009/01/02(金) 00:00:00.00";
 }
 
 function createFallbackId(): string {

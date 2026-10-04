@@ -18,6 +18,9 @@ export async function regenerateThreadTitle(threadId: string): Promise<ThreadDet
 
   const modelToUse = getTitleGenerationModel();
   const feed = getFeedSource(item.feedId);
+  if (feed?.skipTitleConversion) {
+    throw new Error("この板では「スレタイ変換しない」が設定されています。");
+  }
   const result = await transformTitlesToBoardStyle(item.feedId, item.feedTitle, [
     {
       id: item.id,

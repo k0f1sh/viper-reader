@@ -10,14 +10,15 @@ export function getArticleBody(feedItemId: string): string | null {
       INNER JOIN feed_items target_item ON target_item.id = ?
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     `)
     .get(feedItemId) as { content_text: string } | undefined;
   return row?.content_text ?? null;
 }
 
-export function saveArticleBody(feedItemId: string, url: string, contentText: string): void {
+export function saveArticleBody(feedItemId: string, url: string, contentText: string, expectedVersion?: number): void {
+  if (expectedVersion !== undefined) assertArticleVersion(feedItemId, expectedVersion);
   const contentHash = crypto.createHash("sha1").update(contentText).digest("hex");
   const id = `article-body:${feedItemId}:${contentHash.slice(0, 10)}`;
 
@@ -37,7 +38,7 @@ export function getArticleSummary(feedItemId: string): string | null {
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
         AND ab.summary_text IS NOT NULL
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     `)
     .get(feedItemId) as { summary_text: string | null } | undefined;
@@ -53,8 +54,16 @@ export function saveArticleSummary(feedItemId: string, summaryText: string): voi
       INNER JOIN feed_items target_item ON target_item.id = ?
       WHERE COALESCE(NULLIF(source_item.canonical_url, ''), source_item.url)
         = COALESCE(NULLIF(target_item.canonical_url, ''), target_item.url)
-      ORDER BY ab.fetched_at DESC
+      ORDER BY ab.fetched_at DESC, ab.rowid DESC
       LIMIT 1
     )
   `).run(summaryText, feedItemId);
+}
+
+export function assertArticleVersion(feedItemId: string, expectedVersion: number): void {
+  const row = getDatabase().prepare("SELECT content_version FROM feed_items WHERE id = ?")
+    .get(feedItemId) as { content_version: number } | undefined;
+  if (!row || row.content_version !== expectedVersion) {
+    throw new Error("処理中に記事が更新されました。更新内容を確認して再生成してください。");
+  }
 }

@@ -1,21 +1,27 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { appInfo } from "../shared/appInfo.js";
 import type {
+  CommandHookConfig,
+  CommandHookOutput,
+  CommandHookProcessEvent,
+  CreateLocalThreadRequest,
+  CreateLocalThreadResult,
   AppLogEntry,
   ArticleBrowserBounds,
   ArticleBrowserState,
   ArticleBodyContent,
   FeedResidentPrompt,
   FeedSource,
+  FeedFolder,
+  FeedTreePlacement,
   GeminiApiKeyStatus,
   RefreshFeedResult,
   RefreshProgress,
   ReadingQueueSummary,
-  ReplyRating,
-  ResidentPromptVersion,
   StatisticsSummary,
   ThreadDetail,
   ThreadGenerationAttempt,
+  ThreadGenerationStartResult,
   TitleGenerationAttempt,
   ThreadGenerationStatus,
   ThreadGenerationProgress,
@@ -25,9 +31,16 @@ import type {
 } from "../shared/types.js";
 
 export type ViperReaderApi = {
+  onCommandHookProcess: (callback: (data: CommandHookProcessEvent) => void) => () => void;
+  onCommandHookOutput: (callback: (data: CommandHookOutput) => void) => () => void;
+  getCommandHook: () => Promise<CommandHookConfig | null>;
+  saveCommandHook: (config: CommandHookConfig) => Promise<void>;
+  clearCommandHook: () => Promise<void>;
+  runCommandHook: (threadId: string) => Promise<void>;
   getAppInfo: () => Promise<typeof appInfo>;
   listFeeds: () => Promise<FeedSource[]>;
   listThreads: (feedId: string | null, page: number, unreadOnly: boolean) => Promise<ThreadListPage>;
+  searchThreads: (feedId: string | null, query: string, page: number, unreadOnly: boolean) => Promise<ThreadListPage>;
   listGeneratedQueue: (page: number) => Promise<ThreadListPage>;
   listReviewedGenerationQueue: (page: number) => Promise<ThreadListPage>;
   getReadingQueueSummary: () => Promise<ReadingQueueSummary>;
@@ -35,7 +48,11 @@ export type ViperReaderApi = {
   listThreadGenerationAttempts: (threadId: string) => Promise<ThreadGenerationAttempt[]>;
   listTitleGenerationAttempts: (threadId: string) => Promise<TitleGenerationAttempt[]>;
   countUnreadArticles: () => Promise<number>;
+  markThreadPostsRead: (threadId: string, postNo: number) => Promise<void>;
+  createLocalThread: (request: CreateLocalThreadRequest) => Promise<CreateLocalThreadResult>;
   getThread: (threadId: string) => Promise<ThreadDetail | null>;
+  deleteLocalThread: (threadId: string) => Promise<void>;
+  deleteThreadContent: (threadId: string) => Promise<ThreadDetail | null>;
   getArticleBody: (threadId: string) => Promise<ArticleBodyContent | null>;
   showArticleBrowser: (request: ShowArticleBrowserRequest) => Promise<ArticleBrowserState>;
   hideArticleBrowser: () => Promise<void>;
@@ -50,8 +67,9 @@ export type ViperReaderApi = {
   retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
   getArticleBrowserState: () => Promise<ArticleBrowserState>;
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
+  onToggleArticleBrowserExpanded: (callback: () => void) => () => void;
   regenerateThreadTitle: (threadId: string) => Promise<ThreadDetail | null>;
-  generateThreadResponses: (threadId: string, force: boolean) => Promise<void>;
+  generateThreadResponses: (threadId: string, force: boolean) => Promise<ThreadGenerationStartResult>;
   postMessage: (threadId: string, name: string, mail: string, body: string) => Promise<ThreadDetail | null>;
   generateReplies: (threadId: string) => Promise<ThreadDetail | null>;
   toggleFavorite: (threadId: string, isFavorite: boolean) => Promise<void>;
@@ -66,32 +84,50 @@ export type ViperReaderApi = {
   onPostStatus: (callback: (data: { threadId: string; status: "writing" | "generating" | "done" | "error"; errorMessage?: string }) => void) => () => void;
   listLogs: () => Promise<AppLogEntry[]>;
   copyLogs: (text: string) => Promise<void>;
+  copyText: (text: string) => Promise<void>;
   onLogEntry: (callback: (entry: AppLogEntry) => void) => () => void;
   getStatistics: () => Promise<StatisticsSummary>;
   openExternalUrl: (url: string) => Promise<void>;
   getFeedResidentPrompt: (feedId: string) => Promise<FeedResidentPrompt | null>;
   saveFeedResidentPrompt: (feedId: string, prompt: string) => Promise<void>;
   clearFeedResidentPrompt: (feedId: string) => Promise<void>;
-  rateReplyRun: (runId: string, rating: ReplyRating, tags: string[]) => Promise<void>;
-  listResidentPromptVersions: (feedId: string) => Promise<ResidentPromptVersion[]>;
-  reviewResidentPromptVersion: (id: string, decision: "active" | "rejected") => Promise<void>;
-  rollbackResidentPromptVersion: (feedId: string) => Promise<void>;
-  onPromptProposalReady: (callback: (data: { feedId: string; versionId: string }) => void) => () => void;
   getUserSetting: (key: string) => Promise<string | null>;
   saveUserSetting: (key: string, value: string) => Promise<void>;
+  setUiZoomFactor: (factor: number) => Promise<number>;
+  onUiZoomChanged: (callback: (direction: "in" | "out") => void) => () => void;
   getGeminiApiKeyStatus: () => Promise<GeminiApiKeyStatus>;
   saveGeminiApiKey: (apiKey: string) => Promise<GeminiApiKeyStatus>;
   clearGeminiApiKey: () => Promise<GeminiApiKeyStatus>;
-  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
+  addFeedSource: (title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => Promise<FeedSource>;
   deleteFeedSource: (feedId: string) => Promise<void>;
   reorderFeedSources: (feedIds: string[]) => Promise<void>;
-  updateFeedTitleGenerationSetting: (feedId: string, generateTitleFromSummary: boolean) => Promise<FeedSource>;
+  updateFeedSettings: (feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, defaultToArticleBrowser: boolean) => Promise<FeedSource>;
+  listFeedFolders: () => Promise<FeedFolder[]>;
+  createFeedFolder: (name: string, parentFolderId: string | null) => Promise<FeedFolder>;
+  renameFeedFolder: (folderId: string, name: string) => Promise<FeedFolder>;
+  deleteFeedFolder: (folderId: string) => Promise<void>;
+  saveFeedTreeLayout: (placements: FeedTreePlacement[]) => Promise<void>;
 };
 
 const api: ViperReaderApi = {
+  onCommandHookProcess: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: CommandHookProcessEvent) => callback(data);
+    ipcRenderer.on("hooks:command-process", listener);
+    return () => ipcRenderer.removeListener("hooks:command-process", listener);
+  },
+  onCommandHookOutput: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: CommandHookOutput) => callback(data);
+    ipcRenderer.on("hooks:command-output", listener);
+    return () => ipcRenderer.removeListener("hooks:command-output", listener);
+  },
+  getCommandHook: () => ipcRenderer.invoke("hooks:get-command"),
+  saveCommandHook: (config) => ipcRenderer.invoke("hooks:save-command", config),
+  clearCommandHook: () => ipcRenderer.invoke("hooks:clear-command"),
+  runCommandHook: (threadId) => ipcRenderer.invoke("hooks:run-command", threadId),
   getAppInfo: () => ipcRenderer.invoke("app:get-info"),
   listFeeds: () => ipcRenderer.invoke("feeds:list"),
   listThreads: (feedId, page, unreadOnly) => ipcRenderer.invoke("threads:list", feedId, page, unreadOnly),
+  searchThreads: (feedId, query, page, unreadOnly) => ipcRenderer.invoke("threads:search", feedId, query, page, unreadOnly),
   listGeneratedQueue: (page) => ipcRenderer.invoke("threads:list-generated-queue", page),
   listReviewedGenerationQueue: (page) => ipcRenderer.invoke("threads:list-reviewed-generation-queue", page),
   getReadingQueueSummary: () => ipcRenderer.invoke("threads:get-queue-summary"),
@@ -99,7 +135,11 @@ const api: ViperReaderApi = {
   listThreadGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-generation-attempts", threadId),
   listTitleGenerationAttempts: (threadId) => ipcRenderer.invoke("threads:list-title-generation-attempts", threadId),
   countUnreadArticles: () => ipcRenderer.invoke("threads:count-unread-articles"),
+  markThreadPostsRead: (threadId, postNo) => ipcRenderer.invoke("threads:mark-posts-read", threadId, postNo),
+  createLocalThread: (request) => ipcRenderer.invoke("threads:create-local", request),
   getThread: (threadId) => ipcRenderer.invoke("threads:get", threadId),
+  deleteLocalThread: (threadId) => ipcRenderer.invoke("threads:delete-local", threadId),
+  deleteThreadContent: (threadId) => ipcRenderer.invoke("threads:delete-content", threadId),
   getArticleBody: (threadId) => ipcRenderer.invoke("articles:get-body", threadId),
   showArticleBrowser: (request) => ipcRenderer.invoke("article-browser:show", request),
   hideArticleBrowser: () => ipcRenderer.invoke("article-browser:hide"),
@@ -117,6 +157,11 @@ const api: ViperReaderApi = {
     const listener = (_event: Electron.IpcRendererEvent, state: ArticleBrowserState) => callback(state);
     ipcRenderer.on("article-browser:state", listener);
     return () => ipcRenderer.removeListener("article-browser:state", listener);
+  },
+  onToggleArticleBrowserExpanded: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("article-browser:toggle-expanded", listener);
+    return () => ipcRenderer.removeListener("article-browser:toggle-expanded", listener);
   },
   regenerateThreadTitle: (threadId) => ipcRenderer.invoke("threads:regenerate-title", threadId),
   generateThreadResponses: (threadId, force) => ipcRenderer.invoke("threads:generate", threadId, force),
@@ -161,6 +206,7 @@ const api: ViperReaderApi = {
   },
   listLogs: () => ipcRenderer.invoke("logs:list"),
   copyLogs: (text) => ipcRenderer.invoke("logs:copy", text),
+  copyText: (text) => ipcRenderer.invoke("clipboard:copy-text", text),
   onLogEntry: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, entry: AppLogEntry) => callback(entry);
     ipcRenderer.on("logs:entry", listener);
@@ -173,25 +219,27 @@ const api: ViperReaderApi = {
   getFeedResidentPrompt: (feedId) => ipcRenderer.invoke("feeds:get-resident-prompt", feedId),
   saveFeedResidentPrompt: (feedId, prompt) => ipcRenderer.invoke("feeds:save-resident-prompt", feedId, prompt),
   clearFeedResidentPrompt: (feedId) => ipcRenderer.invoke("feeds:clear-resident-prompt", feedId),
-  rateReplyRun: (runId, rating, tags) => ipcRenderer.invoke("threads:rate-reply-run", runId, rating, tags),
-  listResidentPromptVersions: (feedId) => ipcRenderer.invoke("feeds:list-prompt-versions", feedId),
-  reviewResidentPromptVersion: (id, decision) => ipcRenderer.invoke("feeds:review-prompt-version", id, decision),
-  rollbackResidentPromptVersion: (feedId) => ipcRenderer.invoke("feeds:rollback-prompt-version", feedId),
-  onPromptProposalReady: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: { feedId: string; versionId: string }) => callback(data);
-    ipcRenderer.on("feeds:prompt-proposal-ready", listener);
-    return () => ipcRenderer.removeListener("feeds:prompt-proposal-ready", listener);
-  },
   getUserSetting: (key) => ipcRenderer.invoke("settings:get", key),
   saveUserSetting: (key, value) => ipcRenderer.invoke("settings:save", key, value),
+  setUiZoomFactor: (factor) => ipcRenderer.invoke("ui:set-zoom-factor", factor),
+  onUiZoomChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, direction: "in" | "out") => callback(direction);
+    ipcRenderer.on("ui:zoom-changed", listener);
+    return () => ipcRenderer.removeListener("ui:zoom-changed", listener);
+  },
   getGeminiApiKeyStatus: () => ipcRenderer.invoke("settings:get-gemini-api-key-status"),
   saveGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings:save-gemini-api-key", apiKey),
   clearGeminiApiKey: () => ipcRenderer.invoke("settings:clear-gemini-api-key"),
-  addFeedSource: (title, url, generateTitleFromSummary) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary),
+  addFeedSource: (title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId) => ipcRenderer.invoke("feeds:add", title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId),
   deleteFeedSource: (feedId) => ipcRenderer.invoke("feeds:delete", feedId),
   reorderFeedSources: (feedIds) => ipcRenderer.invoke("feeds:reorder", feedIds),
-  updateFeedTitleGenerationSetting: (feedId, generateTitleFromSummary) =>
-    ipcRenderer.invoke("feeds:update-title-generation-setting", feedId, generateTitleFromSummary)
+  updateFeedSettings: (feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser) =>
+    ipcRenderer.invoke("feeds:update-settings", feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser),
+  listFeedFolders: () => ipcRenderer.invoke("feed-folders:list"),
+  createFeedFolder: (name, parentFolderId) => ipcRenderer.invoke("feed-folders:create", name, parentFolderId),
+  renameFeedFolder: (folderId, name) => ipcRenderer.invoke("feed-folders:rename", folderId, name),
+  deleteFeedFolder: (folderId) => ipcRenderer.invoke("feed-folders:delete", folderId),
+  saveFeedTreeLayout: (placements) => ipcRenderer.invoke("feed-tree:save-layout", placements)
 };
 
 contextBridge.exposeInMainWorld("viperReader", api);

@@ -1,3 +1,8 @@
+import { getCommandHook, saveCommandHook, clearCommandHook, runCommandHook, stopCommandHook } from "./hooks/commandHookService.js";
+import { isLocalBoard } from "../shared/boardPolicy.js";
+import { deleteLocalThread } from "./threads/deleteLocalThread.js";
+import { createLocalThread } from "./threads/createLocalThread.js";
+import type { CreateLocalThreadRequest } from "../shared/types.js";
 import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
 import { writeFile } from "node:fs/promises";
@@ -6,9 +11,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
   getArticleBody,
+  deleteThreadContent,
   getStatistics,
   initializeRepository,
   listThreads,
+  searchThreads,
   listGeneratedQueue,
   listThreadGenerationAttempts,
   listTitleGenerationAttempts,
@@ -17,7 +24,7 @@ import {
   setThreadFavorite,
   listFavoriteThreads,
   setThreadRead,
-  setThreadGenerationState,
+  markThreadPostsRead,
   markThreadGenerationReviewed
 } from "./db/repository.js";
 import {
@@ -27,16 +34,19 @@ import {
   markAllFeedsRead,
   markFeedRead,
   reorderFeedSources,
-  updateFeedTitleGenerationSetting
+  updateFeedSettings
 } from "./db/feedRepository.js";
+import {
+  createFeedFolder,
+  deleteFeedFolder,
+  listFeedFolders,
+  renameFeedFolder,
+  saveFeedTreeLayout
+} from "./db/feedFolderRepository.js";
 import {
   clearFeedResidentPrompt,
   getFeedResidentPrompt,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveFeedResidentPrompt,
-  saveReplyFeedback
+  saveFeedResidentPrompt
 } from "./db/residentPromptRepository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
@@ -51,20 +61,20 @@ import {
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
 import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
-import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
+import { acquireThreadLock, releaseThreadLock } from "./threads/threadLocks.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
-import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
-import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
+import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
+import type { ArticleBrowserBounds, FeedTreePlacement, ShowArticleBrowserRequest } from "../shared/types.js";
 import { sendIfAvailable } from "./ipc/safeSender.js";
 import {
   assertArticleBrowserBounds,
   assertBoolean,
+  assertFeedTreePlacements,
   assertHttpUrl,
   assertIdentifier,
+  assertNullableIdentifier,
   assertPage,
-  assertPromptDecision,
-  assertReplyRating,
   assertShowArticleBrowserRequest,
   assertString,
   assertStringArray
@@ -84,6 +94,13 @@ const screenshotPathArg = process.argv.find((arg) => arg.startsWith("--screensho
 const screenshotPath = screenshotPathArg
   ? path.resolve(screenshotPathArg.substring("--screenshot-path=".length))
   : null;
+const articleBrowserScreenshotPathArg = process.argv.find((arg) =>
+  arg.startsWith("--article-browser-screenshot-path=")
+);
+const articleBrowserScreenshotPath = articleBrowserScreenshotPathArg
+  ? path.resolve(articleBrowserScreenshotPathArg.substring("--article-browser-screenshot-path=".length))
+  : null;
+const isScreenshotMode = screenshotPath !== null || articleBrowserScreenshotPath !== null;
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
@@ -112,8 +129,8 @@ if (process.platform === "linux") {
 
 function createMainWindow(): void {
   const window = new BrowserWindow({
-    width: screenshotPath ? 1600 : 1180,
-    height: screenshotPath ? 1000 : 760,
+    width: isScreenshotMode ? 1600 : 1180,
+    height: isScreenshotMode ? 1000 : 760,
     minWidth: 920,
     minHeight: 600,
     title: appInfo.name,
@@ -130,7 +147,12 @@ function createMainWindow(): void {
   if (!articleSession || !articleBlocker) {
     throw new Error("Article browser services are not initialized.");
   }
-  const articleBrowser = new ArticleBrowserController(window, articleSession, articleBlocker);
+  const articleBrowser = new ArticleBrowserController(
+    window,
+    articleSession,
+    articleBlocker,
+    articleBrowserScreenshotPath !== null
+  );
   const rendererWebContentsId = window.webContents.id;
   articleBrowserControllers.set(rendererWebContentsId, articleBrowser);
   window.once("close", () => {
@@ -147,6 +169,10 @@ function createMainWindow(): void {
       ]).popup({ window });
     }
   });
+  window.webContents.on("zoom-changed", (event, direction) => {
+    event.preventDefault();
+    sendIfAvailable(window.webContents, "ui:zoom-changed", direction);
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (!isTrustedRendererUrl(url)) {
@@ -155,7 +181,7 @@ function createMainWindow(): void {
   });
 
   void window.loadURL(rendererEntryUrl);
-  if (screenshotPath) {
+  if (isScreenshotMode) {
     window.webContents.once("did-finish-load", () => {
       setTimeout(() => {
         void window.webContents.executeJavaScript(`
@@ -164,10 +190,36 @@ function createMainWindow(): void {
             const generated = rows.find((row) => Number(row.querySelector('.thread-count')?.textContent ?? 0) > 0);
             (generated ?? rows[0])?.click();
           })();
-        `).then(() => new Promise((resolve) => setTimeout(resolve, 2500)))
-          .then(() => window.webContents.capturePage())
-          .then(async (image) => {
-            await writeFile(screenshotPath, image.toPNG());
+        `).then(() => delay(2500))
+          .then(async () => {
+            if (screenshotPath) {
+              const image = await window.capturePage();
+              await writeFile(screenshotPath, image.toPNG());
+            }
+            if (articleBrowserScreenshotPath) {
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const buttons = [...document.querySelectorAll('button')];
+                  buttons.find((button) => button.textContent?.trim() === '元記事')?.click();
+                })();
+              `);
+              await waitForArticleBrowser(articleBrowser);
+              const articleImage = await articleBrowser.capturePageForScreenshot();
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const viewport = document.querySelector('.article-browser-viewport');
+                  if (!viewport) throw new Error('内蔵ブラウザの表示領域が見つかりません。');
+                  const image = document.createElement('img');
+                  image.src = ${JSON.stringify(articleImage.toDataURL())};
+                  image.alt = '';
+                  image.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;object-position:top left';
+                  viewport.replaceChildren(image);
+                })();
+              `);
+              await delay(100);
+              const image = await window.capturePage();
+              await writeFile(articleBrowserScreenshotPath, image.toPNG());
+            }
             app.quit();
           }).catch((error) => {
             console.error("スクリーンショットの保存に失敗しました:", error);
@@ -178,6 +230,25 @@ function createMainWindow(): void {
   }
 }
 
+function broadcastToRenderers(channel: string, ...args: unknown[]): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    sendIfAvailable(window.webContents, channel, ...args);
+  }
+}
+
+app.on("before-quit", stopCommandHook);
+ipcMain.handle("hooks:get-command", () => getCommandHook());
+ipcMain.handle("hooks:save-command", (_event, config: unknown) => saveCommandHook(config));
+ipcMain.handle("hooks:clear-command", () => clearCommandHook());
+ipcMain.handle("hooks:run-command", (event, threadId: unknown) => {
+  assertIdentifier(threadId, "thread ID");
+  return runCommandHook(threadId, (output) => {
+    sendIfAvailable(event.sender, "hooks:command-output", { threadId, output });
+  }, (process) => {
+    sendIfAvailable(event.sender, "hooks:command-process", { threadId, process });
+  });
+});
+
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
 ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) => {
@@ -185,6 +256,13 @@ ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unr
   assertPage(page);
   assertBoolean(unreadOnly, "unread-only flag");
   return listThreads(feedId, page, 100, unreadOnly);
+});
+ipcMain.handle("threads:search", (_event, feedId: string | null, query: string, page: number, unreadOnly: boolean) => {
+  if (feedId !== null) assertIdentifier(feedId, "feed ID");
+  assertString(query, "search query", { minLength: 1, maxLength: 200 });
+  assertPage(page);
+  assertBoolean(unreadOnly, "unread-only flag");
+  return searchThreads(feedId, query, page, 100, unreadOnly);
 });
 ipcMain.handle("threads:list-generated-queue", (_event, page: number) => {
   assertPage(page);
@@ -208,24 +286,51 @@ ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: stri
   return listTitleGenerationAttempts(threadId, 5);
 });
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
+ipcMain.handle("threads:create-local", (_event, request: CreateLocalThreadRequest) => createLocalThread(request));
 ipcMain.handle("threads:get", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
   return thread;
+});
+ipcMain.handle("threads:mark-posts-read", (_event, threadId: string, postNo: number) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!Number.isSafeInteger(postNo) || postNo < 0) throw new Error("Invalid post number.");
+  return markThreadPostsRead(threadId, postNo);
 });
 ipcMain.handle("articles:get-body", (_event, threadId: string) => {
   assertIdentifier(threadId, "thread ID");
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
 });
+ipcMain.handle("threads:delete-local", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  deleteLocalThread(threadId);
+});
+ipcMain.handle("threads:delete-content", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!acquireThreadLock(threadId)) {
+    throw new Error("このスレッドは現在処理中です。完了してからもう一度試してください。");
+  }
+  try {
+    deleteThreadContent(threadId);
+    return openThread(threadId);
+  } finally {
+    releaseThreadLock(threadId);
+  }
+});
 ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
   assertShowArticleBrowserRequest(request);
-  return getArticleBrowserController(event).show(request);
+  const thread = openThread(request.threadId);
+  if (isLocalBoard(thread) && (!thread.url || request.url !== thread.url)) throw new Error("元記事URLが不正です。");
+  return getArticleBrowserController(event).show({
+    ...request,
+    bounds: scaleArticleBrowserBounds(request.bounds, event.sender.getZoomFactor())
+  });
 });
 ipcMain.handle("article-browser:hide", (event) => getArticleBrowserController(event).hide());
 ipcMain.handle("article-browser:set-bounds", (event, bounds: ArticleBrowserBounds) => {
   assertArticleBrowserBounds(bounds);
-  getArticleBrowserController(event).setBounds(bounds);
+  getArticleBrowserController(event).setBounds(scaleArticleBrowserBounds(bounds, event.sender.getZoomFactor()));
 });
 ipcMain.handle("article-browser:back", (event) => getArticleBrowserController(event).goBack());
 ipcMain.handle("article-browser:forward", (event) => getArticleBrowserController(event).goForward());
@@ -252,16 +357,13 @@ ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: b
 });
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
-ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
+ipcMain.handle("threads:generate", (_event, threadId: string, force: boolean) => {
   assertIdentifier(threadId, "thread ID");
   assertBoolean(force, "force flag");
-  setThreadGenerationState(threadId, "queued");
-  startThreadResponseGeneration(threadId, force, (status) => {
-    setThreadGenerationState(threadId, status === "done" || status === "skipped" ? "completed" : "failed");
-    sendIfAvailable(event.sender, "threads:generation-complete", { threadId, status });
+  return startThreadResponseGeneration(threadId, force, (status) => {
+    broadcastToRenderers("threads:generation-complete", { threadId, status });
   }, (progress) => {
-    setThreadGenerationState(threadId, "generating");
-    sendIfAvailable(event.sender, "threads:generation-progress", { threadId, ...progress });
+    broadcastToRenderers("threads:generation-progress", { threadId, ...progress });
   });
 });
 ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => {
@@ -313,6 +415,10 @@ ipcMain.handle("logs:copy", (_event, text: string) => {
   }
   clipboard.writeText(text.slice(0, 1_000_000));
 });
+ipcMain.handle("clipboard:copy-text", (_event, text: string) => {
+  assertString(text, "clipboard text", { minLength: 1, maxLength: 10_000 });
+  clipboard.writeText(text);
+});
 ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
   return getFeedResidentPrompt(feedId);
@@ -326,34 +432,26 @@ ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
   return clearFeedResidentPrompt(feedId);
 });
-ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
-  assertIdentifier(runId, "reply run ID");
-  assertReplyRating(rating);
-  assertStringArray(tags, "feedback tags", { maxItems: 50, maxItemLength: 100 });
-  const feedId = saveReplyFeedback(runId, rating, tags);
-  void maybeCreatePromptProposal(feedId).then((versionId) => {
-    if (versionId) {
-      sendIfAvailable(event.sender, "feeds:prompt-proposal-ready", { feedId, versionId });
-    }
-  }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
-});
-ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => {
-  assertIdentifier(feedId, "feed ID");
-  return listResidentPromptVersions(feedId);
-});
-ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => {
-  assertIdentifier(id, "prompt version ID");
-  assertPromptDecision(decision);
-  return reviewResidentPromptVersion(id, decision);
-});
-ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => {
-  assertIdentifier(feedId, "feed ID");
-  return rollbackResidentPromptVersion(feedId);
-});
 ipcMain.handle("settings:get", (_event, key: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });
   return getRendererUserSetting(key);
 });
+ipcMain.handle("ui:set-zoom-factor", (event, factor: number) => {
+  if (typeof factor !== "number" || !Number.isFinite(factor) || factor < 0.75 || factor > 1.5) {
+    throw new Error("UI zoom factor is invalid.");
+  }
+  event.sender.setZoomFactor(factor);
+  return event.sender.getZoomFactor();
+});
+
+function scaleArticleBrowserBounds(bounds: ArticleBrowserBounds, zoomFactor: number): ArticleBrowserBounds {
+  return {
+    x: bounds.x * zoomFactor,
+    y: bounds.y * zoomFactor,
+    width: bounds.width * zoomFactor,
+    height: bounds.height * zoomFactor
+  };
+}
 ipcMain.handle("settings:save", (_event, key: string, value: string) => {
   assertString(key, "setting key", { minLength: 1, maxLength: 100 });
   assertString(value, "setting value", { maxLength: 1_000_000 });
@@ -365,11 +463,13 @@ ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => {
   return saveGeminiApiKey(apiKey);
 });
 ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) => {
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => {
   assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertHttpUrl(url, "feed URL");
   assertBoolean(generateTitleFromSummary, "title generation flag");
-  return addFeedSource(title, url, generateTitleFromSummary);
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return addFeedSource(title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId);
 });
 ipcMain.handle("feeds:delete", (_event, feedId: string) => {
   assertIdentifier(feedId, "feed ID");
@@ -379,10 +479,32 @@ ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
   assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
 });
-ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) => {
+ipcMain.handle("feed-folders:list", () => listFeedFolders());
+ipcMain.handle("feed-folders:create", (_event, name: string, parentFolderId: string | null) => {
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return createFeedFolder(name, parentFolderId);
+});
+ipcMain.handle("feed-folders:rename", (_event, folderId: string, name: string) => {
+  assertIdentifier(folderId, "folder ID");
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  return renameFeedFolder(folderId, name);
+});
+ipcMain.handle("feed-folders:delete", (_event, folderId: string) => {
+  assertIdentifier(folderId, "folder ID");
+  deleteFeedFolder(folderId);
+});
+ipcMain.handle("feed-tree:save-layout", (_event, placements: FeedTreePlacement[]) => {
+  assertFeedTreePlacements(placements);
+  saveFeedTreeLayout(placements);
+});
+ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, defaultToArticleBrowser: boolean) => {
   assertIdentifier(feedId, "feed ID");
+  assertString(title, "feed title", { minLength: 1, maxLength: 200 });
   assertBoolean(generateTitleFromSummary, "title generation flag");
-  return updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary);
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  assertBoolean(defaultToArticleBrowser, "default article browser flag");
+  return updateFeedSettings(feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser);
 });
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   assertHttpUrl(url, "external URL");
@@ -391,9 +513,9 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  initializeRepository(screenshotPath === null);
+  initializeRepository(!isScreenshotMode);
   articleSession = session.fromPartition("viper-reader-articles", { cache: false });
-  articleSession.setUserAgent(CHROME_USER_AGENT);
+  articleSession.setUserAgent(ARTICLE_BROWSER_USER_AGENT);
   articleSession.setPermissionCheckHandler(() => false);
   articleSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   articleBlocker = new ArticleBlocker(articleSession);
@@ -409,6 +531,23 @@ void app.whenReady().then(() => {
     }
   });
 });
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForArticleBrowser(controller: ArticleBrowserController): Promise<void> {
+  const timeoutAt = Date.now() + 10_000;
+  while (Date.now() < timeoutAt) {
+    const state = controller.getState();
+    if (state.threadId && !state.isLoading && !state.error) {
+      await delay(500);
+      return;
+    }
+    await delay(100);
+  }
+  throw new Error("内蔵ブラウザの読み込みがタイムアウトしました。");
+}
 
 function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserController {
   const controller = articleBrowserControllers.get(event.sender.id);

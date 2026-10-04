@@ -97,7 +97,9 @@ test("Gemini呼び出し全体が制限時間を超えたら用途付きのエ�
       timeoutMs: 5,
       parse: JSON.parse
     },
-    fakeTransport(() => new Promise(() => undefined))
+    fakeTransport(({ config }) => new Promise((_, reject) => {
+      config.abortSignal.addEventListener("abort", () => reject(config.abortSignal.reason), { once: true });
+    }))
   );
 
   assert.equal(result.value, null);

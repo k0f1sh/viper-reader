@@ -1,4 +1,6 @@
-import type { ThreadDetail, ThreadGenerationProgress } from "../../shared/types.js";
+import { isLocalBoard } from "../../shared/boardPolicy.js";
+import { assertArticleVersion } from "../db/articleRepository.js";
+import type { ThreadDetail, ThreadGenerationProgress, ThreadGenerationStartResult } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
@@ -9,6 +11,7 @@ import {
   recordArticleFetchLog,
   saveArticleBody,
   saveThreadResponsePosts,
+  setThreadGenerationState,
   startThreadGenerationAttempt
 } from "../db/repository.js";
 import { getFeedResidentPrompt } from "../db/residentPromptRepository.js";
@@ -26,25 +29,30 @@ export function startThreadResponseGeneration(
   force: boolean,
   onComplete: (status: "done" | "skipped" | "error") => void,
   onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void = () => undefined
-): void {
+): ThreadGenerationStartResult {
   const thread = getThread(threadId);
   if (!thread) {
-    onComplete("error");
-    return;
+    return { status: "not-found" };
   }
-  if (!force && thread.posts.length > 1) {
-    onComplete("skipped");
-    return;
+  if (isLocalBoard(thread)) throw new Error("自由板では返信生成を使ってください。");
+  if (!force && thread.posts.length > 1 && thread.contentVersion === thread.generatedContentVersion) {
+    return { status: "already-current" };
   }
   if (!acquireThreadLock(threadId)) {
-    onComplete("skipped");
-    return;
+    return { status: "busy" };
   }
 
-  const attemptId = startThreadGenerationAttempt(threadId, force, getActiveModel());
+  let attemptId: string;
+  try {
+    attemptId = startThreadGenerationAttempt(threadId, force, getActiveModel());
+  } catch (error) {
+    releaseThreadLock(threadId);
+    throw error;
+  }
   let currentStage: ThreadGenerationProgress["stage"] = "checking-cache";
   const reportProgress = (progress: Omit<ThreadGenerationProgress, "threadId">): void => {
     currentStage = progress.stage;
+    setThreadGenerationState(threadId, "generating");
     onProgress(progress);
   };
 
@@ -53,11 +61,13 @@ export function startThreadResponseGeneration(
       reportProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
       const scrapedBody = await getOrScrapeArticleBody(thread, reportProgress);
 
+      assertArticleVersion(threadId, thread.contentVersion);
       reportProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
       const articleSummary = getArticleSummary(threadId);
       const result = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, reportProgress);
       finishThreadGenerationAttempt(
         attemptId,
+        threadId,
         result.status === "done" ? "completed" : result.status === "error" ? "failed" : "skipped",
         currentStage,
         result.errorMessage
@@ -67,6 +77,7 @@ export function startThreadResponseGeneration(
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
       finishThreadGenerationAttempt(
         attemptId,
+        threadId,
         "failed",
         currentStage,
         error instanceof Error ? error.message : "予期しないエラーが発生しました。",
@@ -77,6 +88,8 @@ export function startThreadResponseGeneration(
       releaseThreadLock(threadId);
     }
   })();
+
+  return { status: "started" };
 }
 
 async function getOrScrapeArticleBody(
@@ -106,7 +119,7 @@ async function getOrScrapeArticleBody(
   }
 
   scrapedBody = scrapeResult.contentText;
-  saveArticleBody(thread.id, thread.url, scrapedBody);
+  saveArticleBody(thread.id, thread.url, scrapedBody, thread.contentVersion);
   return scrapedBody;
 }
 
@@ -143,7 +156,8 @@ async function generateAndSaveThreadResponses(
     saveThreadResponsePosts(
       {
         feedItemId: thread.id,
-        posts: generated.posts
+        posts: generated.posts,
+        contentVersion: thread.contentVersion
       },
       getActiveModel(),
       promptHash

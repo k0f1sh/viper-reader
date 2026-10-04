@@ -20,7 +20,7 @@ import { BOARD_ID_FORMAT_DESC, BOARD_NG_RULES, BOARD_STYLE_RULES } from "./board
 
 export const threadResponsePromptHash = crypto
   .createHash("sha256")
-  .update(`board-thread-response-v19\n${BOARD_SYSTEM_INSTRUCTION}`)
+  .update(`board-thread-response-v21\n${BOARD_SYSTEM_INSTRUCTION}`)
   .digest("hex")
   .slice(0, 16);
 export const defaultResidentPromptHash = "default";
@@ -33,10 +33,11 @@ export type ThreadResponsePromptInput = {
   scrapedBody: string | null;
   publishedAt: string;
   residentPrompt: string | null;
+  summaryOnly?: boolean;
 };
 
-export function buildBoardThreadResponsePromptHash(residentPromptHash: string | null): string {
-  return `${threadResponsePromptHash}:${residentPromptHash ?? defaultResidentPromptHash}`;
+export function buildBoardThreadResponsePromptHash(residentPromptHash: string | null, summaryOnly = false): string {
+  return `${threadResponsePromptHash}:${residentPromptHash ?? defaultResidentPromptHash}${summaryOnly ? ":summary-only-v1" : ""}`;
 }
 
 export function buildBoardThreadResponsePrompt(input: ThreadResponsePromptInput): string {
@@ -59,7 +60,7 @@ ${BOARD_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"名無しさん","mail":"sage","date":"2009/xx/xx(x) hh:mm:ss.xx","id":"${BOARD_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"名無しさん","mail":"sage","id":"${BOARD_ID_FORMAT_DESC}","body":"..."} の形にしてください。日時はアプリ側で付与するため、date は出力しないでください。
 - mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください。
 - no: 2 は必ず本文取得不可の報告レスとし、no: 3以降はその反応レスとしてください。
@@ -106,11 +107,10 @@ ${BOARD_NG_RULES}
 # 出力形式
 - JSON配列だけを返してください。Markdownや説明文は禁止。
 - 10個〜15個程度のレスを生成してください。
-- 各要素は {"no":2,"name":"名無しさん","mail":"sage","date":"2009/xx/xx(x) hh:mm:ss.xx","id":"${BOARD_ID_FORMAT_DESC}","body":"..."} の形にしてください。
+- 各要素は {"no":2,"name":"名無しさん","mail":"sage","id":"${BOARD_ID_FORMAT_DESC}","body":"..."} の形にしてください。日時はアプリ側で付与するため、date は出力しないでください。
 - mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
 - no は 2 から始まり、3以降は重複のないように連番（3, 4, 5...）にしてください（例: 2, 3, 4, 5...）。
 - no: 2 は必ず事情通の情報整理レスとし、no: 3以降はその議論レスとしてください。
-- date は それっぽい日時にしてください。
 - no: 2 の body は要約に必要な長さを確保してください。no: 3以降の body は短くし、いずれも改行を自然に含めてください。
 - body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
@@ -124,5 +124,8 @@ URL: ${input.url}
 記事日時: ${input.publishedAt || "不明"}
 
 # 情報ソース（記事要約・スクレイピング本文）
-${bodyText}`;
+${bodyText}${input.summaryOnly ? `
+
+# 今回の生成範囲
+今回は no: 2 の情報整理レスだけを1件生成してください。上記の10〜15件という件数指定より、この指定を優先してください。no: 3以降の議論レスは生成しないでください。` : ""}`;
 }

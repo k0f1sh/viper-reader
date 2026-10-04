@@ -20,33 +20,102 @@ export function setThreadGenerationState(
 
 export function startThreadGenerationAttempt(threadId: string, force: boolean, model: string): string {
   const id = `thread-generation:${crypto.randomUUID()}`;
-  getDatabase().prepare(`
-    INSERT INTO thread_generation_attempts
-      (id, feed_item_id, status, stage, model, force, started_at)
-    VALUES (?, ?, 'running', 'checking-cache', ?, ?, ?)
-  `).run(id, threadId, model, force ? 1 : 0, new Date().toISOString());
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(`
+      UPDATE feed_items SET
+        generation_status = 'queued',
+        generation_requested_at = ?,
+        generation_completed_at = NULL,
+        generation_reviewed_at = NULL,
+        updated_at = ?
+      WHERE id = ?
+    `).run(now, now, threadId);
+    db.prepare(`
+      INSERT INTO thread_generation_attempts
+        (id, feed_item_id, status, stage, model, force, started_at)
+      VALUES (?, ?, 'running', 'checking-cache', ?, ?, ?)
+    `).run(id, threadId, model, force ? 1 : 0, now);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
   return id;
 }
 
 export function finishThreadGenerationAttempt(
   id: string,
+  threadId: string,
   status: "completed" | "failed" | "skipped",
   stage: ThreadGenerationAttempt["stage"],
   errorMessage: string | null,
   technicalDetails: string | null = null
 ): void {
-  getDatabase().prepare(`
-    UPDATE thread_generation_attempts
-    SET status = ?, stage = ?, error_message = ?, technical_details = ?, finished_at = ?
-    WHERE id = ?
-  `).run(
-    status,
-    stage,
-    truncateGenerationError(errorMessage),
-    truncateGenerationError(technicalDetails),
-    new Date().toISOString(),
-    id
-  );
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const itemStatus = status === "failed" ? "failed" : "completed";
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(`
+      UPDATE thread_generation_attempts
+      SET status = ?, stage = ?, error_message = ?, technical_details = ?, finished_at = ?
+      WHERE id = ?
+    `).run(
+      status,
+      stage,
+      truncateGenerationError(errorMessage),
+      truncateGenerationError(technicalDetails),
+      now,
+      id
+    );
+    db.prepare(`
+      UPDATE feed_items SET
+        generation_status = ?,
+        generation_completed_at = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(itemStatus, now, now, threadId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function recoverInterruptedThreadGenerations(): void {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const message = "前回のアプリ終了により生成が中断されました。再生成してください。";
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(`
+      UPDATE feed_items SET
+        generation_status = 'failed',
+        generation_completed_at = ?,
+        updated_at = ?
+      WHERE generation_status IN ('queued', 'generating')
+         OR EXISTS (
+           SELECT 1
+           FROM thread_generation_attempts AS attempt
+           WHERE attempt.feed_item_id = feed_items.id
+             AND attempt.status = 'running'
+         )
+    `).run(now, now);
+    db.prepare(`
+      UPDATE thread_generation_attempts SET
+        status = 'failed',
+        error_message = ?,
+        finished_at = ?
+      WHERE status = 'running'
+    `).run(message, now);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function listThreadGenerationAttempts(threadId: string, limit = 5): ThreadGenerationAttempt[] {

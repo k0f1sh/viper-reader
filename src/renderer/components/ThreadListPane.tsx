@@ -1,7 +1,9 @@
+import { isLocalBoard } from "../../shared/boardPolicy";
 import { useEffect, useRef } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
+import { formatArticleTags, hasAiArticleTag } from "../../shared/articleTags";
 
 type ThreadListPaneProps = {
   selectedFeed: FeedSource | undefined;
@@ -17,6 +19,8 @@ type ThreadListPaneProps = {
   threadGridColumns: string;
   threadListMinWidth: number;
   onRefresh: () => void;
+  onCreateThread: () => void;
+  onOpenResidents: () => void;
   onSelectThread: (threadId: string) => void;
   onShowGenerationFailure: (threadId: string) => void;
   onShowTitleGenerationStatus: (threadId: string) => void;
@@ -32,7 +36,12 @@ type ThreadListPaneProps = {
   onNextPage: () => void;
   smartView: SmartView | null;
   queueSummary: ReadingQueueSummary;
-  onOpenGeneratedQueue: () => void;
+  highlightAiArticles: boolean;
+  searchInput: string;
+  activeSearchQuery: string | null;
+  onSearchInputChange: (value: string) => void;
+  onSubmitSearch: () => void;
+  onClearSearch: () => void;
 };
 
 export function ThreadListPane({
@@ -49,6 +58,8 @@ export function ThreadListPane({
   threadGridColumns,
   threadListMinWidth,
   onRefresh,
+  onCreateThread,
+  onOpenResidents,
   onSelectThread,
   onShowGenerationFailure,
   onShowTitleGenerationStatus,
@@ -64,7 +75,12 @@ export function ThreadListPane({
   onNextPage,
   smartView,
   queueSummary,
-  onOpenGeneratedQueue
+  highlightAiArticles,
+  searchInput,
+  activeSearchQuery,
+  onSearchInputChange,
+  onSubmitSearch,
+  onClearSearch
 }: ThreadListPaneProps) {
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +88,8 @@ export function ThreadListPane({
     const selectedRow = threadListRef.current?.querySelector<HTMLElement>(".thread-row.is-selected");
     selectedRow?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [selectedThreadId, threads]);
+
+  const isLocal = isLocalBoard(selectedFeed);
 
   return (
     <section
@@ -95,15 +113,27 @@ export function ThreadListPane({
                   ? "生成済み・確認済み"
                   : "スレタイ一覧"}
           </div>
-          <div className="pane-subtitle">{selectedFeed?.url ?? ""}</div>
+          <div className="pane-subtitle">{isLocal ? "記事本文を入力、またはURLを指定してスレ立て" : selectedFeed?.url ?? ""}</div>
         </div>
         <div className="thread-toolbar-right">
-          <div className="queue-status" role="status">
+          <form className="thread-search" onSubmit={(event) => { event.preventDefault(); onSubmitSearch(); }} role="search">
+            <input
+              aria-label="スレッド検索"
+              disabled={smartView !== null}
+              maxLength={200}
+              onChange={(event) => onSearchInputChange(event.target.value)}
+              placeholder={isLocal ? "スレを検索" : "記事を検索"}
+              type="search"
+              value={searchInput}
+            />
+            <button className="refresh-button" disabled={smartView !== null || !searchInput.trim()} type="submit">検索</button>
+          </form>
+          {!isLocal ? <div className="queue-status" role="status">
             <span>未読 {queueSummary.unreadCount}</span>
             <span>待ち {queueSummary.queuedCount}</span>
             <span>生成中 {queueSummary.generatingCount}</span>
             <span className={queueSummary.completedCount > 0 ? "has-completed" : ""}>生成済 {queueSummary.completedCount}</span>
-          </div>
+          </div> : null}
           <div className="thread-toolbar-actions">
             <button
               className={`refresh-button ${showUnreadOnly ? "is-active" : ""}`}
@@ -116,14 +146,17 @@ export function ThreadListPane({
             <button className="refresh-button" disabled={!threads.some((thread) => !thread.isRead)} onClick={onMarkAllRead} type="button">
               すべて既読
             </button>
-            <button
+            {isLocal ? <>
+              <button className="refresh-button" onClick={onOpenResidents} type="button">住民設定</button>
+              <button className="refresh-button" onClick={onCreateThread} type="button">スレ立て</button>
+            </> : <button
               className="refresh-button"
               disabled={isRefreshing || !selectedFeed || !canRefresh}
               onClick={onRefresh}
               type="button"
             >
               {isRefreshing ? "取得中" : refreshLabel}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
@@ -131,6 +164,12 @@ export function ThreadListPane({
         <div className={`refresh-status ${isRefreshing ? "is-loading" : ""}`}>
           <span>{refreshMessage}</span>
           {isRefreshing ? <span className="progress-blocks" aria-hidden="true" /> : null}
+        </div>
+      ) : null}
+      {activeSearchQuery ? (
+        <div className="thread-search-status" role="status">
+          <span>検索中: {activeSearchQuery}（{totalCount}件）</span>
+          <button onClick={onClearSearch} type="button">解除</button>
         </div>
       ) : null}
 
@@ -151,7 +190,10 @@ export function ThreadListPane({
       </div>
       <div className="thread-list" ref={threadListRef}>
         {threads.map((thread) => {
-          const isGenerating = generatingThreadIds.has(thread.id);
+          const isAiHighlighted = highlightAiArticles && hasAiArticleTag(thread.tags);
+          const isGenerating = generatingThreadIds.has(thread.id)
+            || thread.generationStatus === "queued"
+            || thread.generationStatus === "generating";
           const isCompleted = completedThreadIds.has(thread.id);
           const isQueued = thread.generationStatus === "queued";
           const isFailed = thread.generationStatus === "failed";
@@ -193,7 +235,9 @@ export function ThreadListPane({
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
                 thread.isRead ? "is-read" : ""
-              } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""}`}
+              } ${isGenerating ? "is-generating" : ""} ${isCompleted ? "is-generation-completed" : ""} ${
+                isAiHighlighted ? "is-ai-highlighted" : ""
+              }`}
               key={thread.id}
               onClick={() => onSelectThread(thread.id)}
               type="button"
@@ -223,7 +267,10 @@ export function ThreadListPane({
                 </span>
               </span>
               <span className="thread-title">
-                {thread.threadTitle}
+                {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
+              </span>
+              <span className="thread-tags" title={isLocalBoard(thread) ? undefined : formatArticleTags(thread.tags)}>
+                {isLocalBoard(thread) ? "—" : formatArticleTags(thread.tags)}
               </span>
               <span className="thread-source">{thread.source}</span>
               <span className="thread-original-title">{thread.originalTitle}</span>
@@ -234,21 +281,6 @@ export function ThreadListPane({
           );
         })}
       </div>
-      {smartView === "unread"
-        && threads.length > 0
-        && totalCount <= threads.length
-        && threads.every((thread) => thread.isRead) ? (
-        <div className="queue-complete-banner">
-          <span>未読チェック完了</span>
-          {queueSummary.completedCount > 0 ? (
-            <button onClick={onOpenGeneratedQueue} type="button">
-              生成済みを読む（{queueSummary.completedCount}件）
-            </button>
-          ) : queueSummary.generatingCount > 0 || queueSummary.queuedCount > 0 ? (
-            <span>生成完了を待っています</span>
-          ) : null}
-        </div>
-      ) : null}
       <div className="thread-list-pagination">
         <div className="thread-status-legend" aria-label="状態の凡例">
           <LegendLamp status="response-failed" label="レス失敗" />

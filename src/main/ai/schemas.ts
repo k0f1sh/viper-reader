@@ -17,12 +17,11 @@ export const threadPostArraySchema = {
       no: { type: "integer" },
       name: { type: "string" },
       mail: { type: "string" },
-      date: { type: "string" },
       id: { type: "string" },
       speakerKey: { type: "string" },
       body: { type: "string" }
     },
-    required: ["no", "name", "date", "id", "body"]
+    required: ["no", "name", "id", "body"]
   }
 } as const;
 
@@ -36,8 +35,9 @@ export const threadTitleArraySchema = {
     type: "object",
     properties: {
       feedItemId: { type: "string" },
-      threadTitle: { type: "string" }
+      threadTitle: { type: "string" },
+      tags: { type: "array", items: { type: "string" }, maxItems: 5 }
     },
-    required: ["feedItemId", "threadTitle"]
+    required: ["feedItemId", "threadTitle", "tags"]
   }
 } as const;

@@ -1,6 +1,7 @@
 import * as electron from "electron";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { localBoardId } from "../../shared/types.js";
 import { schemaSql } from "./schema.js";
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 
@@ -29,28 +30,136 @@ export function getDatabase(): DatabaseSync {
 function migrate(db: DatabaseSync): void {
   db.exec(schemaSql);
   migrateLegacyTitleTable(db);
+  addColumnIfMissing(db, "feed_sources", "kind", "TEXT NOT NULL DEFAULT 'rss'");
+  addColumnIfMissing(db, "thread_titles", "tags_json", "TEXT");
+  addColumnIfMissing(db, "feed_items", "published_at", "TEXT");
+  addColumnIfMissing(db, "feed_items", "raw_summary_html", "TEXT");
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
+  const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");
+  const addedLatestPostNo = addColumnIfMissing(db, "feed_items", "latest_post_no", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
+  addColumnIfMissing(db, "feed_items", "source_url", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_status", "TEXT");
+  addColumnIfMissing(db, "feed_items", "content_version", "INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "feed_items", "generated_content_version", "INTEGER NOT NULL DEFAULT 1");
   addColumnIfMissing(db, "feed_items", "generation_requested_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_completed_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "generation_reviewed_at", "TEXT");
   addColumnIfMissing(db, "article_bodies", "summary_text", "TEXT");
   addColumnIfMissing(db, "llm_request_logs", "cached_content_token_count", "INTEGER");
-  addColumnIfMissing(db, "thread_posts", "generation_run_id", "TEXT");
   addColumnIfMissing(db, "thread_posts", "resident_id", "TEXT");
   addColumnIfMissing(db, "feed_sources", "generate_title_from_summary", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "skip_title_conversion", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "default_to_article_browser", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_sources", "parent_folder_id", "TEXT REFERENCES feed_folders(id) ON DELETE RESTRICT");
   addColumnIfMissing(db, "feed_sources", "sort_order", "INTEGER");
   backfillFeedSortOrder(db);
   backfillCanonicalUrls(db);
+  if (addedLastReadPostNo) backfillLastReadPostNo(db);
+  if (addedLatestPostNo) backfillLatestPostNo(db);
+  createLatestPostNoTriggers(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_canonical_url ON feed_items(canonical_url)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_feed_items_article_key ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))");
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_feed_items_unread_article_key
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE read_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_generation_unreviewed_article
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE generation_status = 'completed' AND generation_reviewed_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_generation_reviewed_article
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE generation_status = 'completed' AND generation_reviewed_at IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_generation_status
+      ON feed_items(generation_status)
+      WHERE generation_status IN ('queued', 'generating', 'completed');
+    CREATE INDEX IF NOT EXISTS idx_feed_items_unconfirmed_replies_article
+      ON feed_items(COALESCE(NULLIF(canonical_url, ''), url))
+      WHERE latest_post_no > last_read_post_no;
+    CREATE INDEX IF NOT EXISTS idx_feed_items_all_threads_order
+      ON feed_items(
+        (CASE WHEN read_at IS NULL THEN 0 ELSE 1 END),
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      );
+    CREATE INDEX IF NOT EXISTS idx_feed_items_feed_threads_order
+      ON feed_items(
+        feed_id,
+        (CASE WHEN read_at IS NULL THEN 0 ELSE 1 END),
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      );
+    CREATE INDEX IF NOT EXISTS idx_feed_items_article_rank
+      ON feed_items(
+        COALESCE(NULLIF(canonical_url, ''), url),
+        (CASE WHEN read_at IS NULL THEN 0 ELSE 1 END),
+        COALESCE(published_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+      );
+  `);
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(1, new Date().toISOString());
   db.prepare(
     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
   ).run(2, new Date().toISOString());
+  const now = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO feed_sources
+    (id, kind, title, url, created_at, updated_at, skip_title_conversion, sort_order)
+    VALUES (?, 'local', '自由板', 'viper-local://board', ?, ?, 1, -1)
+  `).run(localBoardId, now, now);
+  db.prepare("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (3, ?)").run(now);
+}
+
+function backfillLatestPostNo(db: DatabaseSync): void {
+  db.exec(`
+    UPDATE feed_items
+    SET latest_post_no = COALESCE(
+      (SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id),
+      0
+    );
+  `);
+}
+
+function createLatestPostNoTriggers(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_thread_posts_latest_after_insert
+    AFTER INSERT ON thread_posts
+    BEGIN
+      UPDATE feed_items
+      SET latest_post_no = MAX(latest_post_no, NEW.no)
+      WHERE id = NEW.feed_item_id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_thread_posts_latest_after_delete
+    AFTER DELETE ON thread_posts
+    BEGIN
+      UPDATE feed_items
+      SET latest_post_no = COALESCE(
+        (SELECT MAX(no) FROM thread_posts WHERE feed_item_id = OLD.feed_item_id),
+        0
+      )
+      WHERE id = OLD.feed_item_id AND latest_post_no = OLD.no;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_thread_posts_latest_after_update
+    AFTER UPDATE OF feed_item_id, no ON thread_posts
+    BEGIN
+      UPDATE feed_items
+      SET latest_post_no = COALESCE(
+        (SELECT MAX(no) FROM thread_posts WHERE feed_item_id = OLD.feed_item_id),
+        0
+      )
+      WHERE id = OLD.feed_item_id;
+      UPDATE feed_items
+      SET latest_post_no = MAX(latest_post_no, NEW.no)
+      WHERE id = NEW.feed_item_id;
+    END;
+  `);
 }
 
 function migrateLegacyTitleTable(db: DatabaseSync): void {
@@ -108,11 +217,23 @@ function backfillCanonicalUrls(db: DatabaseSync): void {
   }
 }
 
-function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): void {
+function backfillLastReadPostNo(db: DatabaseSync): void {
+  db.exec(`
+    UPDATE feed_items
+    SET last_read_post_no = COALESCE(
+      (SELECT MAX(no) FROM thread_posts WHERE feed_item_id = feed_items.id),
+      0
+    )
+    WHERE read_at IS NOT NULL
+  `);
+}
+
+function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string, columnType: string): boolean {
   const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
   if (columns.some((column) => column.name === columnName)) {
-    return;
+    return false;
   }
 
   db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`);
+  return true;
 }

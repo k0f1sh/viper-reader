@@ -4,11 +4,11 @@ import test from "node:test";
 const {
   assertArticleBrowserBounds,
   assertBoolean,
+  assertFeedTreePlacements,
   assertHttpUrl,
   assertIdentifier,
+  assertNullableIdentifier,
   assertPage,
-  assertPromptDecision,
-  assertReplyRating,
   assertShowArticleBrowserRequest,
   assertString,
   assertStringArray
@@ -22,6 +22,16 @@ test("IPCの識別子と文字列に型・空文字・長さ制限を適用す�
     () => assertString("too long", "short value", { maxLength: 3 }),
     /Invalid short value/
   );
+});
+
+test("板ツリー配置のノード種別・ID・親IDを検証する", () => {
+  assert.doesNotThrow(() => assertNullableIdentifier(null, "parent folder ID"));
+  assert.doesNotThrow(() => assertFeedTreePlacements([
+    { type: "folder", id: "folder:1", parentFolderId: null },
+    { type: "feed", id: "feed:1", parentFolderId: "folder:1" }
+  ]));
+  assert.throws(() => assertFeedTreePlacements([{ type: "unknown", id: "x", parentFolderId: null }]), /Invalid feed tree placements/);
+  assert.throws(() => assertFeedTreePlacements([{ type: "feed", id: "x", parentFolderId: 1 }]), /Invalid parent folder ID/);
 });
 
 test("IPCのページ番号と真偽値を厳密に検証する", () => {
@@ -45,7 +55,7 @@ test("外部URLは認証情報のないHTTPまたはHTTPSだけを許可する",
   }
 });
 
-test("IPCの配列と列挙値に件数・長さ・候補制限を適用する", () => {
+test("IPCの配列に件数・長さ制限を適用する", () => {
   assert.doesNotThrow(() =>
     assertStringArray(["a", "b"], "tags", { maxItems: 2, maxItemLength: 1 })
   );
@@ -57,10 +67,6 @@ test("IPCの配列と列挙値に件数・長さ・候補制限を適用する",
     () => assertStringArray(["ab"], "tags", { maxItems: 2, maxItemLength: 1 }),
     /Invalid tags/
   );
-  assert.doesNotThrow(() => assertReplyRating("good"));
-  assert.throws(() => assertReplyRating("average"), /Invalid reply rating/);
-  assert.doesNotThrow(() => assertPromptDecision("active"));
-  assert.throws(() => assertPromptDecision("pending"), /Invalid prompt decision/);
 });
 
 test("記事ブラウザ要求はURL・ID・矩形・フラグをまとめて検証する", () => {

@@ -3,6 +3,7 @@ import type { RefreshFeedResult, TitleGenerationAttempt } from "../../shared/typ
 import { canonicalizeArticleUrl } from "../articles/canonicalUrl.js";
 import {
   createInitialPosts,
+  createFirstPostBody,
   rawTitlePromptHash,
   rssSummaryPromptHash
 } from "../threads/initialThreadPosts.js";
@@ -23,6 +24,7 @@ export type FeedItemTitleGenerationSource = UnconvertedFeedItem & {
 export type ThreadTitleWrite = {
   feedItemId: string;
   title: string;
+  tags: string[];
 };
 
 export type FeedItemInitialCacheSource = {
@@ -43,6 +45,7 @@ export function upsertFeedItems(
     url: string;
     publishedAt: string | null;
     rawSummary: string | null;
+    rawSummaryHtml?: string | null;
   }>
 ): RefreshFeedResult & { insertedItemIds: string[] } {
   const db = getDatabase();
@@ -70,8 +73,20 @@ export function upsertFeedItems(
   );
   const deleteDerivedTitles = db.prepare("DELETE FROM thread_titles WHERE feed_item_id = ?");
   const deleteDerivedSummaries = db.prepare("DELETE FROM thread_summaries WHERE feed_item_id = ?");
-  const deleteArticleBodies = db.prepare("DELETE FROM article_bodies WHERE feed_item_id = ?");
+  const invalidateArticle = db.prepare(`
+    DELETE FROM article_bodies WHERE feed_item_id IN (
+      SELECT id FROM feed_items WHERE COALESCE(NULLIF(canonical_url, ''), url) = ? OR id = ?
+    )
+  `);
+  const bumpContentVersion = db.prepare(`
+    UPDATE feed_items SET content_version = content_version + 1
+    WHERE COALESCE(NULLIF(canonical_url, ''), url) = ? OR id = ?
+  `);
+  const updateFirstPost = db.prepare(`
+    UPDATE thread_posts SET body = ? WHERE feed_item_id = ? AND no = 1 AND is_user = 0
+  `);
   const updateFeed = db.prepare("UPDATE feed_sources SET last_fetched_at = ?, updated_at = ? WHERE id = ?");
+  const updateSummaryHtml = db.prepare("UPDATE feed_items SET raw_summary_html = ? WHERE id = ?");
 
   db.exec("BEGIN");
   try {
@@ -111,14 +126,18 @@ export function upsertFeedItems(
       ) {
         deleteDerivedTitles.run(feedItemId);
         deleteDerivedSummaries.run(feedItemId);
-        if (existing.url !== item.url) {
-          deleteArticleBodies.run(feedItemId);
+        if (existing.title !== item.title || existing.url !== item.url || existing.raw_summary !== item.rawSummary) {
+          invalidateArticle.run(canonicalUrl, feedItemId);
+          bumpContentVersion.run(canonicalUrl, feedItemId);
+          updateFirstPost.run(createFirstPostBody(item.title, item.url, item.rawSummary), feedItemId);
         }
         updateItem.run(item.title, item.url, canonicalUrl, item.publishedAt, item.rawSummary, fetchedAt, feedItemId);
         updatedCount += 1;
       } else {
         skippedCount += 1;
       }
+
+      if (item.rawSummaryHtml !== undefined) updateSummaryHtml.run(item.rawSummaryHtml, feedItemId);
 
     }
 
@@ -349,8 +368,8 @@ export function saveThreadTitles(titles: ThreadTitleWrite[], model: string, prom
   const generatedAt = new Date().toISOString();
   const insertTitle = db.prepare(
     `
-    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at, tags_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     `
   );
   let savedCount = 0;
@@ -364,7 +383,8 @@ export function saveThreadTitles(titles: ThreadTitleWrite[], model: string, prom
         model,
         promptHash,
         title.title,
-        generatedAt
+        generatedAt,
+        JSON.stringify(title.tags)
       );
       savedCount += Number(result.changes);
     }
@@ -446,10 +466,11 @@ export function replaceThreadTitle(title: ThreadTitleWrite, model: string, promp
   const generatedAt = new Date().toISOString();
   db.prepare(
     `
-    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at, tags_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(feed_item_id, model, prompt_hash) DO UPDATE SET
       title = excluded.title,
+      tags_json = excluded.tags_json,
       generated_at = excluded.generated_at
     `
   ).run(
@@ -458,7 +479,8 @@ export function replaceThreadTitle(title: ThreadTitleWrite, model: string, promp
     model,
     promptHash,
     title.title,
-    generatedAt
+    generatedAt,
+    JSON.stringify(title.tags)
   );
 }
 

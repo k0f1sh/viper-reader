@@ -12,13 +12,8 @@ const { addFeedSource } = await import("../dist/main/db/feedRepository.js");
 const {
   clearFeedResidentPrompt,
   ensureFeedResidents,
-  getActiveResidentPromptVersion,
   getFeedResidentPrompt,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveFeedResidentPrompt,
-  saveResidentPromptProposal
+  saveFeedResidentPrompt
 } = await import("../dist/main/db/residentPromptRepository.js");
 
 const db = getDatabase();
@@ -47,40 +42,4 @@ test("固定住民は再初期化しても同じIDで重複しない", () => {
   assert.equal(first.length, 3);
   assert.deepEqual(second, first);
   assert.equal(new Set(first.map((resident) => resident.stableUid)).size, 3);
-});
-
-test("改善版の承認と以前の版へのロールバックを管理する", () => {
-  saveResidentPromptProposal({
-    id: "prompt-version:first",
-    feedId: feed.id,
-    parentId: null,
-    basePromptHash: "base",
-    adaptivePrompt: "最初の改善",
-    rationale: "最初の理由",
-    changes: ["変更1"],
-    model: "test-model",
-    feedbackThroughAt: "2026-01-01T00:00:00.000Z"
-  });
-  reviewResidentPromptVersion("prompt-version:first", "active");
-
-  saveResidentPromptProposal({
-    id: "prompt-version:second",
-    feedId: feed.id,
-    parentId: "prompt-version:first",
-    basePromptHash: "base",
-    adaptivePrompt: "次の改善",
-    rationale: "次の理由",
-    changes: ["変更2"],
-    model: "test-model",
-    feedbackThroughAt: "2026-01-02T00:00:00.000Z"
-  });
-  reviewResidentPromptVersion("prompt-version:second", "active");
-
-  assert.equal(getActiveResidentPromptVersion(feed.id)?.id, "prompt-version:second");
-  rollbackResidentPromptVersion(feed.id);
-  assert.equal(getActiveResidentPromptVersion(feed.id)?.id, "prompt-version:first");
-
-  const versions = listResidentPromptVersions(feed.id);
-  assert.equal(versions.length, 2);
-  assert.deepEqual(versions.find((version) => version.id === "prompt-version:first")?.changes, ["変更1"]);
 });

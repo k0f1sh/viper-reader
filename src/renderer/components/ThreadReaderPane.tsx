@@ -1,13 +1,19 @@
+import { isLocalBoard, canUseThreadPane } from "../../shared/boardPolicy";
 import { Fragment } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import type { ReplyRating, ThreadDetail } from "../../shared/types";
+import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
+import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
+  canRunCommandHook: boolean;
+  commandHookRunning: boolean;
+  onRunCommandHook: () => void;
   selectedThread: ThreadDetail | null;
   isSelectedThreadGenerating: boolean;
   generationProgressMessage: string;
   isRegeneratingTitle: boolean;
+  skipTitleConversion: boolean;
   isPosting: boolean;
   postStatus: "idle" | "writing" | "generating" | "done" | "error";
   postError: string;
@@ -21,11 +27,12 @@ type ThreadReaderPaneProps = {
   onRegenerateThreadTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
   onGenerateReplies: () => void;
+  onDeleteContent: () => void;
+  isDeletingContent: boolean;
   onPostMessage: (event: FormEvent) => void;
   onReplyNameChange: (value: string) => void;
   onReplyMailChange: (value: string) => void;
   onReplyBodyChange: (value: string) => void;
-  onRateReplyRun: (runId: string, rating: ReplyRating, tags: string[]) => void;
   onReplyToPost: (postNo: number) => void;
   onScrollToPost: (postNo: number) => void;
   onPostNoMouseEnter: (postNo: number, event: ReactMouseEvent<HTMLElement>) => void;
@@ -38,13 +45,19 @@ type ThreadReaderPaneProps = {
   isArticlePaneVisible: boolean;
   onToggleArticlePane: () => void;
   onShowArticleBrowser: () => void;
+  isWritePanelVisible: boolean;
+  onToggleWritePanel: () => void;
 };
 
 export function ThreadReaderPane({
+  canRunCommandHook,
+  commandHookRunning,
+  onRunCommandHook,
   selectedThread,
   isSelectedThreadGenerating,
   generationProgressMessage,
   isRegeneratingTitle,
+  skipTitleConversion,
   isPosting,
   postStatus,
   postError,
@@ -58,11 +71,12 @@ export function ThreadReaderPane({
   onRegenerateThreadTitle,
   onGenerateResponses,
   onGenerateReplies,
+  onDeleteContent,
+  isDeletingContent,
   onPostMessage,
   onReplyNameChange,
   onReplyMailChange,
   onReplyBodyChange,
-  onRateReplyRun,
   onReplyToPost,
   onScrollToPost,
   onPostNoMouseEnter,
@@ -74,8 +88,13 @@ export function ThreadReaderPane({
   onAnchorMouseLeave,
   isArticlePaneVisible,
   onToggleArticlePane,
-  onShowArticleBrowser
+  onShowArticleBrowser,
+  isWritePanelVisible,
+  onToggleWritePanel
 }: ThreadReaderPaneProps) {
+  const isLocal = isLocalBoard(selectedThread);
+  const canUsePane = canUseThreadPane(selectedThread);
+  const hasArticleUpdate = Boolean(selectedThread && selectedThread.contentVersion !== selectedThread.generatedContentVersion);
   const isWritePanelBusy = isPosting || isSelectedThreadGenerating;
   const writePanelStatus =
     postStatus === "generating"
@@ -100,13 +119,17 @@ export function ThreadReaderPane({
           <div className="thread-header">
             <div>
               <div className="thread-heading">{selectedThread.threadTitle}</div>
-              <div className="original-title">元記事: {selectedThread.originalTitle}</div>
+              {!isLocal ? <div className="original-title">元記事: {selectedThread.originalTitle}</div> : null}
+              {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
-            <div className="thread-header-actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
-                元記事
+            <div className="thread-header-actions">
+              <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
+                {commandHookRunning ? "フック実行中..." : "フック実行"}
               </button>
-              {selectedThread.posts.length > 1 ? (
+              {selectedThread.url ? <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
+                元記事
+              </button> : null}
+              {canUsePane ? (
                 <button
                   className={`deep-dive-button ${isArticlePaneVisible ? "is-active" : ""}`}
                   onClick={onToggleArticlePane}
@@ -115,24 +138,46 @@ export function ThreadReaderPane({
                   {isArticlePaneVisible ? "記事本文を閉じる" : "記事本文"}
                 </button>
               ) : null}
+              {canUsePane ? (
+                <button
+                  className={`deep-dive-button ${isWritePanelVisible ? "is-active" : ""}`}
+                  onClick={onToggleWritePanel}
+                  type="button"
+                  aria-expanded={isWritePanelVisible}
+                  aria-controls="write-panel"
+                >
+                  {isWritePanelVisible ? "書き込み欄を隠す" : "書き込み欄を表示"}
+                </button>
+              ) : null}
               <button
-                className={`favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
+                className={`deep-dive-button favorite-button ${selectedThread.isFavorite ? "is-favorite-active" : ""}`}
                 onClick={onToggleFavorite}
                 type="button"
                 title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
               >
                 {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
               </button>
+              {!isLocal && !skipTitleConversion ? (
+                <button
+                  className="deep-dive-button"
+                  onClick={onRegenerateThreadTitle}
+                  disabled={isRegeneratingTitle}
+                  type="button"
+                  title="このスレだけスレタイを再生成"
+                >
+                  {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
+                </button>
+              ) : null}
               <button
                 className="deep-dive-button"
-                onClick={onRegenerateThreadTitle}
-                disabled={isRegeneratingTitle}
+                onClick={onDeleteContent}
+                disabled={isDeletingContent || isWritePanelBusy}
                 type="button"
-                title="このスレだけスレタイを再生成"
+                title={isLocal ? "このスレを本文・全レスごと物理削除" : "記事本文のキャッシュと、このスレの書き込みを物理削除"}
               >
-                {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
+                {isDeletingContent ? "削除中..." : isLocal ? "スレ削除" : "本文・レス削除"}
               </button>
-              {selectedThread.posts.length <= 1 ? (
+              {!isLocal && selectedThread.posts.length <= 1 ? (
                 <button
                   className="deep-dive-button"
                   onClick={() => onGenerateResponses()}
@@ -143,7 +188,7 @@ export function ThreadReaderPane({
                   {isSelectedThreadGenerating ? "生成中..." : "生成"}
                 </button>
               ) : null}
-              {selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
+              {!isLocal && selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
                 <button
                   className="deep-dive-button"
                   onClick={() => onGenerateResponses(true)}
@@ -155,6 +200,14 @@ export function ThreadReaderPane({
               ) : null}
             </div>
           </div>
+          {hasArticleUpdate ? (
+            <div className="id-extraction-bar" role="status">
+              <span>記事に更新あり。既存のAIレスは更新前の内容です。更新すると本文を取得し直し、AIレスを置き換えます。書き込みとその番号は保持します。</span>
+              <button type="button" disabled={isWritePanelBusy} onClick={() => onGenerateResponses(true)}>
+                本文・AIレスを更新
+              </button>
+            </div>
+          ) : null}
           <div className="posts">
             {extractedPostId ? (
               <div className="id-extraction-bar" role="status">
@@ -187,16 +240,10 @@ export function ThreadReaderPane({
                     onAnchorMouseLeave={onAnchorMouseLeave}
                     onReplyToPost={onReplyToPost}
                   />
-                  {selectedThread.replyRuns.find((run) => run.endNo === post.no) ? (
-                    <ReplyRunFeedback
-                      run={selectedThread.replyRuns.find((run) => run.endNo === post.no)!}
-                      onRate={onRateReplyRun}
-                    />
-                  ) : null}
                 </Fragment>
               );
             })}
-            {selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
+            {!isLocal && selectedThread.posts.length <= 1 && !isSelectedThreadGenerating ? (
               <div className="thread-load-trigger">
                 <button
                   className="load-button"
@@ -207,15 +254,15 @@ export function ThreadReaderPane({
                 </button>
               </div>
             ) : null}
-            {selectedThread.posts.length > 1 && !isSelectedThreadGenerating && getMaxPostNo(selectedThread) < 1000 ? (
+            {canUsePane && !isSelectedThreadGenerating && getMaxPostNo(selectedThread) < 1000 ? (
               <div className="thread-load-trigger" style={{ marginTop: "12px", marginBottom: "12px", textAlign: "center" }}>
                 <button
                   className="load-button"
                   onClick={onGenerateReplies}
-                  disabled={isPosting}
+                  disabled={isPosting || hasArticleUpdate}
                   type="button"
                 >
-                  {postStatus === "generating" ? "レス生成中..." : "再読み込み(続きのレス生成)"}
+                  {postStatus === "generating" ? "レス生成中..." : isLocal ? "返信生成" : "再読み込み(続きのレス生成)"}
                 </button>
               </div>
             ) : null}
@@ -226,8 +273,9 @@ export function ThreadReaderPane({
               </div>
             ) : null}
           </div>
-          {selectedThread.posts.length > 1 ? (
+          {canUsePane && isWritePanelVisible ? (
             <form
+              id="write-panel"
               className={`write-panel ${isWritePanelBusy ? "is-busy" : ""}`}
               onSubmit={onPostMessage}
               aria-busy={isWritePanelBusy}
@@ -288,7 +336,8 @@ export function ThreadReaderPane({
                       ? "レス生成中は書き込めません"
                       : "本文（Ctrl+Enterで書き込み）"
                   }
-                  disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
+                  readOnly={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
+                  aria-disabled={isPosting || isSelectedThreadGenerating || selectedThread.posts.length >= 1000}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                       onPostMessage(event as unknown as FormEvent);
@@ -301,7 +350,7 @@ export function ThreadReaderPane({
           ) : null}
         </section>
       ) : (
-        <div className="empty-state">記事がありません。RSSを選んで更新してください。</div>
+        <div className="empty-state">スレッドがありません。板を選んで更新するか、自由板でスレを立ててください。</div>
       )}
     </section>
   );
@@ -373,9 +422,11 @@ function FragmentPost({
         <div className="post-body">
           <PostBody
             body={post.body}
+            rssContent={post.rssContent}
             onAnchorClick={onScrollToPost}
             onAnchorMouseEnter={onAnchorMouseEnter}
             onAnchorMouseLeave={onAnchorMouseLeave}
+            showUrlCopyButton={post.no === 1}
           />
         </div>
       </article>
@@ -389,35 +440,6 @@ function FragmentPost({
         </div>
       ) : null}
     </>
-  );
-}
-
-const feedbackTagOptions = [
-  ["off_topic", "話が噛み合わない"],
-  ["repetitive", "同じノリ"],
-  ["shallow", "技術的に薄い"],
-  ["weak_style", "掲示板らしさが弱い"],
-  ["verbose", "くどい"]
-] as const;
-
-function ReplyRunFeedback({
-  run,
-  onRate
-}: {
-  run: ThreadDetail["replyRuns"][number];
-  onRate: (runId: string, rating: ReplyRating, tags: string[]) => void;
-}) {
-  return (
-    <div className="reply-run-feedback" aria-label="生成されたレスを評価">
-      <span>この流れ:</span>
-      <button className={run.rating === "good" ? "is-selected" : ""} onClick={() => onRate(run.id, "good", [])} type="button">良い</button>
-      <button className={run.rating === "poor" ? "is-selected" : ""} onClick={() => onRate(run.id, "poor", run.feedbackTags)} type="button">微妙</button>
-      {run.rating === "poor" ? feedbackTagOptions.map(([value, label]) => {
-        const selected = run.feedbackTags.includes(value);
-        const nextTags = selected ? run.feedbackTags.filter((tag) => tag !== value) : [...run.feedbackTags, value];
-        return <button className={`feedback-tag ${selected ? "is-selected" : ""}`} key={value} onClick={() => onRate(run.id, "poor", nextTags)} type="button">{label}</button>;
-      }) : null}
-    </div>
   );
 }
 

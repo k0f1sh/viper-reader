@@ -1,30 +1,31 @@
 import * as electron from "electron";
 import { getDatabase } from "../db/database.js";
 import type { GeminiApiKeyStatus } from "../../shared/types.js";
+import { defaultReplyModel, defaultTitleModel } from "../../shared/geminiModels.js";
 
 const activeModelSettingKey = "replyModel";
-const defaultActiveModel = "gemini-3.6-flash";
 const titleModelSettingKey = "titleModel";
-const defaultTitleModel = "gemini-3.5-flash-lite";
-const optimizerModelSettingKey = "optimizerModel";
-const defaultOptimizerModel = "gemini-3.6-flash";
 const geminiApiKeySettingKey = "geminiApiKey";
 const encryptedSettingPrefix = "safe-storage:v1:";
 const plainTextSettingPrefix = "plain-text:v1:";
 const rendererSettingKeys = new Set([
+  "ui_zoom_percent_v1",
   "replyModel",
   "titleModel",
-  "optimizerModel",
   "threadColumnWidths",
   "threadColumnWidthsV2",
   "threadColumnWidthsV3",
+  "threadColumnWidthsV4",
   "threadListHeight",
   "threadTabs",
   "feedPaneWidth",
   "feedTreeHeight",
+  "collapsedFeedFolderIds",
   "articlePaneWidth",
   "articlePaneVisible",
-  "articleBrowserBlockingEnabled"
+  "writePanelVisible",
+  "articleBrowserBlockingEnabled",
+  "highlightAiArticles"
 ]);
 
 export function getUserSetting(key: string): string | null {
@@ -99,15 +100,11 @@ export function clearGeminiApiKey(): GeminiApiKeyStatus {
 }
 
 export function getActiveModel(): string {
-  return getUserSetting(activeModelSettingKey) || defaultActiveModel;
+  return getUserSetting(activeModelSettingKey) || defaultReplyModel;
 }
 
 export function getTitleGenerationModel(): string {
   return getUserSetting(titleModelSettingKey) || defaultTitleModel;
-}
-
-export function getPromptOptimizerModel(): string {
-  return getUserSetting(optimizerModelSettingKey) || defaultOptimizerModel;
 }
 
 function readStoredGeminiApiKey(storedValue: string): string {

@@ -3,10 +3,12 @@ type AddFeedModalProps = {
   addFeedUrl: string;
   addFeedError: string;
   generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
   isAddFeedLoading: boolean;
   onTitleChange: (title: string) => void;
   onUrlChange: (url: string) => void;
   onGenerateTitleFromSummaryChange: (enabled: boolean) => void;
+  onSkipTitleConversionChange: (enabled: boolean) => void;
   onAddFeed: () => void;
   onClose: () => void;
 };
@@ -16,10 +18,12 @@ export function AddFeedModal({
   addFeedUrl,
   addFeedError,
   generateTitleFromSummary,
+  skipTitleConversion,
   isAddFeedLoading,
   onTitleChange,
   onUrlChange,
   onGenerateTitleFromSummaryChange,
+  onSkipTitleConversionChange,
   onAddFeed,
   onClose
 }: AddFeedModalProps) {
@@ -60,8 +64,20 @@ export function AddFeedModal({
           <label className="add-feed-checkbox">
             <input
               type="checkbox"
-              checked={generateTitleFromSummary}
+              checked={skipTitleConversion}
               disabled={isAddFeedLoading}
+              onChange={(event) => onSkipTitleConversionChange(event.target.checked)}
+            />
+            <span>スレタイ変換しない</span>
+          </label>
+          <div className="add-feed-checkbox-help">
+            Geminiによる変換を行わず、RSSの元タイトルをそのまま表示します。
+          </div>
+          <label className="add-feed-checkbox">
+            <input
+              type="checkbox"
+              checked={generateTitleFromSummary}
+              disabled={isAddFeedLoading || skipTitleConversion}
               onChange={(event) => onGenerateTitleFromSummaryChange(event.target.checked)}
             />
             <span>タイトルではなく本文からスレタイ生成</span>

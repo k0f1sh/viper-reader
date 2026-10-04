@@ -10,16 +10,25 @@ import { BOARD_TITLE_SYSTEM_INSTRUCTION } from "../ai/promptParts.js";
  *
  * 出力:
  * - JSON配列のみ
- * - 各要素は { feedItemId, threadTitle }
+ * - 各要素は { feedItemId, threadTitle, tags }
  *
  * DBキャッシュ:
  * - promptHash は thread_titles.prompt_hash に保存する。
  * - プロンプトの意味や出力仕様を変えたら hash を更新し、既存キャッシュと区別する。
  */
 export function buildThreadTitlePromptHash(useSummary: boolean): string {
+  return titlePromptHash(useSummary, "v15");
+}
+
+// v14 は表示用フォールバック専用。新しい生成のキャッシュ判定には使わない。
+export function buildLegacyThreadTitlePromptHash(useSummary: boolean): string {
+  return titlePromptHash(useSummary, "v14");
+}
+
+function titlePromptHash(useSummary: boolean, version: string): string {
   return crypto
     .createHash("sha256")
-    .update(`thread-title-v13\n${BOARD_TITLE_SYSTEM_INSTRUCTION}\nsource:${useSummary ? "summary" : "title"}`)
+    .update(`thread-title-${version}\n${BOARD_TITLE_SYSTEM_INSTRUCTION}\nsource:${useSummary ? "summary" : "title"}`)
     .digest("hex")
     .slice(0, 16);
 }
@@ -38,8 +47,13 @@ export function buildThreadTitlePrompt(feedTitle: string, items: ThreadTitleProm
 
 ルール:
 - 出力はJSON配列だけ。Markdownや説明文は禁止。
-- 各要素は {"feedItemId":"...","threadTitle":"..."} の形にする。
+- 各要素は {"feedItemId":"...","threadTitle":"...","tags":["..."]} の形にする。
 - feedItemIdは入力値をそのまま返す。
+- tagsは元タイトル（title）だけから判断した技術名・製品名・分野を最大5個返す。rssSummary、URL、RSSソース名、変換後のスレタイからタグを推測しない。判断できない場合は空配列にする。
+- タグは簡潔な一般的表記（React、Rust、SQLなど）を使い、重複させない。
+- AI技術・製品の記事だけでなく、AIを道具として利用した記事にも「AI」を付ける。LLM関連には必ず「AI」と「LLM」の両方を付ける。この2つは優先して最大5個に含める。
+- 「人工知能」は「AI」、「大規模言語モデル」は「LLM」に統一する。画像生成など、LLMとは限らないAI記事には「LLM」を推測で付けない。同名の一般語をAI製品と決めつけない。
+- タグの例: 「ChatGPTでSQLを改善した」→ ["AI","LLM","ChatGPT","SQL"]、「Rustの所有権」→ ["Rust"]、「今日考えたこと」→ []。概要だけにAIの記述があっても元タイトルから判断できなければAIタグを付けない。
 ${useSummary
   ? "- rssSummaryの内容を材料にし、記事の要点が伝わるタイトルにする。rssSummaryが空の場合だけtitleへフォールバックする。"
   : "- 元タイトルの意味を残す。"}
@@ -50,7 +64,8 @@ ${useSummary
 - 元情報の具体的な題材そのものを面白がる。架空の話者や体験を作らなくても、読み手が思わず開きたくなる、ちょっとバカで勢いのあるスレタイにする。
 - 当時らしい語感の参考として、次のような表現がある。これは語感のパレットであり、全部を使う必要はない。記事と自然につながるものだけを選び、同じ語や型を機械的に付けない。
   - 勢い・祭り感: 「ちょｗｗｗ」「ｷﾀ━━━━(ﾟ∀ﾟ)━━━━!!」「ｷﾀｺﾚ」「祭りｷﾀｺﾚ」「これは伸びる」「これは流行る」「始まったな」「夢がひろがりんぐ」「うはｗｗｗｗおｋｗｗｗｗ」
-  - 驚き・ツッコミ: 「ワロタ」「クソワロタ」「〜じゃね？」「テラ○○」「これはひどい」「どうしてこうなった」「自重しろ」「常識的に考えて」
+  - 驚き・ツッコミ: 「ワロタ」「クソワロタ」「〜じゃね？」「テラワロス」「テラカオス」「これはひどい」「どうしてこうなった」「自重しろ」「常識的に考えて」
+  - 「テラ」は、当時の定型的なネット語・名詞風の語と一続きにする接頭辞として、自然に合う場合だけ使う。「テラすげぇ」「テラすごい」「テラやばい」のように、普通の活用した形容表現の前へ機械的に置かない。無理に新しい「テラ○○」を作らない。
   - 展開・結末: 「〜した結果ｗｗｗ」「〜終了のお知らせ」「＼(^o^)／ｵﾜﾀ」「解散」「胸が熱くなるな」
   - スレらしい呼びかけ: 「おまいら〜」「〜だけど質問ある？」「誰得」
 - 2010年代半ば以降に定着した「〜は草」「〜草」「エグい」「スパダリ」「〜しか勝たん」などは使わない。

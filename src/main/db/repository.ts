@@ -1,10 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import { seedFeeds } from "../../shared/seedData.js";
 import { getDatabase } from "./database.js";
+import { recoverInterruptedThreadGenerations } from "./threadGenerationRepository.js";
 
 export function initializeRepository(seedDefaultFeeds = true): void {
   const db = getDatabase();
   if (seedDefaultFeeds) seedDatabase(db);
+  recoverInterruptedThreadGenerations();
 }
 
 export {
@@ -15,20 +17,20 @@ export {
   markAllFeedsRead,
   markFeedRead,
   reorderFeedSources,
-  updateFeedTitleGenerationSetting
+  updateFeedSettings
 } from "./feedRepository.js";
+export {
+  createFeedFolder,
+  deleteFeedFolder,
+  listFeedFolders,
+  renameFeedFolder,
+  saveFeedTreeLayout
+} from "./feedFolderRepository.js";
 export {
   clearFeedResidentPrompt,
   ensureFeedResidents,
-  getActiveResidentPromptVersion,
   getFeedResidentPrompt,
-  getPromptOptimizationEvidence,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  rollbackResidentPromptVersion,
-  saveFeedResidentPrompt,
-  saveReplyFeedback,
-  saveResidentPromptProposal
+  saveFeedResidentPrompt
 } from "./residentPromptRepository.js";
 export type { FeedResident } from "./residentPromptRepository.js";
 export {
@@ -37,18 +39,17 @@ export {
   saveArticleBody,
   saveArticleSummary
 } from "./articleRepository.js";
+export { deleteThreadContent } from "./threadContentRepository.js";
 export {
   finishThreadGenerationAttempt,
   listThreadGenerationAttempts,
   markThreadGenerationReviewed,
+  recoverInterruptedThreadGenerations,
   setThreadGenerationState,
   startThreadGenerationAttempt
 } from "./threadGenerationRepository.js";
 export {
-  listReplyGenerationRuns,
-  markLatestReplyRunContinued,
   postUserMessage,
-  recordReplyGenerationRun,
   saveGeneratedThreadPosts,
   saveThreadResponsePosts
 } from "./threadPostRepository.js";
@@ -56,6 +57,7 @@ export type { ThreadResponseWrite } from "./threadPostRepository.js";
 export {
   countAllUnreadArticles,
   markThreadRead,
+  markThreadPostsRead,
   setThreadFavorite,
   setThreadRead
 } from "./threadStateRepository.js";
@@ -90,7 +92,8 @@ export {
   getThread,
   listFavoriteThreads,
   listGeneratedQueue,
-  listThreads
+  listThreads,
+  searchThreads
 } from "./threadRepository.js";
 
 function seedDatabase(db: DatabaseSync): void {

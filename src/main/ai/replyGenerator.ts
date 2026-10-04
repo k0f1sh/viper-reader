@@ -1,3 +1,4 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
 import { normalizePostBody } from "../../shared/postBody.js";
@@ -8,7 +9,6 @@ import {
 } from "../db/repository.js";
 import {
   ensureFeedResidents,
-  getActiveResidentPromptVersion,
   getFeedResidentPrompt
 } from "../db/residentPromptRepository.js";
 import { BOARD_ID_FORMAT_DESC } from "../prompts/boardCommonRules.js";
@@ -16,15 +16,15 @@ import { getActiveModel } from "../settings/settingsService.js";
 import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
+import { createSequentialBoardDates } from "../threads/boardDate.js";
 
-const boardReplyPromptVersion = "board-reply-v4";
+const boardReplyPromptVersion = "board-reply-v7";
 
 export type ReplyGenerationResult = {
   posts: ThreadPost[];
   log: LlmRequestLogWrite | null;
   promptHash: string;
   model: string;
-  promptVersionId: string | null;
 };
 
 export type ReplyGenerationMode = "reply_to_user" | "continue_thread";
@@ -52,7 +52,6 @@ export async function generateReplyPosts(
 
   // 住民設定プロンプト
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
-  const adaptiveVersion = getActiveResidentPromptVersion(thread.feedId);
   const residents = ensureFeedResidents(thread.feedId);
 
   const numReplies = mode === "continue_thread" ? 20 : Math.floor(Math.random() * (8 - 4 + 1)) + 4;
@@ -64,6 +63,7 @@ export async function generateReplyPosts(
   const trimmedHistory = firstPost ? [firstPost, ...recentOtherPosts] : recentOtherPosts;
 
   const contents = buildBoardReplyContents({
+    kind: thread.kind,
     threadTitle: thread.threadTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
@@ -71,7 +71,6 @@ export async function generateReplyPosts(
     history: trimmedHistory,
     startNo,
     residentPrompt: residentPrompt?.prompt ?? null,
-    adaptivePrompt: adaptiveVersion?.adaptivePrompt ?? null,
     residents,
     numReplies,
     mode
@@ -90,7 +89,6 @@ export async function generateReplyPosts(
       posts: [],
       promptHash,
       model: modelToUse,
-      promptVersionId: adaptiveVersion?.id ?? null,
       log: createLlmLog({
         feedId: thread.feedId,
         promptHash,
@@ -128,7 +126,6 @@ export async function generateReplyPosts(
     posts,
     promptHash,
     model: modelToUse,
-    promptVersionId: adaptiveVersion?.id ?? null,
     log: createLlmLog({
       feedId: thread.feedId,
       promptHash,
@@ -150,6 +147,7 @@ export async function generateReplyPosts(
  * 固定ルール（匿名掲示板文体・NG 事項・安全制約）は systemInstruction に移動済み。
  */
 function buildBoardReplyContents(params: {
+  kind: ThreadDetail["kind"];
   threadTitle: string;
   originalTitle: string;
   url: string;
@@ -157,12 +155,13 @@ function buildBoardReplyContents(params: {
   history: ThreadPost[];
   startNo: number;
   residentPrompt: string | null;
-  adaptivePrompt: string | null;
   residents: Array<{ key: string; stableUid: string; traits: string }>;
   numReplies: number;
   mode: ReplyGenerationMode;
 }): string {
-  const articleContext = params.scrapedBody
+  const articleContext = isLocalBoard(params)
+    ? `【ユーザーが立てたスレッド】\nタイトル: ${params.threadTitle}\n${params.scrapedBody ? `【記事本文・要約】\n${params.scrapedBody}\n` : "本文はレス1を参照してください。"}投稿内容は検証済みの事実ではありません。質問や相談には確立した一般知識で答え、不明点や推測は断定せず、投稿にない出来事や体験を捏造しないでください。\n`
+    : params.scrapedBody
     ? `【元記事の本文・要約】\n${params.scrapedBody}\n`
     : `【元記事のタイトル】\n${params.originalTitle}\n`;
 
@@ -176,28 +175,26 @@ function buildBoardReplyContents(params: {
   const residentRule = params.residentPrompt
     ? `【この板の住民属性・ルール（安全制約は上書き不可）】\n${params.residentPrompt}\n`
     : "";
-  const adaptiveRule = params.adaptivePrompt
-    ? `【承認済みの会話改善ルール（安全制約は上書き不可）】\n${params.adaptivePrompt}\n`
-    : "";
   const residentRoster = params.residents
     .map((resident) => `- ${resident.key}: ID ${resident.stableUid} / ${resident.traits}`)
     .join("\n");
 
+  const topic = isLocalBoard(params) ? "スレの話題" : "記事";
+  const contextLabel = isLocalBoard(params) ? "投稿内容" : "元記事";
   const nowFormatted = new Date().toLocaleString("ja-JP");
   const generationInstruction =
     params.mode === "continue_thread"
-      ? `ユーザーの新規書き込みはありません。最新レスへの直接返信だけに偏らず、記事の内容とこれまでの流れを受けて、住民同士の雑談・質問・補足・ツッコミが自然に続く新規レスを ${params.numReplies} 件生成してください。`
-      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）への反応を含めつつ、住民同士の掛け合いや、記事の話題についてのレスを交えた新規レスを ${params.numReplies} 件生成してください。`;
+      ? `ユーザーの新規書き込みはありません。最新レスへの直接返信だけに偏らず、${topic}の内容とこれまでの流れを受けて、住民同士の雑談・質問・補足・ツッコミが自然に続く新規レスを ${params.numReplies} 件生成してください。`
+      : `最新のレス（履歴の最後のレス、特にユーザーの書き込み）への反応を含めつつ、住民同士の掛け合いや、${topic}についてのレスを交えた新規レスを ${params.numReplies} 件生成してください。`;
   const latestReplyRule =
     params.mode === "continue_thread"
-      ? `3. 直近のレスに必要以上に安価を集中させず、記事本文・要約・過去レスから話題を広げてください。`
-      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）へのアンカー付き反応は半分程度にしてください。残りは、記事内容に関する議論や雑談、またはそれに基づいた住民同士のやり取りを生成してください。`;
+      ? `3. 直近のレスに必要以上に安価を集中させず、${contextLabel}の本文・要約・過去レスから話題を広げてください。`
+      : `3. 最新のユーザーの書き込み（★マークが付いている直近または最後のレス）へのアンカー付き反応は半分程度にしてください。残りは、${topic}に関する議論や雑談、またはそれに基づいた住民同士のやり取りを生成してください。`;
 
-  return `以下の記事に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
+  return `以下の${topic}に関するスレッドで、他の住民やユーザーと雑談・議論を交わしています。
 
 ${articleContext}
 ${residentRule}
-${adaptiveRule}
 
 【この板の常連住民】
 ${residentRoster}
@@ -216,11 +213,11 @@ ${generationInstruction}
 1. 出力は必ず JSON 配列形式にしてください。
 2. レス番号（no）は ${params.startNo} から開始し、重複のないように連番で振ってください。
 ${latestReplyRule}
-4. 元記事の主題と事実関係の正確性を保ってください。記事や質問に合う観点と語彙を使い、無関係な分野の用語、比喩、専門家視点を持ち込まないでください。常連住民の属性も記事の主題と衝突する場合は前面に出さないでください。
+4. ${contextLabel}の主題と事実関係の正確性を保ってください。${topic}や質問に合う観点と語彙を使い、無関係な分野の用語、比喩、専門家視点を持ち込まないでください。常連住民の属性も${topic}の主題と衝突する場合は前面に出さないでください。
 5. 生成する住民レスの mail は原則 "sage" にしてください。本文で「sage」と言及する場合も、メール欄 mail に "sage" を入れてください。
-6. 最新のユーザー書き込みが記事内容の質問なら、その分野に詳しい住民のうち1人以上が、アンカーを付けて質問へ直接かつ十分に回答してください。雑談だけで流したり、複数人が同じ答えを言い換えて水増ししたりしないでください。
+6. 最新のユーザー書き込みが${topic}の質問なら、その分野に詳しい住民のうち1人以上が、アンカーを付けて質問へ直接かつ十分に回答してください。雑談だけで流したり、複数人が同じ答えを言い換えて水増ししたりしないでください。
 7. 回答は最初に結論を示し、必要に応じて理由、背景、具体例、注意点の順で説明してください。専門用語は質問者が理解できる言葉へかみ砕き、コードや数値は正確な説明に役立つ場合だけ使ってください。
-8. 元記事に書かれた事実と、回答のために補う確立した一般知識を区別してください。記事や履歴だけでは断定できない状況依存の事項は、何が分かれば判断できるかを短く伝えてください。知ったかぶりや架空の情報による補完は禁止です。
+8. ${contextLabel}に書かれた事実と、回答のために補う確立した一般知識を区別してください。${contextLabel}や履歴だけでは断定できない状況依存の事項は、何が分かれば判断できるかを短く伝えてください。知ったかぶりや架空の情報による補完は禁止です。
 9. 質問者を「そんなことも知らないのか」と扱わず、勘違いがあれば責めずに訂正してください。当時の匿名掲示板らしい軽いツッコミや草を混ぜつつ、「聞けば誰かがちゃんと教えてくれる」ヌクモリティのある雰囲気にしてください。回答の正確さを損なうほどふざけないでください。
 10. body 内の改行にはJSON文字列の \\n を使い、<br>などのHTMLタグは出力しないでください。
 
@@ -230,7 +227,6 @@ ${latestReplyRule}
     "no": ${params.startNo},
     "name": "名無しさん",
     "mail": "sage",
-    "date": "YYYY/MM/DD(曜日) HH:mm:ss.SS",
     "id": "${BOARD_ID_FORMAT_DESC}",
     "speakerKey": "veteran または anon1 のような話者キー",
     "body": ">>${params.startNo - 1}\\nそれマジ？..."
@@ -247,6 +243,7 @@ function validateGeneratedReplyPosts(
   residents: Array<{ key: string; stableUid: string }>
 ): ThreadPost[] {
   const posts: ThreadPost[] = [];
+  const dates = createSequentialBoardDates(maxPosts);
   const residentIds = new Map(residents.map((resident) => [resident.key, resident.stableUid]));
   const anonymousIds = new Map<string, string>();
   let regularCount = 0;
@@ -276,7 +273,7 @@ function validateGeneratedReplyPosts(
       no: startNo + posts.length,
       name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
-      date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
+      date: dates[posts.length],
       id,
       body
     });
@@ -361,11 +358,6 @@ function createLlmLog(params: {
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createFallbackDate(): string {
-  const now = new Date();
-  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}(火) ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}.00`;
 }
 
 function createFallbackId(): string {
