@@ -1,7 +1,8 @@
 import { isRssBoard, isLocalBoard } from "../../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { AppLogEntry, FeedFolder, FeedSource, FeedTreePlacement, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
+import { CommandHookNotice } from "./CommandHookNotice";
 import { LogPane } from "./LogPane";
 
 export type FeedTreeSelection = { type: "feed" | "folder"; id: string } | null;
@@ -15,6 +16,7 @@ type FeedPaneProps = {
   selectedTreeNode: FeedTreeSelection;
   favoriteThreads: ThreadListItem[];
   logs: AppLogEntry[];
+  commandHook: ComponentProps<typeof CommandHookNotice>;
   selectedFeedId: string;
   selectedThreadId: string | undefined;
   isFavoriteCollapsed: boolean;
@@ -189,6 +191,7 @@ export function FeedPane(props: FeedPaneProps) {
         {!props.isFavoriteCollapsed ? <div className="favorite-tree">{props.favoriteThreads.length === 0 ? <div className="favorite-empty">お気に入りはありません</div> : props.favoriteThreads.map((thread) => <button className={`favorite-row ${thread.id === props.selectedThreadId ? "is-selected" : ""}`} key={thread.id} onClick={() => props.onSelectFavoriteThread(thread)} title={thread.threadTitle} type="button"><span className="favorite-item-star">★</span><span className="favorite-item-title">{thread.threadTitle}</span><span className="favorite-item-count">{thread.responseCount}</span></button>)}</div> : null}
       </div>
       <div className="log-divider" /><LogPane logs={props.logs} />
+      <CommandHookNotice {...props.commandHook} />
       {contextMenu ? <div className="feed-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu" onClick={(event) => event.stopPropagation()}>
         {contextMenu.node.type === "feed" ? <button onClick={() => openContextSettings(contextMenu.node)} role="menuitem" type="button">板の設定...</button> : <>
           <button onClick={() => openContextSettings(contextMenu.node)} role="menuitem" type="button">名前変更...</button>
