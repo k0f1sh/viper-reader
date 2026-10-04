@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import type { ThreadDetail, ThreadPost } from "../../shared/types.js";
+import { normalizePostBody } from "../../shared/postBody.js";
 import type { LlmRequestLogWrite } from "../db/repository.js";
-import { buildVipThreadResponsePrompt } from "../prompts/vipThreadResponsePrompt.js";
+import { buildBoardThreadResponsePrompt } from "../prompts/threadResponsePrompt.js";
 import { getActiveModel } from "../settings/settingsService.js";
-import { VIP_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { BOARD_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
 import { threadPostArraySchema } from "./schemas.js";
+import { createSequentialBoardDates } from "../threads/boardDate.js";
 
 export type ThreadResponseGenerationResult = {
   posts: ThreadPost[];
@@ -26,6 +28,7 @@ export async function generateThreadResponses(
     promptHash: string;
     scrapedBody: string | null;
     articleSummary: string | null;
+    summaryOnly?: boolean;
   }
 ): Promise<ThreadResponseGenerationResult> {
   const modelToUse = getActiveModel();
@@ -40,16 +43,16 @@ export async function generateThreadResponses(
     maxExcerptChars: MAX_BODY_EXCERPT_CHARS
   });
 
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: thread.vipTitle,
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: thread.threadTitle,
     originalTitle: thread.originalTitle,
     url: thread.url,
     rssBody: thread.posts[0]?.body ?? "",
     scrapedBody: articleContext,
     publishedAt: thread.publishedAt,
+    summaryOnly: options.summaryOnly,
     residentPrompt: options.residentPrompt
   });
-
   if (!resolveApiKey()) {
     const finishedAt = new Date().toISOString();
     return {
@@ -73,10 +76,10 @@ export async function generateThreadResponses(
   const result = await generateJson<ThreadPost[]>({
     model: modelToUse,
     purpose: "thread_response",
-    systemInstruction: VIP_SYSTEM_INSTRUCTION,
+    systemInstruction: BOARD_SYSTEM_INSTRUCTION,
     contents: prompt,
     responseSchema: threadPostArraySchema,
-    timeoutMs: 45000,
+    timeoutMs: 90000,
     parse: (text) => {
       const parsed = JSON.parse(text) as unknown;
       if (!Array.isArray(parsed)) throw new Error("Gemini thread response is not an array");
@@ -85,7 +88,7 @@ export async function generateThreadResponses(
   });
 
   const finishedAt = new Date().toISOString();
-  const posts = result.value ?? [];
+  const posts = options.summaryOnly ? (result.value ?? []).slice(0, 1) : result.value ?? [];
 
   return {
     posts,
@@ -146,22 +149,22 @@ function buildArticleContext(params: {
 
 function validateGeneratedPosts(parsed: unknown[]): ThreadPost[] {
   const posts: ThreadPost[] = [];
+  const dates = createSequentialBoardDates(15);
 
   for (const item of parsed) {
     if (!isRecord(item)) {
       continue;
     }
 
-    const body = normalizeString(item.body, "").slice(0, 500);
+    const body = normalizePostBody(normalizeString(item.body, "")).slice(0, 2000);
     if (!body.trim()) {
       continue;
     }
-
     posts.push({
       no: 2 + posts.length,
-      name: normalizeString(item.name, "以下、名無しにかわりましてVIPがお送りします").slice(0, 80),
+      name: normalizeString(item.name, "名無しさん").slice(0, 80),
       mail: normalizeMail(item.mail),
-      date: normalizeString(item.date, createFallbackDate()).slice(0, 40),
+      date: dates[posts.length],
       id: normalizeId(item.id),
       body
     });
@@ -237,10 +240,6 @@ function createLlmLog(params: {
     startedAt: params.startedAt,
     finishedAt: params.finishedAt
   };
-}
-
-function createFallbackDate(): string {
-  return "2009/01/02(金) 00:00:00.00";
 }
 
 function createFallbackId(): string {

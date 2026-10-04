@@ -1,4 +1,7 @@
+import { needsArticleSummary } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
+import { ensureLocalArticleSummaryPost } from "./localArticleSummaryPost.js";
+import { assertArticleVersion } from "../db/articleRepository.js";
 import type { ThreadDetail } from "../../shared/types.js";
 import { generateReplyPosts, type ReplyGenerationMode } from "../ai/replyGenerator.js";
 import {
@@ -8,19 +11,23 @@ import {
   saveGeneratedThreadPosts,
   getArticleBody,
   getArticleSummary,
-  saveArticleSummary,
-  markLatestReplyRunContinued,
-  recordReplyGenerationRun
+  saveArticleSummary
 } from "../db/repository.js";
 import { generateArticleSummary } from "../ai/summaryGenerator.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
+import { formatBoardDate, formatLocalDateKey } from "./boardDate.js";
+
+type PostStatusCallback = (
+  status: "writing" | "generating" | "done" | "error",
+  errorMessage?: string
+) => void;
 
 export async function postThreadMessage(
   threadId: string,
   name: string,
   mail: string,
   body: string,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<ThreadDetail | null> {
   if (
     typeof threadId !== "string"
@@ -60,20 +67,19 @@ export async function postThreadMessage(
     onStatus?.("writing");
 
     const nextNo = maxNo + 1;
-    const dateStr = formatVipDate(new Date());
-    const uid = getUserVipId();
+    const dateStr = formatBoardDate(new Date());
+    const uid = getUserBoardId();
 
     // ユーザーのレスをDBに保存
     postUserMessage({
       feedItemId: threadId,
       no: nextNo,
-      name: name.trim() ? name.trim() : "以下、名無しにかわりましてVIPがお送りします",
+      name: name.trim() ? name.trim() : "名無しさん",
       mail: mail.trim() ? mail.trim() : null,
       date: dateStr,
       uid,
       body: body
     });
-    markLatestReplyRunContinued(threadId, "user");
 
     // 最新状態を取得
     const updatedThread = getThread(threadId);
@@ -103,42 +109,29 @@ export async function postThreadMessage(
 async function completePostGeneration(
   threadId: string,
   thread: ThreadDetail,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<void> {
   try {
-    await ensureArticleSummary(threadId, thread.feedId);
-    await generateAndSaveReplies(threadId, thread, "reply_to_user");
+    if (needsArticleSummary(thread)) await ensureArticleSummary(threadId, thread.feedId);
+    await generateAndSaveReplies(threadId, getThread(threadId) ?? thread, "reply_to_user");
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
-    onStatus?.("error");
+    onStatus?.("error", error instanceof Error ? error.message : String(error));
   } finally {
     releaseThreadLock(threadId);
   }
 }
 
-function getUserVipId(): string {
-  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+export function getUserBoardId(): string {
+  const dateStr = formatLocalDateKey(new Date());
   const hash = crypto.createHash("sha1").update(`${dateStr}:viper-user-salt`).digest("hex");
   return hash.slice(0, 8);
 }
 
-function formatVipDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const days = ["日", "月", "火", "水", "木", "金", "土"];
-  const day = days[date.getDay()];
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const ss = String(date.getSeconds()).padStart(2, "0");
-  const ms = String(Math.floor(date.getMilliseconds() / 10)).padStart(2, "0");
-  return `${y}/${m}/${d}(${day}) ${hh}:${mm}:${ss}.${ms}`;
-}
-
 export async function generateRepliesOnly(
   threadId: string,
-  onStatus?: (status: "writing" | "generating" | "done" | "error") => void
+  onStatus?: PostStatusCallback
 ): Promise<ThreadDetail | null> {
   if (!acquireThreadLock(threadId)) {
     onStatus?.("done");
@@ -152,7 +145,7 @@ export async function generateRepliesOnly(
       return null;
     }
 
-    await ensureArticleSummary(threadId, thread.feedId);
+    if (needsArticleSummary(thread)) await ensureArticleSummary(threadId, thread.feedId);
 
     const maxNo = getMaxPostNo(thread);
 
@@ -163,12 +156,11 @@ export async function generateRepliesOnly(
     }
 
     onStatus?.("generating");
-    markLatestReplyRunContinued(threadId, "thread");
-    await generateAndSaveReplies(threadId, thread, "continue_thread");
+    await generateAndSaveReplies(threadId, getThread(threadId) ?? thread, "continue_thread");
     onStatus?.("done");
   } catch (error) {
     console.error("AI自動返信の生成中にエラーが発生しました:", error);
-    onStatus?.("error");
+    onStatus?.("error", error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
     releaseThreadLock(threadId);
@@ -182,6 +174,7 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
   try {
     const summary = getArticleSummary(threadId);
     if (summary) {
+      await ensureLocalArticleSummaryPost(threadId);
       return;
     }
 
@@ -190,12 +183,15 @@ async function ensureArticleSummary(threadId: string, feedId: string): Promise<v
       return;
     }
 
+    const version = getThread(threadId)?.contentVersion;
     const generated = await generateArticleSummary(threadId, feedId, fullBody);
     if (generated.log) {
       recordLlmRequestLog(generated.log);
     }
     if (generated.summary) {
+      if (version !== undefined) assertArticleVersion(threadId, version);
       saveArticleSummary(threadId, generated.summary);
+      await ensureLocalArticleSummaryPost(threadId);
     }
   } catch (err) {
     console.error("要約生成中にエラーが発生しました（処理は継続します）:", err);
@@ -207,30 +203,27 @@ async function generateAndSaveReplies(
   thread: ThreadDetail,
   mode: ReplyGenerationMode
 ): Promise<void> {
+  assertArticleVersion(threadId, thread.contentVersion);
+  if (thread.contentVersion !== thread.generatedContentVersion) {
+    throw new Error("記事に更新があります。「本文・AIレスを更新」を実行してから返信を生成してください。");
+  }
   const aiResult = await generateReplyPosts(thread, { mode });
   if (aiResult.log) {
     recordLlmRequestLog(aiResult.log);
   }
 
+  if (aiResult.log?.errorMessage) {
+    throw new Error(aiResult.log.errorMessage);
+  }
   if (aiResult.posts.length === 0) {
-    return;
+    throw new Error("Geminiから返信レスを取得できませんでした。");
   }
 
   const maxNo = getMaxPostNo(thread);
   const postsToSave = fitPostsUnderLimit(aiResult.posts, maxNo);
   if (postsToSave.length > 0) {
+    assertArticleVersion(threadId, thread.contentVersion);
     saveGeneratedThreadPosts(threadId, postsToSave);
-    recordReplyGenerationRun({
-      id: `reply-run:${crypto.randomUUID()}`,
-      feedId: thread.feedId,
-      threadId,
-      mode,
-      model: aiResult.model,
-      promptVersionId: aiResult.promptVersionId,
-      promptHash: aiResult.promptHash,
-      startNo: postsToSave[0].no,
-      endNo: postsToSave[postsToSave.length - 1].no
-    });
   }
 }
 
@@ -250,7 +243,7 @@ function createOver1000Post(): ThreadDetail["posts"][number] {
     no: 1000,
     name: "１０００しかなかったよ",
     mail: "over1000",
-    date: formatVipDate(new Date()),
+    date: formatBoardDate(new Date()),
     id: "Over1000Id",
     body: "このスレッドは１０００を超えました。\nもう書けないので、新しいスレッドを立ててください。"
   };

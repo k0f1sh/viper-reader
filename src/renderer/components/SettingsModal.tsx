@@ -1,3 +1,4 @@
+import { CommandHookSettings } from "./CommandHookSettings";
 import type { FormEvent } from "react";
 import type { GeminiApiKeyStatus } from "../../shared/types";
 
@@ -6,10 +7,13 @@ type SettingsModalProps = {
   apiKeyStatus: GeminiApiKeyStatus | null;
   isSaving: boolean;
   statusMessage: string;
+  highlightAiArticles: boolean;
   onApiKeyChange: (apiKey: string) => void;
   onSave: () => void;
   onClear: () => void;
+  onHighlightAiArticlesChange: (enabled: boolean) => void;
   onClose: () => void;
+  onCommandHookSaved: () => void;
 };
 
 export function SettingsModal({
@@ -17,10 +21,13 @@ export function SettingsModal({
   apiKeyStatus,
   isSaving,
   statusMessage,
+  highlightAiArticles,
   onApiKeyChange,
   onSave,
   onClear,
-  onClose
+  onHighlightAiArticlesChange,
+  onClose,
+  onCommandHookSaved
 }: SettingsModalProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,6 +71,23 @@ export function SettingsModal({
               共有端末では環境変数の使用を推奨します。保存済みの値は画面へ再表示しません。
             </p>
           </fieldset>
+
+          <fieldset disabled={isSaving}>
+            <legend>記事一覧</legend>
+            <label className="browser-settings-checkbox">
+              <input
+                checked={highlightAiArticles}
+                onChange={(event) => onHighlightAiArticlesChange(event.target.checked)}
+                type="checkbox"
+              />
+              AI・LLM関連記事を強調表示する
+            </label>
+            <p className="settings-help">
+              AIまたはLLMタグが付いた記事のタグ欄と行頭を強調します。
+            </p>
+          </fieldset>
+
+          <CommandHookSettings onSaved={onCommandHookSaved} />
 
           {statusMessage ? <div className="settings-status-message">{statusMessage}</div> : null}
 

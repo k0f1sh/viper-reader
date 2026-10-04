@@ -1,22 +1,26 @@
+import { isLocalBoard } from "../../shared/boardPolicy.js";
 import crypto from "node:crypto";
 import Parser from "rss-parser";
 import type { RefreshFeedResult } from "../../shared/types.js";
-import { transformTitlesToVipStyle } from "../ai/titleTransformer.js";
+import { transformTitlesToBoardStyle } from "../ai/titleTransformer.js";
 import {
-  getFeedSource,
   listFeedItemsForInitialCaches,
   listUnconvertedFeedItems,
   recordLlmRequestLog,
+  recordTitleGenerationAttempts,
   recordRssRefreshRun,
-  saveRawVipTitleFallbacks,
+  saveRawThreadTitleFallbacks,
   saveRssThreadSummaries,
-  saveVipTitles,
+  saveThreadTitles,
   upsertFeedItems
 } from "../db/repository.js";
-import { vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import { getFeedSource } from "../db/feedRepository.js";
+import { buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getActiveModel, getTitleGenerationModel } from "../settings/settingsService.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
 import { selectRecentFeedItems } from "./selectRecentFeedItems.js";
+import { runFeedRefreshSingleFlight } from "./feedRefreshSingleFlight.js";
+import { getRssSummary } from "./rssSummary.js";
 
 type ParsedItem = {
   id: string;
@@ -26,21 +30,30 @@ type ParsedItem = {
   url: string;
   publishedAt: string | null;
   rawSummary: string | null;
+  rawSummaryHtml: string | null;
 };
 
 const parser = new Parser();
-const maxTitleConversionsPerRefresh = 30;
 const maxFeedBytes = 5 * 1024 * 1024;
 
-export async function refreshFeed(
+export function refreshFeed(
   feedId: string,
   onProgress: (message: string) => void = () => undefined
+): Promise<RefreshFeedResult> {
+  return runFeedRefreshSingleFlight(feedId, () => refreshFeedOnce(feedId, onProgress));
+}
+
+async function refreshFeedOnce(
+  feedId: string,
+  onProgress: (message: string) => void
 ): Promise<RefreshFeedResult> {
   const startedAt = new Date().toISOString();
   const feed = getFeedSource(feedId);
   if (!feed) {
     throw new Error(`Feed not found: ${feedId}`);
   }
+
+  if (isLocalBoard(feed)) throw new Error("自由板はRSS更新できません。");
 
   try {
     onProgress("RSS取得中...");
@@ -67,34 +80,51 @@ export async function refreshFeed(
           title,
           url,
           publishedAt: normalizeDate(item.isoDate ?? item.pubDate),
-          rawSummary: item.contentSnippet ?? item.summary ?? item.content ?? null
+          rawSummary: getRssSummary(item),
+          rawSummaryHtml: item.content ?? item.summary ?? null
         };
       })
       .filter((item): item is ParsedItem => item !== null);
     const items = selectRecentFeedItems(parsedItems);
 
-    const result = upsertFeedItems(feed.id, items);
+    const upsertResult = upsertFeedItems(feed.id, items);
+    const result: RefreshFeedResult = {
+      feedId: upsertResult.feedId,
+      fetchedCount: upsertResult.fetchedCount,
+      insertedCount: upsertResult.insertedCount,
+      updatedCount: upsertResult.updatedCount,
+      skippedCount: upsertResult.skippedCount,
+      convertedCount: upsertResult.convertedCount,
+      conversionFailedCount: upsertResult.conversionFailedCount,
+      conversionSkippedCount: upsertResult.conversionSkippedCount,
+      fetchedAt: upsertResult.fetchedAt
+    };
     const modelToUse = getActiveModel();
     const titleModel = getTitleGenerationModel();
+    const titlePromptHash = buildThreadTitlePromptHash(feed.generateTitleFromSummary);
     const initialCacheItems = listFeedItemsForInitialCaches(feed.id);
-    saveRawVipTitleFallbacks(initialCacheItems, titleModel);
+    saveRawThreadTitleFallbacks(initialCacheItems, titleModel);
     saveRssThreadSummaries(initialCacheItems, modelToUse);
 
-    const unconvertedItems = listUnconvertedFeedItems(feed.id, titleModel, vipTitlePromptHash);
-    const titleConversionItems = unconvertedItems.slice(0, maxTitleConversionsPerRefresh);
-    const titleConversionSkippedByLimit = unconvertedItems.length - titleConversionItems.length;
-    onProgress(
-      titleConversionSkippedByLimit > 0
-        ? `スレタイ生成中...（最大${maxTitleConversionsPerRefresh}件 / 残り${titleConversionSkippedByLimit}件は次回以降）`
-        : "スレタイ生成中..."
-    );
-    const transformed = await transformTitlesToVipStyle(
-      feed.id,
-      feed.title,
-      titleConversionItems,
-      feed.generateTitleFromSummary
-    );
-    const convertedCount = saveVipTitles(transformed.titles, titleModel, vipTitlePromptHash);
+    const unconvertedItems = feed.skipTitleConversion
+      ? []
+      : listUnconvertedFeedItems(feed.id, titleModel, titlePromptHash);
+    if (!feed.skipTitleConversion) {
+      onProgress(`スレタイ生成中...（${unconvertedItems.length}件）`);
+    }
+    const transformed = feed.skipTitleConversion
+      ? { titles: [], outcomes: [], logs: [], failedCount: 0, skippedCount: 0 }
+      : await transformTitlesToBoardStyle(
+        feed.id,
+        feed.title,
+        unconvertedItems,
+        feed.generateTitleFromSummary,
+        (completedCount, totalCount) => {
+          onProgress(`スレタイ生成中...（${completedCount}/${totalCount}件）`);
+        }
+      );
+    const convertedCount = saveThreadTitles(transformed.titles, titleModel, titlePromptHash);
+    recordTitleGenerationAttempts(transformed.outcomes, titleModel, titlePromptHash);
 
     for (const log of transformed.logs) {
       recordLlmRequestLog(log);
@@ -104,7 +134,7 @@ export async function refreshFeed(
       ...result,
       convertedCount,
       conversionFailedCount: transformed.failedCount + (transformed.titles.length - convertedCount),
-      conversionSkippedCount: transformed.skippedCount + titleConversionSkippedByLimit
+      conversionSkippedCount: transformed.skippedCount
     };
     const finishedAt = new Date().toISOString();
     recordRssRefreshRun({

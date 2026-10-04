@@ -1,16 +1,21 @@
-import type { ThreadDetail, ThreadGenerationProgress } from "../../shared/types.js";
+import { isLocalBoard } from "../../shared/boardPolicy.js";
+import { assertArticleVersion } from "../db/articleRepository.js";
+import type { ThreadDetail, ThreadGenerationProgress, ThreadGenerationStartResult } from "../../shared/types.js";
 import { generateThreadResponses } from "../ai/threadResponseGenerator.js";
 import {
   getArticleBody,
   getArticleSummary,
-  getFeedResidentPrompt,
   getThread,
+  finishThreadGenerationAttempt,
   recordLlmRequestLog,
   recordArticleFetchLog,
   saveArticleBody,
-  saveThreadResponsePosts
+  saveThreadResponsePosts,
+  setThreadGenerationState,
+  startThreadGenerationAttempt
 } from "../db/repository.js";
-import { buildVipThreadResponsePromptHash } from "../prompts/vipThreadResponsePrompt.js";
+import { getFeedResidentPrompt } from "../db/residentPromptRepository.js";
+import { buildBoardThreadResponsePromptHash } from "../prompts/threadResponsePrompt.js";
 import { scrapeArticle } from "../scraper/articleScraper.js";
 import { getActiveModel } from "../settings/settingsService.js";
 import { acquireThreadLock, releaseThreadLock } from "./threadLocks.js";
@@ -24,37 +29,67 @@ export function startThreadResponseGeneration(
   force: boolean,
   onComplete: (status: "done" | "skipped" | "error") => void,
   onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void = () => undefined
-): void {
+): ThreadGenerationStartResult {
   const thread = getThread(threadId);
   if (!thread) {
-    onComplete("error");
-    return;
+    return { status: "not-found" };
   }
-  if (!force && thread.posts.length > 1) {
-    onComplete("skipped");
-    return;
+  if (isLocalBoard(thread)) throw new Error("自由板では返信生成を使ってください。");
+  if (!force && thread.posts.length > 1 && thread.contentVersion === thread.generatedContentVersion) {
+    return { status: "already-current" };
   }
   if (!acquireThreadLock(threadId)) {
-    onComplete("skipped");
-    return;
+    return { status: "busy" };
   }
+
+  let attemptId: string;
+  try {
+    attemptId = startThreadGenerationAttempt(threadId, force, getActiveModel());
+  } catch (error) {
+    releaseThreadLock(threadId);
+    throw error;
+  }
+  let currentStage: ThreadGenerationProgress["stage"] = "checking-cache";
+  const reportProgress = (progress: Omit<ThreadGenerationProgress, "threadId">): void => {
+    currentStage = progress.stage;
+    setThreadGenerationState(threadId, "generating");
+    onProgress(progress);
+  };
 
   void (async () => {
     try {
-      onProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
-      const scrapedBody = await getOrScrapeArticleBody(thread, onProgress);
+      reportProgress({ stage: "checking-cache", message: "記事キャッシュを確認中..." });
+      const scrapedBody = await getOrScrapeArticleBody(thread, reportProgress);
 
-      onProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
+      assertArticleVersion(threadId, thread.contentVersion);
+      reportProgress({ stage: "preparing-context", message: "記事内容をAI向けに整形中..." });
       const articleSummary = getArticleSummary(threadId);
-      const status = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, onProgress);
-      onComplete(status);
+      const result = await generateAndSaveThreadResponses(thread, scrapedBody, articleSummary, reportProgress);
+      finishThreadGenerationAttempt(
+        attemptId,
+        threadId,
+        result.status === "done" ? "completed" : result.status === "error" ? "failed" : "skipped",
+        currentStage,
+        result.errorMessage
+      );
+      onComplete(result.status);
     } catch (error) {
       console.error(`レス生成でエラーが発生しました (threadId: ${threadId})`, error);
+      finishThreadGenerationAttempt(
+        attemptId,
+        threadId,
+        "failed",
+        currentStage,
+        error instanceof Error ? error.message : "予期しないエラーが発生しました。",
+        error instanceof Error ? error.stack ?? error.message : String(error)
+      );
       onComplete("error");
     } finally {
       releaseThreadLock(threadId);
     }
   })();
+
+  return { status: "started" };
 }
 
 async function getOrScrapeArticleBody(
@@ -84,7 +119,7 @@ async function getOrScrapeArticleBody(
   }
 
   scrapedBody = scrapeResult.contentText;
-  saveArticleBody(thread.id, thread.url, scrapedBody);
+  saveArticleBody(thread.id, thread.url, scrapedBody, thread.contentVersion);
   return scrapedBody;
 }
 
@@ -93,9 +128,9 @@ async function generateAndSaveThreadResponses(
   scrapedBody: string | null,
   articleSummary: string | null,
   onProgress: (progress: Omit<ThreadGenerationProgress, "threadId">) => void
-): Promise<"done" | "skipped" | "error"> {
+): Promise<{ status: "done" | "skipped" | "error"; errorMessage: string | null }> {
   const residentPrompt = getFeedResidentPrompt(thread.feedId);
-  const promptHash = buildVipThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
+  const promptHash = buildBoardThreadResponsePromptHash(residentPrompt?.promptHash ?? null);
   onProgress({ stage: "generating-posts", message: "AI住民が >>2 以降のレスを生成中..." });
   const generated = await generateThreadResponses(thread, {
     residentPrompt: residentPrompt?.prompt ?? null,
@@ -108,10 +143,12 @@ async function generateAndSaveThreadResponses(
   }
 
   if (generated.log?.status === "skipped") {
-    return "skipped";
+    return generated.log.errorMessage
+      ? { status: "error", errorMessage: generated.log.errorMessage }
+      : { status: "skipped", errorMessage: null };
   }
   if (generated.log?.status === "error") {
-    return "error";
+    return { status: "error", errorMessage: generated.log.errorMessage ?? "AIレスの生成に失敗しました。" };
   }
 
   if (generated.posts.length > 0) {
@@ -119,13 +156,14 @@ async function generateAndSaveThreadResponses(
     saveThreadResponsePosts(
       {
         feedItemId: thread.id,
-        posts: generated.posts
+        posts: generated.posts,
+        contentVersion: thread.contentVersion
       },
       getActiveModel(),
       promptHash
     );
-    return "done";
+    return { status: "done", errorMessage: null };
   }
 
-  return "skipped";
+  return { status: "skipped", errorMessage: null };
 }
