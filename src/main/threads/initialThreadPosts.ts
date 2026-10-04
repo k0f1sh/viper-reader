@@ -1,4 +1,5 @@
 import type { ThreadPost } from "../../shared/types.js";
+import { formatBoardDate } from "./boardDate.js";
 
 export const rawTitlePromptHash = "raw-title-v1";
 export const rssSummaryPromptHash = "rss-summary-v1";
@@ -13,8 +14,8 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
   return [
     {
       no: 1,
-      name: "以下、名無しにかわりましてVIPが技術記事をお送りします",
-      date: formatVipDate(fetchedAt),
+      name: "記事をお送りします＠名無しさん",
+      date: formatFetchedAt(fetchedAt),
       id: "RssFetch00",
       body: createFirstPostBody(item.title, item.url, item.rawSummary)
     }
@@ -23,13 +24,17 @@ export function createInitialPosts(item: InitialThreadPostSource, fetchedAt: str
 
 export function createFirstPostBody(title: string, url: string, rawSummary: string | null): string {
   const body = normalizeRssBody(rawSummary);
+  return `${createFirstPostHeader(title, url)}${body}`;
+}
+
+export function createFirstPostHeader(title: string, url: string): string {
   return `元記事タイトル:
 ${title}
 
 URL:
 ${url}
 
-${body}`;
+`;
 }
 
 function normalizeRssBody(rawSummary: string | null): string {
@@ -40,23 +45,16 @@ function normalizeRssBody(rawSummary: string | null): string {
   return rawSummary
     .replace(/\r\n?/g, "\n")
     .replace(/\t/g, "  ")
+    .replace(/Comments URL:\s*(https:\/\/news\.ycombinator\.com\/item\?id=\d+)(?=\s|$)/gi, "コメントURL:\n$1")
     .replace(/[ \u00a0]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function formatVipDate(value: string): string {
+function formatFetchedAt(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const pad = (number: number, length = 2) => String(number).padStart(length, "0");
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${
-    weekdays[date.getDay()]
-  }) ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
-    date.getMilliseconds(),
-    3
-  )}`;
+  return formatBoardDate(date);
 }

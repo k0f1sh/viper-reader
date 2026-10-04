@@ -2,7 +2,7 @@
 
 ## プロジェクト
 
-ViperReader は、技術記事を2000年代後半の日本語2ch VIPスレ風に表示する、個人用のElectron RSSリーダーです。
+ViperReader は、技術記事を2000年代後半の日本語匿名掲示板風に表示する、個人用のElectron RSSリーダーです。
 
 ## 方針
 

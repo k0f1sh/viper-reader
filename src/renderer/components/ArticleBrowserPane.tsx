@@ -9,7 +9,9 @@ type ArticleBrowserPaneProps = {
   selectedThread: ThreadDetail | null;
   isActive: boolean;
   isSuspended: boolean;
+  isExpanded: boolean;
   onShowReplies: () => void;
+  onToggleExpanded: () => void;
 };
 
 const initialState: ArticleBrowserState = {
@@ -27,7 +29,9 @@ export function ArticleBrowserPane({
   selectedThread,
   isActive,
   isSuspended,
-  onShowReplies
+  isExpanded,
+  onShowReplies,
+  onToggleExpanded
 }: ArticleBrowserPaneProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [browserState, setBrowserState] = useState<ArticleBrowserState>(initialState);
@@ -101,6 +105,9 @@ export function ArticleBrowserPane({
     <section className="article-browser-pane" aria-label="元記事ブラウザ">
       <div className="article-browser-toolbar">
         <button onClick={onShowReplies} type="button">レス表示</button>
+        <button onClick={onToggleExpanded} title="内蔵ブラウザの表示領域を切り替え" type="button">
+          {isExpanded ? "通常表示" : "全面表示"}
+        </button>
         <span className="article-browser-separator" aria-hidden="true" />
         <button
           disabled={!browserState.canGoBack}

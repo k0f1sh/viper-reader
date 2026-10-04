@@ -17,27 +17,27 @@ export const threadPostArraySchema = {
       no: { type: "integer" },
       name: { type: "string" },
       mail: { type: "string" },
-      date: { type: "string" },
       id: { type: "string" },
       speakerKey: { type: "string" },
       body: { type: "string" }
     },
-    required: ["no", "name", "date", "id", "body"]
+    required: ["no", "name", "id", "body"]
   }
 } as const;
 
 /**
- * VIPスレタイ変換結果配列のスキーマ。
+ * 匿名掲示板スレタイ変換結果配列のスキーマ。
  * titleTransformer で使う。
  */
-export const vipTitleArraySchema = {
+export const threadTitleArraySchema = {
   type: "array",
   items: {
     type: "object",
     properties: {
       feedItemId: { type: "string" },
-      vipTitle: { type: "string" }
+      threadTitle: { type: "string" },
+      tags: { type: "array", items: { type: "string" }, maxItems: 5 }
     },
-    required: ["feedItemId", "vipTitle"]
+    required: ["feedItemId", "threadTitle", "tags"]
   }
 } as const;

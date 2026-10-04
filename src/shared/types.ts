@@ -1,10 +1,51 @@
+export type CommandHookProcessState = {
+  command: string;
+  pid: number | null;
+  status: "running" | "completed" | "failed" | "spawn-failed";
+  exitCode: number | null;
+  signal: string | null;
+};
+export type CommandHookProcessEvent = { threadId: string; process: CommandHookProcessState };
+
+export type CommandHookOutput = { threadId: string; output: string };
+
+export type CommandHookConfig = { command: string; args: string[] };
+
+export type BoardKind = "rss" | "local";
+
+export const localBoardId = "board:local";
+
+export type CreateLocalThreadRequest =
+  | { mode: "text"; title: string; body: string }
+  | { mode: "url"; title: string; url: string };
+
+export type CreateLocalThreadResult = { thread: ThreadDetail; warning: string | null };
+
 export type FeedSource = {
+  kind: BoardKind;
   id: string;
   title: string;
   url: string;
   unreadCount: number;
   lastFetchedAt: string | null;
   generateTitleFromSummary: boolean;
+  skipTitleConversion: boolean;
+  defaultToArticleBrowser: boolean;
+  parentFolderId: string | null;
+  sortOrder: number;
+};
+
+export type FeedFolder = {
+  id: string;
+  name: string;
+  parentFolderId: string | null;
+  sortOrder: number;
+};
+
+export type FeedTreePlacement = {
+  type: "feed" | "folder";
+  id: string;
+  parentFolderId: string | null;
 };
 
 export type ThreadPost = {
@@ -14,20 +55,28 @@ export type ThreadPost = {
   date: string;
   id: string;
   body: string;
+  /** MainでサニタイズしたRSS説明欄。RSS由来のレス1だけに付与する。 */
+  rssContent?: { header: string; html: string };
   isUser?: boolean;
 };
 
 export type ThreadListItem = {
+  kind: BoardKind;
   id: string;
   feedId: string;
   originalTitle: string;
   url: string;
-  vipTitle: string;
+  threadTitle: string;
+  tags: string[] | null;
   source: string;
   publishedAt: string;
   responseCount: number;
   isRead: boolean;
   isFavorite: boolean;
+  contentVersion: number;
+  generatedContentVersion: number;
+  generationStatus: "queued" | "generating" | "completed" | "failed" | null;
+  titleGenerationStatus: "failed" | "skipped" | null;
 };
 
 export type ThreadListPage = {
@@ -37,9 +86,19 @@ export type ThreadListPage = {
   pageSize: number;
 };
 
+export type ReadingQueueSummary = {
+  unreadCount: number;
+  queuedCount: number;
+  generatingCount: number;
+  completedCount: number;
+  reviewedCount: number;
+};
+
+export type SmartView = "unread" | "generated" | "reviewed";
+
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];
-  replyRuns: ReplyGenerationRun[];
+  readMarkerNo: number | null;
 };
 
 export type ArticleBodyContent = {
@@ -79,32 +138,6 @@ export type ShowArticleBrowserRequest = {
   allowUnprotected: boolean;
 };
 
-export type ReplyRating = "good" | "poor";
-
-export type ReplyGenerationRun = {
-  id: string;
-  threadId: string;
-  startNo: number;
-  endNo: number;
-  mode: "reply_to_user" | "continue_thread";
-  promptVersionId: string | null;
-  rating: ReplyRating | null;
-  feedbackTags: string[];
-};
-
-export type ResidentPromptVersion = {
-  id: string;
-  feedId: string;
-  parentId: string | null;
-  adaptivePrompt: string;
-  rationale: string;
-  changes: string[];
-  status: "pending" | "active" | "rejected" | "archived";
-  model: string;
-  createdAt: string;
-  reviewedAt: string | null;
-};
-
 export type RefreshFeedResult = {
   feedId: string;
   fetchedCount: number;
@@ -132,10 +165,36 @@ export type ThreadGenerationStatus = {
   status: "done" | "skipped" | "error";
 };
 
+export type ThreadGenerationStartResult = {
+  status: "started" | "busy" | "already-current" | "not-found";
+};
+
 export type ThreadGenerationProgress = {
   threadId: string;
   stage: "checking-cache" | "fetching-article" | "preparing-context" | "generating-posts" | "saving-posts";
   message: string;
+};
+
+export type ThreadGenerationAttempt = {
+  id: string;
+  threadId: string;
+  status: "running" | "completed" | "failed" | "skipped";
+  stage: ThreadGenerationProgress["stage"];
+  errorMessage: string | null;
+  technicalDetails: string | null;
+  model: string;
+  force: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+export type TitleGenerationAttempt = {
+  id: string;
+  threadId: string;
+  status: "completed" | "failed" | "skipped";
+  errorMessage: string | null;
+  model: string;
+  attemptedAt: string;
 };
 
 export type AppLogEntry = {

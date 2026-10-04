@@ -61,7 +61,7 @@ printf '%s\n' \
   '[Desktop Entry]' \
   'Type=Application' \
   'Name=ViperReader' \
-  'Comment=VIP-style technical RSS reader' \
+  'Comment=Retro message-board-style technical RSS reader' \
   "Exec=${install_dir}/viper-reader" \
   'Icon=viper-reader' \
   'Terminal=false' \
