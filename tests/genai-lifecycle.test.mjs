@@ -124,3 +124,30 @@ test("インストール済みGoogle SDKを通してfetchまでタイムアウ�
     await tick();
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test("Google SDKを通してテキスト・JSON生成のリクエストと応答を処理する", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies = [];
+  globalThis.fetch = async (_url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return new Response(JSON.stringify({
+      candidates: [{ content: { role: "model", parts: [{ text: bodies.length === 1 ? "summary" : '{"ok":true}' }] }, finishReason: "STOP" }],
+      usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 2, totalTokenCount: 5 }
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const ai = new GoogleGenAI({ apiKey: "test" });
+    const transport = fake(ai.models.generateContent.bind(ai.models));
+    const text = await generateText({ ...request, systemInstruction: "instruction" }, transport);
+    assert.equal(text.errorMessage, null);
+    assert.equal(text.text, "summary");
+    const json = await generateJson({ ...request, responseSchema: { type: "OBJECT", properties: { ok: { type: "BOOLEAN" } } } }, transport);
+    assert.equal(json.errorMessage, null);
+    assert.deepEqual(json.value, { ok: true });
+    assert.equal(json.usageMetadata.totalTokenCount, 5);
+    assert.equal(bodies[0].contents[0].parts[0].text, "test");
+    assert.equal(bodies[0].systemInstruction.parts[0].text, "instruction");
+    assert.equal(bodies[1].generationConfig.responseMimeType, "application/json");
+    assert.equal(bodies[1].generationConfig.responseSchema.properties.ok.type, "BOOLEAN");
+  } finally { globalThis.fetch = originalFetch; }
+});
