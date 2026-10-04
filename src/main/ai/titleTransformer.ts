@@ -1,33 +1,46 @@
-import type { LlmRequestLogWrite, UnconvertedFeedItem, VipTitleWrite } from "../db/repository.js";
-import { buildVipTitlePrompt, vipTitlePromptHash } from "../prompts/vipTitlePrompt.js";
+import type { LlmRequestLogWrite, UnconvertedFeedItem, ThreadTitleWrite } from "../db/repository.js";
+import { buildThreadTitlePrompt, buildThreadTitlePromptHash } from "../prompts/threadTitlePrompt.js";
 import { getTitleGenerationModel } from "../settings/settingsService.js";
-import { VIP_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
+import { BOARD_TITLE_SYSTEM_INSTRUCTION } from "./promptParts.js";
 import { createLogId, generateJson, missingApiKeyMessage, resolveApiKey } from "./genaiClient.js";
-import { vipTitleArraySchema } from "./schemas.js";
+import { threadTitleArraySchema } from "./schemas.js";
+import { normalizeArticleTags } from "../../shared/articleTags.js";
 
 export type TitleTransformResult = {
-  titles: VipTitleWrite[];
+  titles: ThreadTitleWrite[];
+  outcomes: TitleTransformOutcome[];
   failedCount: number;
   skippedCount: number;
   logs: LlmRequestLogWrite[];
 };
 
+export type TitleTransformOutcome = {
+  feedItemId: string;
+  status: "completed" | "failed" | "skipped";
+  errorMessage: string | null;
+};
+
 type GeminiTitleResponse = Array<{
   feedItemId: string;
-  vipTitle: string;
+  threadTitle: string;
+  tags: string[];
 }>;
 
 const titleBatchSize = 12;
+const titleRetryMinDelayMs = 400;
+const titleRetryMaxDelayMs = 1200;
 
-export async function transformTitlesToVipStyle(
+export async function transformTitlesToBoardStyle(
   feedId: string,
   feedTitle: string,
   items: UnconvertedFeedItem[],
-  useSummary = false
+  useSummary = false,
+  onProgress: (completedCount: number, totalCount: number) => void = () => undefined
 ): Promise<TitleTransformResult> {
   if (items.length === 0) {
     return {
       titles: [],
+      outcomes: [],
       failedCount: 0,
       skippedCount: 0,
       logs: []
@@ -35,11 +48,17 @@ export async function transformTitlesToVipStyle(
   }
 
   const modelToUse = getTitleGenerationModel();
+  const promptHash = buildThreadTitlePromptHash(useSummary);
 
   if (!resolveApiKey()) {
     const now = new Date().toISOString();
     return {
       titles: [],
+      outcomes: items.map((item) => ({
+        feedItemId: item.id,
+        status: "skipped",
+        errorMessage: missingApiKeyMessage
+      })),
       failedCount: 0,
       skippedCount: items.length,
       logs: [
@@ -48,7 +67,7 @@ export async function transformTitlesToVipStyle(
           feedId,
           purpose: "title_transform",
           model: modelToUse,
-          promptHash: vipTitlePromptHash,
+          promptHash,
           status: "skipped",
           requestCount: 0,
           itemCount: items.length,
@@ -66,27 +85,36 @@ export async function transformTitlesToVipStyle(
     };
   }
 
-  const titles: VipTitleWrite[] = [];
+  const titles: ThreadTitleWrite[] = [];
   const logs: LlmRequestLogWrite[] = [];
+  const outcomes: TitleTransformOutcome[] = [];
   let failedCount = 0;
+  let completedCount = 0;
 
   for (const chunk of chunkItems(items, titleBatchSize)) {
     const startedAt = new Date().toISOString();
-    const prompt = buildVipTitlePrompt(feedTitle, chunk, useSummary);
+    const prompt = buildThreadTitlePrompt(feedTitle, chunk, useSummary);
 
-    const result = await generateJson<GeminiTitleResponse>({
+    const request = {
       model: modelToUse,
-      purpose: "title_transform",
-      systemInstruction: VIP_TITLE_SYSTEM_INSTRUCTION,
+      purpose: "title_transform" as const,
+      systemInstruction: BOARD_TITLE_SYSTEM_INSTRUCTION,
       contents: prompt,
-      responseSchema: vipTitleArraySchema,
+      responseSchema: threadTitleArraySchema,
       timeoutMs: 30000,
-      parse: (text) => {
+      parse: (text: string) => {
         const parsed = JSON.parse(text) as unknown;
         if (!Array.isArray(parsed)) throw new Error("Gemini title response is not an array");
         return parsed as GeminiTitleResponse;
       }
-    });
+    };
+    let result = await generateJson<GeminiTitleResponse>(request);
+    let requestCount = 1;
+    if (isTimeoutError(result.errorMessage)) {
+      await waitForTitleRetry();
+      result = await generateJson<GeminiTitleResponse>(request);
+      requestCount = 2;
+    }
 
     const finishedAt = new Date().toISOString();
 
@@ -94,8 +122,19 @@ export async function transformTitlesToVipStyle(
       const converted = validateConvertedTitles(result.value, chunk);
       titles.push(...converted);
       failedCount += chunk.length - converted.length;
+      const convertedIds = new Set(converted.map((title) => title.feedItemId));
+      outcomes.push(...chunk.map((item) => ({
+        feedItemId: item.id,
+        status: convertedIds.has(item.id) ? "completed" as const : "failed" as const,
+        errorMessage: convertedIds.has(item.id) ? null : "Gemini応答に有効なスレタイまたはタグがありませんでした。"
+      })));
     } else {
       failedCount += chunk.length;
+      outcomes.push(...chunk.map((item) => ({
+        feedItemId: item.id,
+        status: "failed" as const,
+        errorMessage: result.errorMessage ?? "スレタイ生成に失敗しました。"
+      })));
     }
 
     logs.push({
@@ -103,9 +142,9 @@ export async function transformTitlesToVipStyle(
       feedId,
       purpose: "title_transform",
       model: modelToUse,
-      promptHash: vipTitlePromptHash,
+      promptHash,
       status: result.errorMessage ? "error" : "success",
-      requestCount: 1,
+      requestCount,
       itemCount: chunk.length,
       promptChars: result.promptChars,
       responseChars: result.responseText.length,
@@ -117,34 +156,52 @@ export async function transformTitlesToVipStyle(
       startedAt,
       finishedAt
     });
+    completedCount += chunk.length;
+    onProgress(completedCount, items.length);
   }
 
   return {
     titles,
+    outcomes,
     failedCount,
     skippedCount: 0,
     logs
   };
 }
 
-function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: UnconvertedFeedItem[]): VipTitleWrite[] {
+function isTimeoutError(errorMessage: string | null): boolean {
+  return errorMessage?.includes("Gemini API 呼び出しがタイムアウトしました") ?? false;
+}
+
+function waitForTitleRetry(): Promise<void> {
+  const delayMs = titleRetryMinDelayMs
+    + Math.floor(Math.random() * (titleRetryMaxDelayMs - titleRetryMinDelayMs + 1));
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+export function validateConvertedTitles(parsed: unknown[], sourceItems: UnconvertedFeedItem[]): ThreadTitleWrite[] {
   const sourceIds = new Set(sourceItems.map((item) => item.id));
   const seenIds = new Set<string>();
-  const titles: VipTitleWrite[] = [];
+  const titles: ThreadTitleWrite[] = [];
 
-  for (const item of parsed) {
+  for (const value of parsed) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as { feedItemId?: unknown; threadTitle?: unknown; tags?: unknown };
+    if (typeof item.feedItemId !== "string") continue;
     if (!sourceIds.has(item.feedItemId) || seenIds.has(item.feedItemId)) {
       continue;
     }
 
-    const title = normalizeVipTitle(item.vipTitle);
-    if (!title) {
+    const title = normalizeThreadTitle(item.threadTitle);
+    const tags = normalizeArticleTags(item.tags);
+    if (!title || tags === null) {
       continue;
     }
 
     titles.push({
       feedItemId: item.feedItemId,
-      title
+      title,
+      tags
     });
     seenIds.add(item.feedItemId);
   }
@@ -152,7 +209,7 @@ function validateConvertedTitles(parsed: GeminiTitleResponse, sourceItems: Uncon
   return titles;
 }
 
-function normalizeVipTitle(value: unknown): string {
+function normalizeThreadTitle(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }

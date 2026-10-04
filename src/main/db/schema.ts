@@ -4,15 +4,30 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS feed_folders (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_folder_id TEXT,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (parent_folder_id) REFERENCES feed_folders(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS feed_sources (
   id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'rss' CHECK (kind IN ('rss', 'local')),
   title TEXT NOT NULL,
   url TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   last_fetched_at TEXT,
   generate_title_from_summary INTEGER NOT NULL DEFAULT 0,
-  sort_order INTEGER
+  skip_title_conversion INTEGER NOT NULL DEFAULT 0,
+  default_to_article_browser INTEGER NOT NULL DEFAULT 0,
+  parent_folder_id TEXT,
+  sort_order INTEGER,
+  FOREIGN KEY (parent_folder_id) REFERENCES feed_folders(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS feed_items (
@@ -22,22 +37,32 @@ CREATE TABLE IF NOT EXISTS feed_items (
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   canonical_url TEXT,
+  source_url TEXT,
   published_at TEXT,
   raw_summary TEXT,
   read_at TEXT,
+  last_read_post_no INTEGER NOT NULL DEFAULT 0,
+  latest_post_no INTEGER NOT NULL DEFAULT 0,
   is_favorite INTEGER NOT NULL DEFAULT 0,
+  content_version INTEGER NOT NULL DEFAULT 1,
+  generated_content_version INTEGER NOT NULL DEFAULT 1,
+  generation_status TEXT,
+  generation_requested_at TEXT,
+  generation_completed_at TEXT,
+  generation_reviewed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE,
   UNIQUE (feed_id, url)
 );
 
-CREATE TABLE IF NOT EXISTS vip_titles (
+CREATE TABLE IF NOT EXISTS thread_titles (
   id TEXT PRIMARY KEY,
   feed_item_id TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt_hash TEXT NOT NULL,
   title TEXT NOT NULL,
+  tags_json TEXT,
   generated_at TEXT NOT NULL,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, model, prompt_hash)
@@ -65,19 +90,6 @@ CREATE TABLE IF NOT EXISTS thread_summaries (
   generated_at TEXT NOT NULL,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, model, prompt_hash)
-);
-
-CREATE TABLE IF NOT EXISTS thread_deep_dives (
-  id TEXT PRIMARY KEY,
-  feed_item_id TEXT NOT NULL,
-  article_body_id TEXT NOT NULL,
-  model TEXT NOT NULL,
-  prompt_hash TEXT NOT NULL,
-  posts_json TEXT NOT NULL,
-  generated_at TEXT NOT NULL,
-  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
-  FOREIGN KEY (article_body_id) REFERENCES article_bodies(id) ON DELETE CASCADE,
-  UNIQUE (feed_item_id, article_body_id, model, prompt_hash)
 );
 
 CREATE TABLE IF NOT EXISTS rss_refresh_runs (
@@ -146,6 +158,37 @@ CREATE TABLE IF NOT EXISTS article_fetch_logs (
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS thread_generation_attempts (
+  id TEXT PRIMARY KEY,
+  feed_item_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  error_message TEXT,
+  technical_details TEXT,
+  model TEXT NOT NULL,
+  force INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_thread_generation_attempts_item_started
+  ON thread_generation_attempts(feed_item_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS title_generation_attempts (
+  id TEXT PRIMARY KEY,
+  feed_item_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error_message TEXT,
+  model TEXT NOT NULL,
+  prompt_hash TEXT NOT NULL,
+  attempted_at TEXT NOT NULL,
+  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_title_generation_attempts_item_attempted
+  ON title_generation_attempts(feed_item_id, attempted_at DESC);
+
 CREATE TABLE IF NOT EXISTS thread_posts (
   id TEXT PRIMARY KEY,
   feed_item_id TEXT NOT NULL,
@@ -156,27 +199,10 @@ CREATE TABLE IF NOT EXISTS thread_posts (
   uid TEXT NOT NULL,
   body TEXT NOT NULL,
   is_user INTEGER NOT NULL DEFAULT 0,
-  generation_run_id TEXT,
   resident_id TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
   UNIQUE (feed_item_id, no)
-);
-
-CREATE TABLE IF NOT EXISTS resident_prompt_versions (
-  id TEXT PRIMARY KEY,
-  feed_id TEXT NOT NULL,
-  parent_id TEXT,
-  base_prompt_hash TEXT NOT NULL,
-  adaptive_prompt TEXT NOT NULL,
-  rationale TEXT NOT NULL,
-  changes_json TEXT NOT NULL,
-  status TEXT NOT NULL,
-  model TEXT NOT NULL,
-  feedback_through_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  reviewed_at TEXT,
-  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS feed_residents (
@@ -190,47 +216,12 @@ CREATE TABLE IF NOT EXISTS feed_residents (
   UNIQUE (feed_id, resident_key)
 );
 
-CREATE TABLE IF NOT EXISTS reply_generation_runs (
-  id TEXT PRIMARY KEY,
-  feed_id TEXT NOT NULL,
-  feed_item_id TEXT NOT NULL,
-  mode TEXT NOT NULL,
-  model TEXT NOT NULL,
-  prompt_version_id TEXT,
-  prompt_hash TEXT NOT NULL,
-  start_no INTEGER NOT NULL,
-  end_no INTEGER NOT NULL,
-  status TEXT NOT NULL,
-  user_continued_at TEXT,
-  continued_thread_at TEXT,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE,
-  FOREIGN KEY (feed_item_id) REFERENCES feed_items(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS reply_feedback (
-  run_id TEXT PRIMARY KEY,
-  rating TEXT NOT NULL,
-  tags_json TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (run_id) REFERENCES reply_generation_runs(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS resident_prompt_cycles (
-  feed_id TEXT PRIMARY KEY,
-  started_at TEXT NOT NULL,
-  FOREIGN KEY (feed_id) REFERENCES feed_sources(id) ON DELETE CASCADE
-);
-
 CREATE INDEX IF NOT EXISTS idx_feed_items_feed_id ON feed_items(feed_id);
-CREATE INDEX IF NOT EXISTS idx_vip_titles_feed_item_id ON vip_titles(feed_item_id);
+CREATE INDEX IF NOT EXISTS idx_thread_titles_feed_item_id ON thread_titles(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_thread_summaries_feed_item_id ON thread_summaries(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_rss_refresh_runs_feed_id ON rss_refresh_runs(feed_id);
 CREATE INDEX IF NOT EXISTS idx_llm_request_logs_feed_id ON llm_request_logs(feed_id);
 CREATE INDEX IF NOT EXISTS idx_feed_resident_prompts_prompt_hash ON feed_resident_prompts(prompt_hash);
 CREATE INDEX IF NOT EXISTS idx_article_fetch_logs_feed_item_id ON article_fetch_logs(feed_item_id);
 CREATE INDEX IF NOT EXISTS idx_thread_posts_feed_item_id ON thread_posts(feed_item_id);
-CREATE INDEX IF NOT EXISTS idx_reply_runs_feed_item_id ON reply_generation_runs(feed_item_id);
-CREATE INDEX IF NOT EXISTS idx_prompt_versions_feed_id ON resident_prompt_versions(feed_id);
 `;

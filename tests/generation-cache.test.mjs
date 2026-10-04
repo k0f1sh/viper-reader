@@ -11,14 +11,36 @@ delete process.env.GEMINI_API_KEY;
 const { getDatabase } = await import("../dist/main/db/database.js");
 const {
   listUnconvertedFeedItems,
+  getReadingQueueSummary,
+  getThread,
+  listFeeds,
+  listGeneratedQueue,
+  listThreadGenerationAttempts,
+  listThreads,
+  markThreadRead,
+  markThreadPostsRead,
+  markThreadGenerationReviewed,
+  recoverInterruptedThreadGenerations,
+  listTitleGenerationAttempts,
+  recordTitleGenerationAttempts,
+  setThreadRead,
+  setThreadGenerationState,
+  upsertFeedItems,
   saveArticleBody,
-  saveRawVipTitleFallbacks,
-  saveRssThreadSummaries
+  saveRawThreadTitleFallbacks,
+  saveRssThreadSummaries,
+  saveGeneratedThreadPosts,
+  saveThreadTitles
 } = await import("../dist/main/db/repository.js");
 const { startThreadResponseGeneration } = await import("../dist/main/threads/openThread.js");
-const { buildVipThreadResponsePrompt } = await import("../dist/main/prompts/vipThreadResponsePrompt.js");
+const { acquireThreadLock, releaseThreadLock } = await import("../dist/main/threads/threadLocks.js");
+const { postThreadMessage } = await import("../dist/main/threads/postMessage.js");
+const { buildBoardThreadResponsePrompt } = await import("../dist/main/prompts/threadResponsePrompt.js");
+const { buildThreadTitlePromptHash } = await import("../dist/main/prompts/threadTitlePrompt.js");
+const { runFeedRefreshSingleFlight } = await import("../dist/main/rss/feedRefreshSingleFlight.js");
 const {
   getRendererUserSetting,
+  getTitleGenerationModel,
   saveRendererUserSetting
 } = await import("../dist/main/settings/settingsService.js");
 
@@ -58,19 +80,309 @@ function insertItem({ id, feedId, readAt = null }) {
   );
 }
 
+test("一覧・集計用インデックスを既存DBにも作成する", () => {
+  const indexNames = new Set(
+    db.prepare("PRAGMA index_list(feed_items)").all().map((row) => row.name)
+  );
+
+  assert.deepEqual(
+    [
+      "idx_feed_items_unread_article_key",
+      "idx_feed_items_generation_unreviewed_article",
+      "idx_feed_items_all_threads_order",
+      "idx_feed_items_article_rank"
+    ].filter((name) => !indexNames.has(name)),
+    []
+  );
+});
+
+test("既読後に追加されたレスを未確認として数え、再表示位置を返す", () => {
+  insertFeed("reply-unread");
+  insertItem({ id: "reply-unread-item", feedId: "reply-unread" });
+  saveGeneratedThreadPosts("reply-unread-item", [
+    { no: 1, name: "名無しさん", date: now, id: "first", body: "最初のレス" }
+  ]);
+
+  const firstOpen = getThread("reply-unread-item");
+  assert.equal(firstOpen?.readMarkerNo, null);
+  markThreadPostsRead("reply-unread-item", 1);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+
+  saveGeneratedThreadPosts("reply-unread-item", [
+    { no: 2, name: "名無しさん", date: now, id: "second", body: "追加レス" }
+  ]);
+
+  assert.equal(listThreads(null, 0, 100, true).items.some((item) => item.id === "reply-unread-item"), false);
+  assert.equal(listFeeds().find((feed) => feed.id === "reply-unread")?.unreadCount, 0);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+  assert.equal(getReadingQueueSummary().completedCount, 1);
+  assert.equal(listGeneratedQueue().items[0]?.id, "reply-unread-item");
+
+  const reopened = getThread("reply-unread-item");
+  assert.equal(reopened?.readMarkerNo, 1);
+  markThreadPostsRead("reply-unread-item", 2);
+  assert.equal(getReadingQueueSummary().unreadCount, 0);
+  assert.equal(getReadingQueueSummary().completedCount, 0);
+});
+
 test("スレタイ自動変換は未読かつ未変換の記事だけを対象にする", () => {
   insertFeed("selection");
   insertItem({ id: "unread", feedId: "selection" });
   insertItem({ id: "read", feedId: "selection", readAt: now });
   insertItem({ id: "converted", feedId: "selection" });
   db.prepare(`
-    INSERT INTO vip_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
+    INSERT INTO thread_titles (id, feed_item_id, model, prompt_hash, title, generated_at)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run("vip:converted", "converted", titleModel, "test-prompt", "変換済み", now);
+  `).run("thread:converted", "converted", titleModel, "test-prompt", "変換済み", now);
 
   const items = listUnconvertedFeedItems("selection", titleModel, "test-prompt");
 
   assert.deepEqual(items.map((item) => item.id), ["unread"]);
+});
+
+test("同じcanonical URLの記事は全取得元をまとめて既読・未読にする", () => {
+  insertFeed("canonical-read-a");
+  insertFeed("canonical-read-b");
+  insertItem({ id: "canonical-item-a", feedId: "canonical-read-a" });
+  insertItem({ id: "canonical-item-b", feedId: "canonical-read-b" });
+  db.prepare("UPDATE feed_items SET canonical_url = ? WHERE id IN (?, ?)")
+    .run("https://example.com/canonical/shared", "canonical-item-a", "canonical-item-b");
+
+  markThreadRead("canonical-item-a");
+
+  assert.deepEqual(
+    db.prepare("SELECT id FROM feed_items WHERE id IN (?, ?) AND read_at IS NULL ORDER BY id")
+      .all("canonical-item-a", "canonical-item-b"),
+    []
+  );
+
+  setThreadRead("canonical-item-b", false);
+
+  assert.deepEqual(
+    db.prepare("SELECT id FROM feed_items WHERE id IN (?, ?) AND read_at IS NULL ORDER BY id")
+      .all("canonical-item-a", "canonical-item-b")
+      .map((row) => row.id),
+    ["canonical-item-a", "canonical-item-b"]
+  );
+});
+
+test("同じcanonical URLの生成済み記事はキュー件数を重複計上しない", () => {
+  const baseline = getReadingQueueSummary().completedCount;
+  insertFeed("canonical-queue-a");
+  insertFeed("canonical-queue-b");
+  insertItem({ id: "canonical-queue-item-a", feedId: "canonical-queue-a", readAt: now });
+  insertItem({ id: "canonical-queue-item-b", feedId: "canonical-queue-b", readAt: now });
+  db.prepare("UPDATE feed_items SET canonical_url = ? WHERE id IN (?, ?)")
+    .run(
+      "https://example.com/canonical/queue-shared",
+      "canonical-queue-item-a",
+      "canonical-queue-item-b"
+    );
+
+  setThreadGenerationState("canonical-queue-item-a", "completed");
+  setThreadGenerationState("canonical-queue-item-b", "completed");
+  assert.equal(getReadingQueueSummary().completedCount, baseline + 1);
+
+  markThreadGenerationReviewed("canonical-queue-item-a");
+  markThreadGenerationReviewed("canonical-queue-item-b");
+  assert.equal(getReadingQueueSummary().completedCount, baseline);
+  db.prepare(`
+    UPDATE feed_items
+    SET generation_status = NULL,
+        generation_requested_at = NULL,
+        generation_completed_at = NULL,
+        generation_reviewed_at = NULL
+    WHERE id IN (?, ?)
+  `).run("canonical-queue-item-a", "canonical-queue-item-b");
+});
+
+test("スレタイ変換の失敗・未変換を記事単位で保存し、成功時に状態表示を消す", () => {
+  insertFeed("title-status");
+  insertItem({ id: "title-status-item", feedId: "title-status" });
+  const promptHash = buildThreadTitlePromptHash(false);
+  const currentTitleModel = getTitleGenerationModel();
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "failed", errorMessage: "変換タイムアウト" }
+  ], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, "failed");
+  assert.equal(listTitleGenerationAttempts("title-status-item")[0].errorMessage, "変換タイムアウト");
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "skipped", errorMessage: "APIキー未設定" }
+  ], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, "skipped");
+
+  recordTitleGenerationAttempts([
+    { feedItemId: "title-status-item", status: "completed", errorMessage: null }
+  ], currentTitleModel, promptHash);
+  saveThreadTitles([{ feedItemId: "title-status-item", title: "掲示板風タイトル", tags: [] }], currentTitleModel, promptHash);
+  assert.equal(listThreads("title-status").items[0].titleGenerationStatus, null);
+});
+
+test("スレタイ変換しない板は既存の変換キャッシュがあっても元タイトルを表示する", () => {
+  insertFeed("raw-title-board");
+  insertItem({ id: "raw-title-item", feedId: "raw-title-board" });
+  const promptHash = buildThreadTitlePromptHash(false);
+  const currentTitleModel = getTitleGenerationModel();
+  saveThreadTitles([{ feedItemId: "raw-title-item", title: "変換済みタイトル", tags: [] }], currentTitleModel, promptHash);
+
+  assert.equal(listThreads("raw-title-board").items[0].threadTitle, "変換済みタイトル");
+  db.prepare("UPDATE feed_sources SET skip_title_conversion = 1 WHERE id = ?").run("raw-title-board");
+
+  const item = listThreads("raw-title-board").items[0];
+  assert.equal(item.threadTitle, "Title raw-title-item");
+  assert.equal(item.titleGenerationStatus, null);
+});
+
+test("スレタイ生成モードごとに異なるプロンプトハッシュを使う", () => {
+  assert.notEqual(
+    buildThreadTitlePromptHash(false),
+    buildThreadTitlePromptHash(true)
+  );
+});
+
+test("同じフィードの並行更新は一つの処理を共有する", async () => {
+  let invocationCount = 0;
+  let finishRefresh;
+  const task = () => {
+    invocationCount += 1;
+    return new Promise((resolve) => {
+      finishRefresh = resolve;
+    });
+  };
+
+  const first = runFeedRefreshSingleFlight("single-flight", task);
+  const second = runFeedRefreshSingleFlight("single-flight", task);
+  assert.equal(invocationCount, 1);
+
+  finishRefresh("done");
+  assert.deepEqual(await Promise.all([first, second]), ["done", "done"]);
+
+  const third = runFeedRefreshSingleFlight("single-flight", async () => {
+    invocationCount += 1;
+    return "next";
+  });
+  assert.equal(await third, "next");
+  assert.equal(invocationCount, 2);
+});
+
+test("生成完了した記事は確認するまで生成済みキューに残る", () => {
+  insertFeed("queue");
+  insertItem({ id: "queued-item", feedId: "queue", readAt: now });
+
+  setThreadGenerationState("queued-item", "queued");
+  assert.equal(getReadingQueueSummary().queuedCount, 1);
+
+  setThreadGenerationState("queued-item", "generating");
+  assert.equal(getReadingQueueSummary().generatingCount, 1);
+
+  setThreadGenerationState("queued-item", "completed");
+  assert.equal(getReadingQueueSummary().completedCount, 1);
+  assert.deepEqual(listGeneratedQueue().items.map((item) => item.id), ["queued-item"]);
+
+  markThreadGenerationReviewed("queued-item");
+  assert.equal(getReadingQueueSummary().completedCount, 0);
+  assert.equal(getReadingQueueSummary().reviewedCount, 1);
+  assert.deepEqual(listGeneratedQueue().items, []);
+  assert.deepEqual(listGeneratedQueue(0, 100, true).items.map((item) => item.id), ["queued-item"]);
+});
+
+test("生成失敗した記事は通常一覧に失敗状態のまま残る", () => {
+  insertFeed("failed-queue");
+  insertItem({ id: "failed-item", feedId: "failed-queue" });
+
+  setThreadGenerationState("failed-item", "failed");
+  const failedItem = listThreads("failed-queue", 0, 100, false).items[0];
+  assert.equal(failedItem.id, "failed-item");
+  assert.equal(failedItem.generationStatus, "failed");
+});
+
+test("起動時に中断された生成状態と試行履歴を失敗として回復する", () => {
+  insertFeed("interrupted-generation");
+  insertItem({ id: "stale-queued", feedId: "interrupted-generation" });
+  insertItem({ id: "stale-generating", feedId: "interrupted-generation" });
+  insertItem({ id: "stale-false-completed", feedId: "interrupted-generation" });
+  insertItem({ id: "real-completed", feedId: "interrupted-generation" });
+
+  setThreadGenerationState("stale-queued", "queued");
+  db.prepare(`
+    INSERT INTO thread_generation_attempts
+      (id, feed_item_id, status, stage, model, force, started_at)
+    VALUES (?, ?, 'running', 'generating-posts', ?, 0, ?)
+  `).run("attempt:generating", "stale-generating", responseModel, now);
+  setThreadGenerationState("stale-generating", "generating");
+  db.prepare(`
+    INSERT INTO thread_generation_attempts
+      (id, feed_item_id, status, stage, model, force, started_at)
+    VALUES (?, ?, 'running', 'saving-posts', ?, 0, ?)
+  `).run("attempt:false-completed", "stale-false-completed", responseModel, now);
+  setThreadGenerationState("stale-false-completed", "completed");
+  setThreadGenerationState("real-completed", "completed");
+
+  recoverInterruptedThreadGenerations();
+  recoverInterruptedThreadGenerations();
+
+  const statuses = db.prepare(`
+    SELECT id, generation_status AS status
+    FROM feed_items
+    WHERE feed_id = ?
+    ORDER BY id
+  `).all("interrupted-generation").map((row) => ({ ...row }));
+  assert.deepEqual(statuses, [
+    { id: "real-completed", status: "completed" },
+    { id: "stale-false-completed", status: "failed" },
+    { id: "stale-generating", status: "failed" },
+    { id: "stale-queued", status: "failed" }
+  ]);
+  const attempts = db.prepare(`
+    SELECT status, error_message, finished_at
+    FROM thread_generation_attempts
+    WHERE id IN (?, ?)
+    ORDER BY id
+  `).all("attempt:generating", "attempt:false-completed");
+  assert.ok(attempts.every((attempt) => attempt.status === "failed"));
+  assert.ok(attempts.every((attempt) => /アプリ終了により生成が中断/.test(attempt.error_message)));
+  assert.ok(attempts.every((attempt) => attempt.finished_at));
+});
+
+test("同一スレッドの重複依頼は既存の生成状態を上書きしない", () => {
+  insertFeed("duplicate-generation");
+  insertItem({ id: "duplicate-item", feedId: "duplicate-generation" });
+  setThreadGenerationState("duplicate-item", "generating");
+  assert.equal(acquireThreadLock("duplicate-item"), true);
+  let completionCount = 0;
+  try {
+    const result = startThreadResponseGeneration("duplicate-item", false, () => {
+      completionCount += 1;
+    });
+    assert.deepEqual(result, { status: "busy" });
+    assert.equal(getThread("duplicate-item").generationStatus, "generating");
+    assert.equal(listThreadGenerationAttempts("duplicate-item").length, 0);
+    assert.equal(completionCount, 0);
+  } finally {
+    releaseThreadLock("duplicate-item");
+  }
+});
+
+test("現在版の生成レスがある依頼は状態を変更せず再利用する", () => {
+  insertFeed("current-generation");
+  insertItem({ id: "current-item", feedId: "current-generation" });
+  saveGeneratedThreadPosts("current-item", [
+    { no: 1, name: "名無しさん", date: now, id: "current1", body: "記事概要" },
+    { no: 2, name: "名無しさん", date: now, id: "current2", body: "生成済みレス" }
+  ]);
+  setThreadGenerationState("current-item", "failed");
+  let completionCount = 0;
+
+  const result = startThreadResponseGeneration("current-item", false, () => {
+    completionCount += 1;
+  });
+
+  assert.deepEqual(result, { status: "already-current" });
+  assert.equal(getThread("current-item").generationStatus, "failed");
+  assert.equal(listThreadGenerationAttempts("current-item").length, 0);
+  assert.equal(completionCount, 0);
 });
 
 test("本文キャッシュがあれば再取得せず、実際の生成工程だけを通知する", async () => {
@@ -83,13 +395,14 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
     publishedAt: now,
     rawSummary: "Summary cached"
   };
-  saveRawVipTitleFallbacks([initialItem], titleModel);
+  saveRawThreadTitleFallbacks([initialItem], titleModel);
   saveRssThreadSummaries([initialItem], responseModel);
   saveArticleBody("cached", initialItem.url, "キャッシュ済みの技術記事本文");
 
   const progress = [];
+  let startResult;
   const completion = await new Promise((resolve) => {
-    startThreadResponseGeneration(
+    startResult = startThreadResponseGeneration(
       "cached",
       false,
       resolve,
@@ -97,7 +410,8 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
     );
   });
 
-  assert.equal(completion, "skipped");
+  assert.deepEqual(startResult, { status: "started" });
+  assert.equal(completion, "error");
   assert.deepEqual(progress, [
     "checking-cache",
     "preparing-context",
@@ -108,11 +422,114 @@ test("本文キャッシュがあれば再取得せず、実際の生成工程�
       .get("cached").count,
     0
   );
+  const [attempt] = listThreadGenerationAttempts("cached");
+  assert.equal(attempt.status, "failed");
+  assert.equal(attempt.stage, "generating-posts");
+  assert.match(attempt.errorMessage, /API キーが設定されていません/);
+  assert.ok(attempt.model);
+  assert.equal(attempt.force, false);
+});
+
+test("書き込み後の返信生成に失敗しても書き込みを保存し、理由付きで失敗通知する", async () => {
+  insertFeed("post-failure");
+  insertItem({ id: "post-failure-item", feedId: "post-failure" });
+
+  const failure = new Promise((resolve) => {
+    void postThreadMessage(
+      "post-failure-item",
+      "テストユーザー",
+      "sage",
+      "保存される書き込み",
+      (status, errorMessage) => {
+        if (status === "error") resolve(errorMessage);
+      }
+    );
+  });
+
+  assert.match(await failure, /API キーが設定されていません/);
+  const savedPost = db.prepare(`
+    SELECT body, is_user
+    FROM thread_posts
+    WHERE feed_item_id = ? AND is_user = 1
+  `).get("post-failure-item");
+  assert.equal(savedPost.body, "保存される書き込み");
+  assert.equal(savedPost.is_user, 1);
+});
+
+test("RSSの記事内容が訂正されたら派生キャッシュを失効する", () => {
+  insertFeed("corrected");
+  insertItem({ id: "corrected-item", feedId: "corrected" });
+  const originalItem = {
+    id: "corrected-item",
+    title: "Title corrected-item",
+    url: "https://example.com/articles/corrected-item",
+    publishedAt: now,
+    rawSummary: "Summary corrected-item"
+  };
+  saveRawThreadTitleFallbacks([originalItem], titleModel);
+  saveRssThreadSummaries([originalItem], responseModel);
+  saveArticleBody(originalItem.id, originalItem.url, "元の記事本文");
+
+  const result = upsertFeedItems("corrected", [{
+    ...originalItem,
+    feedId: "corrected",
+    guid: originalItem.id,
+    title: "訂正後のタイトル",
+    url: "https://example.com/articles/corrected-item-v2",
+    rawSummary: "訂正後の概要"
+  }]);
+
+  assert.equal(result.updatedCount, 1);
+  assert.deepEqual(result.insertedItemIds, []);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM thread_titles WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
+    0
+  );
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM thread_summaries WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
+    0
+  );
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM article_bodies WHERE feed_item_id = ?")
+      .get(originalItem.id).count,
+    0
+  );
+});
+
+test("RSS保存結果は今回新規追加した記事IDだけを返す", () => {
+  insertFeed("inserted-items");
+  insertItem({ id: "existing-item", feedId: "inserted-items" });
+
+  const result = upsertFeedItems("inserted-items", [
+    {
+      id: "existing-item",
+      feedId: "inserted-items",
+      guid: "existing-item",
+      title: "Title existing-item",
+      url: "https://example.com/articles/existing-item",
+      publishedAt: now,
+      rawSummary: "Summary existing-item"
+    },
+    {
+      id: "new-item",
+      feedId: "inserted-items",
+      guid: "new-item",
+      title: "新しい記事",
+      url: "https://example.com/articles/new-item",
+      publishedAt: now,
+      rawSummary: "新しい概要"
+    }
+  ]);
+
+  assert.equal(result.insertedCount, 1);
+  assert.deepEqual(result.insertedItemIds, ["new-item"]);
 });
 
 test("本文取得失敗時のプロンプトは推測による補完を禁止する", () => {
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: "テストスレ",
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "テストスレ",
     originalTitle: "テスト記事",
     url: "https://example.com/article",
     rssBody: "RSSの概要",
@@ -127,8 +544,8 @@ test("本文取得失敗時のプロンプトは推測による補完を禁止�
 });
 
 test("本文取得成功時のプロンプトは不要な不明点の付記を避ける", () => {
-  const prompt = buildVipThreadResponsePrompt({
-    vipTitle: "テストスレ",
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "テストスレ",
     originalTitle: "テスト記事",
     url: "https://example.com/article",
     rssBody: "RSSの概要",
@@ -142,10 +559,87 @@ test("本文取得成功時のプロンプトは不要な不明点の付記を�
   assert.match(prompt, /記事の結論や読者の判断を左右する場合に限り/);
 });
 
+test("記事のプロンプトは主題と無関係な分野の語彙や視点を禁止する", () => {
+  const prompt = buildBoardThreadResponsePrompt({
+    threadTitle: "商店街の夏祭り開催決定ｗｗｗ",
+    originalTitle: "商店街で夏祭りを開催",
+    url: "https://example.com/festival",
+    rssBody: "",
+    scrapedBody: "商店街は8月に夏祭りを開催すると発表した。",
+    publishedAt: "2026-07-27",
+    residentPrompt: null
+  });
+
+  assert.match(prompt, /記事の分野に詳しく/);
+  assert.match(prompt, /元記事と無関係な分野の用語、比喩、専門家視点/);
+  assert.doesNotMatch(prompt, /エンジニアにとっての実用上の影響/);
+});
+
 test("広告ブロック設定をSQLiteへ保存して再読込できる", () => {
   saveRendererUserSetting("articleBrowserBlockingEnabled", "false");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "false");
 
   saveRendererUserSetting("articleBrowserBlockingEnabled", "true");
   assert.equal(getRendererUserSetting("articleBrowserBlockingEnabled"), "true");
+});
+
+test("AI関連記事の強調表示設定をSQLiteへ保存して再読込できる", () => {
+  saveRendererUserSetting("highlightAiArticles", "true");
+  assert.equal(getRendererUserSetting("highlightAiArticles"), "true");
+  saveRendererUserSetting("highlightAiArticles", "false");
+  assert.equal(getRendererUserSetting("highlightAiArticles"), "false");
+});
+
+test("ペインとカラムのレイアウト設定を保存できる", () => {
+  saveRendererUserSetting("feedPaneWidth", "420");
+  saveRendererUserSetting("feedTreeHeight", "280");
+  saveRendererUserSetting("threadColumnWidthsV3", "[38,500,170,300,54,126,260]");
+
+  assert.equal(getRendererUserSetting("feedPaneWidth"), "420");
+  assert.equal(getRendererUserSetting("feedTreeHeight"), "280");
+  assert.equal(
+    getRendererUserSetting("threadColumnWidthsV3"),
+    "[38,500,170,300,54,126,260]"
+  );
+});
+
+test("書き込み欄の表示状態をSQLiteへ保存して再読込できる", () => {
+  saveRendererUserSetting("writePanelVisible", "false");
+  assert.equal(getRendererUserSetting("writePanelVisible"), "false");
+
+  saveRendererUserSetting("writePanelVisible", "true");
+  assert.equal(getRendererUserSetting("writePanelVisible"), "true");
+});
+
+test("板フォルダの開閉状態をSQLiteへ保存できる", () => {
+  saveRendererUserSetting("collapsedFeedFolderIds", '["folder:development"]');
+  assert.equal(getRendererUserSetting("collapsedFeedFolderIds"), '["folder:development"]');
+});
+
+test("A生成開始→B表示→A完了の取得ではAの未表示レスを既読にしない", () => {
+  insertFeed("background-read");
+  const a = "background-read-a";
+  const b = "background-read-b";
+  insertItem({ id: a, feedId: "background-read" });
+  insertItem({ id: b, feedId: "background-read" });
+  const initial = getThread(a);
+  assert.equal(initial.isRead, false);
+  assert.equal(db.prepare("SELECT read_at FROM feed_items WHERE id = ?").get(a).read_at, null);
+  markThreadPostsRead(a, 1);
+  const selectedB = getThread(b);
+  markThreadPostsRead(b, selectedB.posts.at(-1).no);
+  saveGeneratedThreadPosts(a, [
+    { no: 2, name: "名無しさん", date: now, id: "background", body: "未表示の生成レス" }
+  ]);
+  const background = getThread(a);
+  assert.equal(background.readMarkerNo, 1);
+  assert.equal(db.prepare("SELECT last_read_post_no FROM feed_items WHERE id = ?").get(a).last_read_post_no, 1);
+  // A delayed acknowledgement of the old snapshot must not consume the new post.
+  markThreadPostsRead(a, 1);
+  const reopened = getThread(a);
+  assert.equal(reopened.readMarkerNo, 1);
+  markThreadPostsRead(a, reopened.posts.at(-1).no);
+  markThreadPostsRead(a, 1);
+  assert.equal(getThread(a).readMarkerNo, null);
+  assert.equal(db.prepare("SELECT last_read_post_no FROM feed_items WHERE id = ?").get(a).last_read_post_no, 2);
 });

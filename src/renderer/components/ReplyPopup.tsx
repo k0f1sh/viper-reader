@@ -32,7 +32,7 @@ export function ReplyPopup({ popupData, onMouseEnter, onMouseLeave, onAnchorClic
             <span className="post-id">ID:{post.id}</span>
           </div>
           <div className="post-body">
-            <PostBody body={post.body} onAnchorClick={onAnchorClick} />
+            <PostBody body={post.body} rssContent={post.rssContent} onAnchorClick={onAnchorClick} />
           </div>
         </article>
       ))}

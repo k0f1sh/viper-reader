@@ -15,7 +15,10 @@ const {
   missingApiKeyMessage
 } = await import("../dist/main/ai/genaiClient.js");
 const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
-const { assertSafeNetworkUrl } = await import("../dist/main/network/safeFetch.js");
+const { assertSafeNetworkUrl, createPinnedLookup } = await import("../dist/main/network/safeFetch.js");
+const { findUngroundedNumericClaims } = await import("../dist/main/ai/factualGrounding.js");
+const { sendIfAvailable } = await import("../dist/main/ipc/safeSender.js");
+const { normalizePostBody } = await import("../dist/shared/postBody.js");
 
 const db = getDatabase();
 
@@ -68,6 +71,23 @@ test("Geminiの不正JSONはgenerateJson全体で安全にエラー結果へ変�
   assert.equal(fenced.errorMessage, null);
 });
 
+test("JSON構文エラーと保存前の追加検証エラーを区別する", async () => {
+  const result = await generateJson(
+    {
+      model: "test-model",
+      purpose: "thread_response",
+      contents: "test",
+      parse: () => {
+        throw new Error("記事に根拠のない数値表現があります: 50%");
+      }
+    },
+    fakeTransport(async () => ({ text: '{"body":"50%高速化"}' }))
+  );
+
+  assert.equal(result.value, null);
+  assert.equal(result.errorMessage, "記事に根拠のない数値表現があります: 50%");
+});
+
 test("Gemini呼び出し全体が制限時間を超えたら用途付きのエラー結果を返す", async () => {
   const result = await generateJson(
     {
@@ -77,7 +97,9 @@ test("Gemini呼び出し全体が制限時間を超えたら用途付きのエ�
       timeoutMs: 5,
       parse: JSON.parse
     },
-    fakeTransport(() => new Promise(() => undefined))
+    fakeTransport(({ config }) => new Promise((_, reject) => {
+      config.abortSignal.addEventListener("abort", () => reject(config.abortSignal.reason), { once: true });
+    }))
   );
 
   assert.equal(result.value, null);
@@ -85,6 +107,35 @@ test("Gemini呼び出し全体が制限時間を超えたら用途付きのエ�
     result.errorMessage,
     /Gemini API 呼び出しがタイムアウトしました \(0.005秒\) \[thread_response\]/
   );
+});
+
+test("Gemini API呼び出しはアプリ全体で最大5並列に制限する", async () => {
+  let activeRequests = 0;
+  let maxActiveRequests = 0;
+  const transport = fakeTransport(async () => {
+    activeRequests += 1;
+    maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    activeRequests -= 1;
+    return { text: "{\"ok\":true}" };
+  });
+
+  const results = await Promise.all(
+    Array.from({ length: 10 }, (_, index) =>
+      generateJson(
+        {
+          model: "test-model",
+          purpose: "title_transform",
+          contents: `test-${index}`,
+          parse: JSON.parse
+        },
+        transport
+      )
+    )
+  );
+
+  assert.equal(maxActiveRequests, 5);
+  assert.ok(results.every((result) => result.value?.ok === true));
 });
 
 test("HTTP以外の記事URLは取得せずfetch_failedとして扱う", async () => {
@@ -108,5 +159,66 @@ test("localhostとループバックアドレスへの取得を拒否する", as
   await assert.rejects(
     assertSafeNetworkUrl(new URL("http://[::1]:3000/feed")),
     /ローカルネットワークまたは予約済みアドレスへのアクセスを拒否/
+  );
+});
+
+test("生成文中の根拠がない数値・バージョンを検出する", () => {
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      "v2.1では処理が50%高速化し、3件の問題を修正した",
+      ["v2.1では3件の問題を修正した"]
+    ),
+    ["50%"]
+  );
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      ">>2 の通り、v2.1で3件修正",
+      ["v2.1で3件修正"]
+    ),
+    []
+  );
+  assert.deepEqual(
+    findUngroundedNumericClaims(
+      "重要な点は3つある",
+      ["重要な点を説明する"]
+    ),
+    []
+  );
+});
+
+test("破棄済みまたは送信失敗したIPC senderを安全に無視する", () => {
+  let sendCount = 0;
+  assert.equal(sendIfAvailable({
+    isDestroyed: () => true,
+    send: () => {
+      sendCount += 1;
+    }
+  }, "test"), false);
+  assert.equal(sendCount, 0);
+
+  assert.equal(sendIfAvailable({
+    isDestroyed: () => false,
+    send: () => {
+      throw new Error("sender was destroyed");
+    }
+  }, "test"), false);
+});
+
+test("検査済みIPをDNS再解決せず接続先へ固定する", async () => {
+  const lookup = createPinnedLookup({ address: "203.0.113.10", family: 4 });
+  const resolved = await new Promise((resolve, reject) => {
+    lookup("attacker.example", { all: false }, (error, address, family) => {
+      if (error) reject(error);
+      else resolve({ address, family });
+    });
+  });
+
+  assert.deepEqual(resolved, { address: "203.0.113.10", family: 4 });
+});
+
+test("生成レスのbrタグを改行へ正規化する", () => {
+  assert.equal(
+    normalizePostBody("1行目<br>2行目<BR />3行目<br/>4行目\r\n5行目"),
+    "1行目\n2行目\n3行目\n4行目\n5行目"
   );
 });

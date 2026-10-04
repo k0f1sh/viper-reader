@@ -1,32 +1,53 @@
+import { getCommandHook, saveCommandHook, clearCommandHook, runCommandHook, stopCommandHook } from "./hooks/commandHookService.js";
+import { isLocalBoard } from "../shared/boardPolicy.js";
+import { deleteLocalThread } from "./threads/deleteLocalThread.js";
+import { createLocalThread } from "./threads/createLocalThread.js";
+import type { CreateLocalThreadRequest } from "../shared/types.js";
 import { app, BrowserWindow, clipboard, ipcMain as electronIpcMain, shell, Menu, session } from "electron";
 import type { IpcMainInvokeEvent, Session } from "electron";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { appInfo } from "../shared/appInfo.js";
 import {
-  addFeedSource,
-  clearFeedResidentPrompt,
-  deleteFeedSource,
-  getFeedResidentPrompt,
   getArticleBody,
+  deleteThreadContent,
   getStatistics,
   initializeRepository,
-  listFeeds,
   listThreads,
+  searchThreads,
+  listGeneratedQueue,
+  listThreadGenerationAttempts,
+  listTitleGenerationAttempts,
+  getReadingQueueSummary,
   countAllUnreadArticles,
-  listResidentPromptVersions,
-  reviewResidentPromptVersion,
-  reorderFeedSources,
-  rollbackResidentPromptVersion,
-  saveReplyFeedback,
-  saveFeedResidentPrompt,
   setThreadFavorite,
   listFavoriteThreads,
-  markFeedRead,
-  markAllFeedsRead,
   setThreadRead,
-  updateFeedTitleGenerationSetting
+  markThreadPostsRead,
+  markThreadGenerationReviewed
 } from "./db/repository.js";
+import {
+  addFeedSource,
+  deleteFeedSource,
+  listFeeds,
+  markAllFeedsRead,
+  markFeedRead,
+  reorderFeedSources,
+  updateFeedSettings
+} from "./db/feedRepository.js";
+import {
+  createFeedFolder,
+  deleteFeedFolder,
+  listFeedFolders,
+  renameFeedFolder,
+  saveFeedTreeLayout
+} from "./db/feedFolderRepository.js";
+import {
+  clearFeedResidentPrompt,
+  getFeedResidentPrompt,
+  saveFeedResidentPrompt
+} from "./db/residentPromptRepository.js";
 import { loadEnv } from "./env/loadEnv.js";
 import { installConsoleLogForwarder, listBufferedLogs } from "./log/logBroadcaster.js";
 import { refreshFeed } from "./rss/refreshFeed.js";
@@ -39,12 +60,25 @@ import {
 } from "./settings/settingsService.js";
 import { openThread, startThreadResponseGeneration } from "./threads/openThread.js";
 import { postThreadMessage, generateRepliesOnly } from "./threads/postMessage.js";
-import { regenerateVipTitle } from "./threads/regenerateVipTitle.js";
-import { maybeCreatePromptProposal } from "./ai/promptOptimizer.js";
+import { regenerateThreadTitle } from "./threads/regenerateThreadTitle.js";
+import { acquireThreadLock, releaseThreadLock } from "./threads/threadLocks.js";
 import { ArticleBlocker } from "./browser/articleBlocker.js";
 import { ArticleBrowserController } from "./browser/articleBrowserController.js";
-import { CHROME_USER_AGENT } from "./network/httpIdentity.js";
-import type { ArticleBrowserBounds, ReplyRating, ShowArticleBrowserRequest } from "../shared/types.js";
+import { ARTICLE_BROWSER_USER_AGENT } from "./network/httpIdentity.js";
+import type { ArticleBrowserBounds, FeedTreePlacement, ShowArticleBrowserRequest } from "../shared/types.js";
+import { sendIfAvailable } from "./ipc/safeSender.js";
+import {
+  assertArticleBrowserBounds,
+  assertBoolean,
+  assertFeedTreePlacements,
+  assertHttpUrl,
+  assertIdentifier,
+  assertNullableIdentifier,
+  assertPage,
+  assertShowArticleBrowserRequest,
+  assertString,
+  assertStringArray
+} from "./ipc/inputValidation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +87,20 @@ loadEnv();
 installConsoleLogForwarder();
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+const rendererEntryUrl = isDev
+  ? new URL(process.env.VITE_DEV_SERVER_URL as string).toString()
+  : pathToFileURL(path.join(__dirname, "../renderer/index.html")).toString();
+const screenshotPathArg = process.argv.find((arg) => arg.startsWith("--screenshot-path="));
+const screenshotPath = screenshotPathArg
+  ? path.resolve(screenshotPathArg.substring("--screenshot-path=".length))
+  : null;
+const articleBrowserScreenshotPathArg = process.argv.find((arg) =>
+  arg.startsWith("--article-browser-screenshot-path=")
+);
+const articleBrowserScreenshotPath = articleBrowserScreenshotPathArg
+  ? path.resolve(articleBrowserScreenshotPathArg.substring("--article-browser-screenshot-path=".length))
+  : null;
+const isScreenshotMode = screenshotPath !== null || articleBrowserScreenshotPath !== null;
 const articleBrowserControllers = new Map<number, ArticleBrowserController>();
 let articleSession: Session | null = null;
 let articleBlocker: ArticleBlocker | null = null;
@@ -81,8 +129,8 @@ if (process.platform === "linux") {
 
 function createMainWindow(): void {
   const window = new BrowserWindow({
-    width: 1180,
-    height: 760,
+    width: isScreenshotMode ? 1600 : 1180,
+    height: isScreenshotMode ? 1000 : 760,
     minWidth: 920,
     minHeight: 600,
     title: appInfo.name,
@@ -99,7 +147,12 @@ function createMainWindow(): void {
   if (!articleSession || !articleBlocker) {
     throw new Error("Article browser services are not initialized.");
   }
-  const articleBrowser = new ArticleBrowserController(window, articleSession, articleBlocker);
+  const articleBrowser = new ArticleBrowserController(
+    window,
+    articleSession,
+    articleBlocker,
+    articleBrowserScreenshotPath !== null
+  );
   const rendererWebContentsId = window.webContents.id;
   articleBrowserControllers.set(rendererWebContentsId, articleBrowser);
   window.once("close", () => {
@@ -116,37 +169,168 @@ function createMainWindow(): void {
       ]).popup({ window });
     }
   });
+  window.webContents.on("zoom-changed", (event, direction) => {
+    event.preventDefault();
+    sendIfAvailable(window.webContents, "ui:zoom-changed", direction);
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedRendererUrl(url)) {
+      event.preventDefault();
+    }
+  });
 
-  if (isDev) {
-    void window.loadURL(process.env.VITE_DEV_SERVER_URL as string);
-    return;
+  void window.loadURL(rendererEntryUrl);
+  if (isScreenshotMode) {
+    window.webContents.once("did-finish-load", () => {
+      setTimeout(() => {
+        void window.webContents.executeJavaScript(`
+          (() => {
+            const rows = [...document.querySelectorAll('.thread-row')];
+            const generated = rows.find((row) => Number(row.querySelector('.thread-count')?.textContent ?? 0) > 0);
+            (generated ?? rows[0])?.click();
+          })();
+        `).then(() => delay(2500))
+          .then(async () => {
+            if (screenshotPath) {
+              const image = await window.capturePage();
+              await writeFile(screenshotPath, image.toPNG());
+            }
+            if (articleBrowserScreenshotPath) {
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const buttons = [...document.querySelectorAll('button')];
+                  buttons.find((button) => button.textContent?.trim() === '元記事')?.click();
+                })();
+              `);
+              await waitForArticleBrowser(articleBrowser);
+              const articleImage = await articleBrowser.capturePageForScreenshot();
+              await window.webContents.executeJavaScript(`
+                (() => {
+                  const viewport = document.querySelector('.article-browser-viewport');
+                  if (!viewport) throw new Error('内蔵ブラウザの表示領域が見つかりません。');
+                  const image = document.createElement('img');
+                  image.src = ${JSON.stringify(articleImage.toDataURL())};
+                  image.alt = '';
+                  image.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;object-position:top left';
+                  viewport.replaceChildren(image);
+                })();
+              `);
+              await delay(100);
+              const image = await window.capturePage();
+              await writeFile(articleBrowserScreenshotPath, image.toPNG());
+            }
+            app.quit();
+          }).catch((error) => {
+            console.error("スクリーンショットの保存に失敗しました:", error);
+            app.exit(1);
+          });
+      }, 1500);
+    });
   }
-
-  void window.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
+
+function broadcastToRenderers(channel: string, ...args: unknown[]): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    sendIfAvailable(window.webContents, channel, ...args);
+  }
+}
+
+app.on("before-quit", stopCommandHook);
+ipcMain.handle("hooks:get-command", () => getCommandHook());
+ipcMain.handle("hooks:save-command", (_event, config: unknown) => saveCommandHook(config));
+ipcMain.handle("hooks:clear-command", () => clearCommandHook());
+ipcMain.handle("hooks:run-command", (event, threadId: unknown) => {
+  assertIdentifier(threadId, "thread ID");
+  return runCommandHook(threadId, (output) => {
+    sendIfAvailable(event.sender, "hooks:command-output", { threadId, output });
+  }, (process) => {
+    sendIfAvailable(event.sender, "hooks:command-process", { threadId, process });
+  });
+});
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
-ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) =>
-  listThreads(feedId, page, 100, unreadOnly)
-);
+ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) => {
+  if (feedId !== null) assertIdentifier(feedId, "feed ID");
+  assertPage(page);
+  assertBoolean(unreadOnly, "unread-only flag");
+  return listThreads(feedId, page, 100, unreadOnly);
+});
+ipcMain.handle("threads:search", (_event, feedId: string | null, query: string, page: number, unreadOnly: boolean) => {
+  if (feedId !== null) assertIdentifier(feedId, "feed ID");
+  assertString(query, "search query", { minLength: 1, maxLength: 200 });
+  assertPage(page);
+  assertBoolean(unreadOnly, "unread-only flag");
+  return searchThreads(feedId, query, page, 100, unreadOnly);
+});
+ipcMain.handle("threads:list-generated-queue", (_event, page: number) => {
+  assertPage(page);
+  return listGeneratedQueue(page, 100);
+});
+ipcMain.handle("threads:list-reviewed-generation-queue", (_event, page: number) => {
+  assertPage(page);
+  return listGeneratedQueue(page, 100, true);
+});
+ipcMain.handle("threads:get-queue-summary", () => getReadingQueueSummary());
+ipcMain.handle("threads:mark-generation-reviewed", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return markThreadGenerationReviewed(threadId);
+});
+ipcMain.handle("threads:list-generation-attempts", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return listThreadGenerationAttempts(threadId, 5);
+});
+ipcMain.handle("threads:list-title-generation-attempts", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return listTitleGenerationAttempts(threadId, 5);
+});
 ipcMain.handle("threads:count-unread-articles", () => countAllUnreadArticles());
+ipcMain.handle("threads:create-local", (_event, request: CreateLocalThreadRequest) => createLocalThread(request));
 ipcMain.handle("threads:get", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
   const thread = openThread(threadId);
   return thread;
 });
+ipcMain.handle("threads:mark-posts-read", (_event, threadId: string, postNo: number) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!Number.isSafeInteger(postNo) || postNo < 0) throw new Error("Invalid post number.");
+  return markThreadPostsRead(threadId, postNo);
+});
 ipcMain.handle("articles:get-body", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
   const contentText = getArticleBody(threadId);
   return contentText ? { threadId, contentText } : null;
 });
+ipcMain.handle("threads:delete-local", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  deleteLocalThread(threadId);
+});
+ipcMain.handle("threads:delete-content", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  if (!acquireThreadLock(threadId)) {
+    throw new Error("このスレッドは現在処理中です。完了してからもう一度試してください。");
+  }
+  try {
+    deleteThreadContent(threadId);
+    return openThread(threadId);
+  } finally {
+    releaseThreadLock(threadId);
+  }
+});
 ipcMain.handle("article-browser:show", (event, request: ShowArticleBrowserRequest) => {
   assertShowArticleBrowserRequest(request);
-  return getArticleBrowserController(event).show(request);
+  const thread = openThread(request.threadId);
+  if (isLocalBoard(thread) && (!thread.url || request.url !== thread.url)) throw new Error("元記事URLが不正です。");
+  return getArticleBrowserController(event).show({
+    ...request,
+    bounds: scaleArticleBrowserBounds(request.bounds, event.sender.getZoomFactor())
+  });
 });
 ipcMain.handle("article-browser:hide", (event) => getArticleBrowserController(event).hide());
 ipcMain.handle("article-browser:set-bounds", (event, bounds: ArticleBrowserBounds) => {
   assertArticleBrowserBounds(bounds);
-  getArticleBrowserController(event).setBounds(bounds);
+  getArticleBrowserController(event).setBounds(scaleArticleBrowserBounds(bounds, event.sender.getZoomFactor()));
 });
 ipcMain.handle("article-browser:back", (event) => getArticleBrowserController(event).goBack());
 ipcMain.handle("article-browser:forward", (event) => getArticleBrowserController(event).goForward());
@@ -173,34 +357,56 @@ ipcMain.handle("article-browser:set-global-blocking-enabled", (event, enabled: b
 });
 ipcMain.handle("article-browser:retry-blocker", (event) => getArticleBrowserController(event).retryBlocker());
 ipcMain.handle("article-browser:get-state", (event) => getArticleBrowserController(event).getState());
-ipcMain.handle("threads:generate", (event, threadId: string, force: boolean) => {
-  startThreadResponseGeneration(threadId, force, (status) => {
-    event.sender.send("threads:generation-complete", { threadId, status });
+ipcMain.handle("threads:generate", (_event, threadId: string, force: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(force, "force flag");
+  return startThreadResponseGeneration(threadId, force, (status) => {
+    broadcastToRenderers("threads:generation-complete", { threadId, status });
   }, (progress) => {
-    event.sender.send("threads:generation-progress", { threadId, ...progress });
+    broadcastToRenderers("threads:generation-progress", { threadId, ...progress });
   });
 });
-ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => regenerateVipTitle(threadId));
+ipcMain.handle("threads:regenerate-title", (_event, threadId: string) => {
+  assertIdentifier(threadId, "thread ID");
+  return regenerateThreadTitle(threadId);
+});
 ipcMain.handle("threads:post", (event, threadId: string, name: string, mail: string, body: string) => {
-  return postThreadMessage(threadId, name, mail, body, (status) => {
-    event.sender.send("threads:post-status", { threadId, status });
+  assertIdentifier(threadId, "thread ID");
+  assertString(name, "name", { maxLength: 80 });
+  assertString(mail, "mail", { maxLength: 20 });
+  assertString(body, "post body", { minLength: 1, maxLength: 10_000 });
+  return postThreadMessage(threadId, name, mail, body, (status, errorMessage) => {
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
 ipcMain.handle("threads:generate-replies", (event, threadId: string) => {
-  return generateRepliesOnly(threadId, (status) => {
-    event.sender.send("threads:post-status", { threadId, status });
+  assertIdentifier(threadId, "thread ID");
+  return generateRepliesOnly(threadId, (status, errorMessage) => {
+    sendIfAvailable(event.sender, "threads:post-status", { threadId, status, errorMessage });
   });
 });
-ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => setThreadFavorite(threadId, isFavorite));
+ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(isFavorite, "favorite flag");
+  return setThreadFavorite(threadId, isFavorite);
+});
 ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
-ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => setThreadRead(threadId, isRead));
-ipcMain.handle("feeds:mark-read", (_event, feedId: string) => markFeedRead(feedId));
+ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(isRead, "read flag");
+  return setThreadRead(threadId, isRead);
+});
+ipcMain.handle("feeds:mark-read", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return markFeedRead(feedId);
+});
 ipcMain.handle("feeds:mark-all-read", () => markAllFeedsRead());
-ipcMain.handle("feeds:refresh", async (event, feedId: string) =>
-  refreshFeed(feedId, (message) => {
-    event.sender.send("feeds:refresh-progress", { feedId, message });
-  })
-);
+ipcMain.handle("feeds:refresh", async (event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return refreshFeed(feedId, (message) => {
+    sendIfAvailable(event.sender, "feeds:refresh-progress", { feedId, message });
+  });
+});
 ipcMain.handle("stats:get", () => getStatistics());
 ipcMain.handle("logs:list", () => listBufferedLogs());
 ipcMain.handle("logs:copy", (_event, text: string) => {
@@ -209,50 +415,107 @@ ipcMain.handle("logs:copy", (_event, text: string) => {
   }
   clipboard.writeText(text.slice(0, 1_000_000));
 });
-ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => getFeedResidentPrompt(feedId));
-ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => saveFeedResidentPrompt(feedId, prompt));
-ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => clearFeedResidentPrompt(feedId));
-ipcMain.handle("threads:rate-reply-run", (event, runId: string, rating: ReplyRating, tags: string[]) => {
-  const feedId = saveReplyFeedback(runId, rating, tags);
-  void maybeCreatePromptProposal(feedId).then((versionId) => {
-    if (versionId && !event.sender.isDestroyed()) event.sender.send("feeds:prompt-proposal-ready", { feedId, versionId });
-  }).catch((error) => console.error("住民プロンプト改善案の生成に失敗しました:", error));
+ipcMain.handle("clipboard:copy-text", (_event, text: string) => {
+  assertString(text, "clipboard text", { minLength: 1, maxLength: 10_000 });
+  clipboard.writeText(text);
 });
-ipcMain.handle("feeds:list-prompt-versions", (_event, feedId: string) => listResidentPromptVersions(feedId));
-ipcMain.handle("feeds:review-prompt-version", (_event, id: string, decision: "active" | "rejected") => reviewResidentPromptVersion(id, decision));
-ipcMain.handle("feeds:rollback-prompt-version", (_event, feedId: string) => rollbackResidentPromptVersion(feedId));
-ipcMain.handle("settings:get", (_event, key: string) => getRendererUserSetting(key));
-ipcMain.handle("settings:save", (_event, key: string, value: string) => saveRendererUserSetting(key, value));
-ipcMain.handle("settings:get-gemini-api-key-status", () => getGeminiApiKeyStatus());
-ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => saveGeminiApiKey(apiKey));
-ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
-ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean) =>
-  addFeedSource(title, url, generateTitleFromSummary)
-);
-ipcMain.handle("feeds:delete", (_event, feedId: string) => deleteFeedSource(feedId));
-ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
-  if (!Array.isArray(feedIds) || feedIds.some((feedId) => typeof feedId !== "string")) {
-    throw new Error("Invalid feed order.");
+ipcMain.handle("feeds:get-resident-prompt", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return getFeedResidentPrompt(feedId);
+});
+ipcMain.handle("feeds:save-resident-prompt", (_event, feedId: string, prompt: string) => {
+  assertIdentifier(feedId, "feed ID");
+  assertString(prompt, "resident prompt", { minLength: 1, maxLength: 20_000 });
+  return saveFeedResidentPrompt(feedId, prompt);
+});
+ipcMain.handle("feeds:clear-resident-prompt", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return clearFeedResidentPrompt(feedId);
+});
+ipcMain.handle("settings:get", (_event, key: string) => {
+  assertString(key, "setting key", { minLength: 1, maxLength: 100 });
+  return getRendererUserSetting(key);
+});
+ipcMain.handle("ui:set-zoom-factor", (event, factor: number) => {
+  if (typeof factor !== "number" || !Number.isFinite(factor) || factor < 0.75 || factor > 1.5) {
+    throw new Error("UI zoom factor is invalid.");
   }
+  event.sender.setZoomFactor(factor);
+  return event.sender.getZoomFactor();
+});
+
+function scaleArticleBrowserBounds(bounds: ArticleBrowserBounds, zoomFactor: number): ArticleBrowserBounds {
+  return {
+    x: bounds.x * zoomFactor,
+    y: bounds.y * zoomFactor,
+    width: bounds.width * zoomFactor,
+    height: bounds.height * zoomFactor
+  };
+}
+ipcMain.handle("settings:save", (_event, key: string, value: string) => {
+  assertString(key, "setting key", { minLength: 1, maxLength: 100 });
+  assertString(value, "setting value", { maxLength: 1_000_000 });
+  return saveRendererUserSetting(key, value);
+});
+ipcMain.handle("settings:get-gemini-api-key-status", () => getGeminiApiKeyStatus());
+ipcMain.handle("settings:save-gemini-api-key", (_event, apiKey: string) => {
+  assertString(apiKey, "Gemini API key", { minLength: 1, maxLength: 10_000 });
+  return saveGeminiApiKey(apiKey);
+});
+ipcMain.handle("settings:clear-gemini-api-key", () => clearGeminiApiKey());
+ipcMain.handle("feeds:add", (_event, title: string, url: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, parentFolderId: string | null) => {
+  assertString(title, "feed title", { minLength: 1, maxLength: 200 });
+  assertHttpUrl(url, "feed URL");
+  assertBoolean(generateTitleFromSummary, "title generation flag");
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return addFeedSource(title, url, generateTitleFromSummary, skipTitleConversion, parentFolderId);
+});
+ipcMain.handle("feeds:delete", (_event, feedId: string) => {
+  assertIdentifier(feedId, "feed ID");
+  return deleteFeedSource(feedId);
+});
+ipcMain.handle("feeds:reorder", (_event, feedIds: string[]) => {
+  assertStringArray(feedIds, "feed order", { maxItems: 10_000, maxItemLength: 512 });
   reorderFeedSources(feedIds);
 });
-ipcMain.handle("feeds:update-title-generation-setting", (_event, feedId: string, generateTitleFromSummary: boolean) =>
-  updateFeedTitleGenerationSetting(feedId, generateTitleFromSummary)
-);
+ipcMain.handle("feed-folders:list", () => listFeedFolders());
+ipcMain.handle("feed-folders:create", (_event, name: string, parentFolderId: string | null) => {
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  assertNullableIdentifier(parentFolderId, "parent folder ID");
+  return createFeedFolder(name, parentFolderId);
+});
+ipcMain.handle("feed-folders:rename", (_event, folderId: string, name: string) => {
+  assertIdentifier(folderId, "folder ID");
+  assertString(name, "folder name", { minLength: 1, maxLength: 200 });
+  return renameFeedFolder(folderId, name);
+});
+ipcMain.handle("feed-folders:delete", (_event, folderId: string) => {
+  assertIdentifier(folderId, "folder ID");
+  deleteFeedFolder(folderId);
+});
+ipcMain.handle("feed-tree:save-layout", (_event, placements: FeedTreePlacement[]) => {
+  assertFeedTreePlacements(placements);
+  saveFeedTreeLayout(placements);
+});
+ipcMain.handle("feeds:update-settings", (_event, feedId: string, title: string, generateTitleFromSummary: boolean, skipTitleConversion: boolean, defaultToArticleBrowser: boolean) => {
+  assertIdentifier(feedId, "feed ID");
+  assertString(title, "feed title", { minLength: 1, maxLength: 200 });
+  assertBoolean(generateTitleFromSummary, "title generation flag");
+  assertBoolean(skipTitleConversion, "skip title conversion flag");
+  assertBoolean(defaultToArticleBrowser, "default article browser flag");
+  return updateFeedSettings(feedId, title, generateTitleFromSummary, skipTitleConversion, defaultToArticleBrowser);
+});
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
-  const parsedUrl = new URL(url);
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    throw new Error(`Unsupported URL protocol: ${parsedUrl.protocol}`);
-  }
-
-  await shell.openExternal(parsedUrl.toString());
+  assertHttpUrl(url, "external URL");
+  await shell.openExternal(new URL(url).toString());
 });
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  initializeRepository();
+  initializeRepository(!isScreenshotMode);
   articleSession = session.fromPartition("viper-reader-articles", { cache: false });
-  articleSession.setUserAgent(CHROME_USER_AGENT);
+  articleSession.setUserAgent(ARTICLE_BROWSER_USER_AGENT);
   articleSession.setPermissionCheckHandler(() => false);
   articleSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   articleBlocker = new ArticleBlocker(articleSession);
@@ -269,6 +532,23 @@ void app.whenReady().then(() => {
   });
 });
 
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForArticleBrowser(controller: ArticleBrowserController): Promise<void> {
+  const timeoutAt = Date.now() + 10_000;
+  while (Date.now() < timeoutAt) {
+    const state = controller.getState();
+    if (state.threadId && !state.isLoading && !state.error) {
+      await delay(500);
+      return;
+    }
+    await delay(100);
+  }
+  throw new Error("内蔵ブラウザの読み込みがタイムアウトしました。");
+}
+
 function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserController {
   const controller = articleBrowserControllers.get(event.sender.id);
   if (!controller || !controller.ownsSender(event.sender.id)) {
@@ -278,30 +558,27 @@ function getArticleBrowserController(event: IpcMainInvokeEvent): ArticleBrowserC
 }
 
 function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
-  if (event.sender.isDestroyed() || !articleBrowserControllers.has(event.sender.id)) {
+  if (
+    event.sender.isDestroyed()
+    || !articleBrowserControllers.has(event.sender.id)
+    || !event.senderFrame
+    || !isTrustedRendererUrl(event.senderFrame.url)
+  ) {
     throw new Error("Unauthorized IPC request.");
   }
 }
 
-function assertShowArticleBrowserRequest(value: ShowArticleBrowserRequest): void {
-  if (!value || typeof value.threadId !== "string" || typeof value.url !== "string") {
-    throw new Error("Invalid article browser request.");
-  }
-  assertArticleBrowserBounds(value.bounds);
-  if (typeof value.allowUnprotected !== "boolean") {
-    throw new Error("Invalid unprotected browsing flag.");
-  }
-}
-
-function assertArticleBrowserBounds(value: ArticleBrowserBounds): void {
-  if (
-    !value
-    || !Number.isFinite(value.x)
-    || !Number.isFinite(value.y)
-    || !Number.isFinite(value.width)
-    || !Number.isFinite(value.height)
-  ) {
-    throw new Error("Invalid article browser bounds.");
+function isTrustedRendererUrl(value: string): boolean {
+  try {
+    const candidate = new URL(value);
+    const expected = new URL(rendererEntryUrl);
+    candidate.hash = "";
+    candidate.search = "";
+    expected.hash = "";
+    expected.search = "";
+    return candidate.toString() === expected.toString();
+  } catch {
+    return false;
   }
 }
 
