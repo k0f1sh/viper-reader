@@ -49,6 +49,7 @@
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
+    "typescript-api": "npm:typescript@^5.9.3",
     "vite": "^6.0.7"
   },
   "build": {
