@@ -40,6 +40,7 @@ export function useThreadList({
   const [search, setSearch] = useState<{ feedId: string; query: string } | null>(null);
   const [queueSummary, setQueueSummary] = useState<ReadingQueueSummary>(emptyQueueSummary);
   const requestIdRef = useRef(0);
+  const readStateAtRef = useRef(Date.now());
   const summaryReloadRef = useRef<{ promise: Promise<void>; timer: ReturnType<typeof setTimeout> } | null>(null);
   const threadsRef = useRef<ThreadListItem[]>([]);
   const callbacksRef = useRef({
@@ -60,12 +61,13 @@ export function useThreadList({
   const activeSearchQuery = smartView === null && search?.feedId === selectedFeedId ? search.query : null;
   effectiveUnreadOnlyRef.current = effectiveShowUnreadOnly;
 
-  async function reloadThreads(feedId: string, preferredThreadId?: string, nextPage = page, pageSelection?: PageSelection) {
+  async function reloadThreads(feedId: string, preferredThreadId?: string, nextPage = page, pageSelection?: PageSelection, preservePagination = false) {
     if (!window.viperReader) return;
+    if (!preservePagination) readStateAtRef.current = Date.now();
     const requestId = ++requestIdRef.current;
     const result = activeSearchQuery
-      ? await window.viperReader.searchThreads(feedId === allFeedsId ? null : feedId, activeSearchQuery, nextPage, effectiveUnreadOnlyRef.current)
-      : await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId, nextPage, effectiveUnreadOnlyRef.current);
+      ? await window.viperReader.searchThreads(feedId === allFeedsId ? null : feedId, activeSearchQuery, nextPage, effectiveUnreadOnlyRef.current, readStateAtRef.current)
+      : await window.viperReader.listThreads(feedId === allFeedsId ? null : feedId, nextPage, effectiveUnreadOnlyRef.current, readStateAtRef.current);
     if (requestId !== requestIdRef.current) return;
     setThreads(result.items);
     setPage(result.page);
@@ -173,7 +175,7 @@ export function useThreadList({
     if (!selectedFeedId || nextPage < 0) return;
     if (smartView === "generated") void reloadGenerated(nextPage, false, pageSelection);
     else if (smartView === "reviewed") void reloadReviewed(nextPage, pageSelection);
-    else void reloadThreads(selectedFeedId, undefined, nextPage, pageSelection);
+    else void reloadThreads(selectedFeedId, undefined, nextPage, pageSelection, true);
   }
 
   function selectLoadedThread(items: ThreadListItem[], preferredThreadId?: string, pageSelection?: PageSelection) {

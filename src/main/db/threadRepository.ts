@@ -32,6 +32,14 @@ const legacyTitleJoinSql = `LEFT JOIN thread_titles legacy_vt
   AND legacy_vt.prompt_hash = CASE WHEN fs.generate_title_from_summary = 1 THEN ? ELSE ? END`;
 
 const unreadSql = "fi.read_at IS NULL";
+// Keep articles read during this browsing session in their original pagination group.
+// The returned isRead flag still reflects the current database state.
+function paginationUnreadSql(alias: string, readStateAt?: number): string {
+  if (readStateAt === undefined) return `${alias}.read_at IS NULL`;
+  if (!Number.isSafeInteger(readStateAt) || readStateAt < 0) throw new Error("Invalid read-state timestamp.");
+  const timestamp = new Date(readStateAt).toISOString();
+  return `(${alias}.read_at IS NULL OR ${alias}.read_at >= '${timestamp}')`;
+}
 const hasUnconfirmedRepliesSql = "fi.latest_post_no > fi.last_read_post_no";
 type ThreadRow = {
   id: string;
@@ -87,11 +95,11 @@ function searchParameters(query: string): string[] {
   return [pattern, pattern, pattern, pattern];
 }
 
-export function searchThreads(feedId: string | null, query: string, page = 0, pageSize = 100, unreadOnly = false): ThreadListPage {
-  return listThreads(feedId, page, pageSize, unreadOnly, query.trim());
+export function searchThreads(feedId: string | null, query: string, page = 0, pageSize = 100, unreadOnly = false, readStateAt?: number): ThreadListPage {
+  return listThreads(feedId, page, pageSize, unreadOnly, query.trim(), readStateAt);
 }
 
-export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false, searchQuery = ""): ThreadListPage {
+export function listThreads(feedId: string | null, page = 0, pageSize = 100, unreadOnly = false, searchQuery = "", readStateAt?: number): ThreadListPage {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
@@ -99,11 +107,12 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const safePage = Math.max(0, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const unreadSql = paginationUnreadSql("fi", readStateAt);
   const filterUnread = unreadOnly ? 1 : 0;
   const searchParams = searchQuery ? searchParameters(searchQuery) : [];
   const searchFilter = searchQuery ? `AND ${searchConditionSql}` : "";
   if (feedId === null) {
-    return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread, "none", searchParams);
+    return listAllThreads(db, activeModel, titleModel, safePage, safePageSize, filterUnread, "none", searchParams, readStateAt);
   }
   const unreadCondition = unreadOnly ? `AND ${unreadSql}` : "";
   const countRow = runWithSlowQueryLog("listThreads.count", () => db.prepare(`
@@ -212,14 +221,17 @@ function listAllThreads(
   pageSize: number,
   filterUnread: number,
   generationQueueMode: "none" | "unreviewed" | "reviewed" = "none",
-  searchParams: string[] = []
+  searchParams: string[] = [],
+  readStateAt?: number
 ): ThreadListPage {
+  const unreadSql = paginationUnreadSql("fi", readStateAt);
+  const candidateUnreadSql = paginationUnreadSql("candidate", readStateAt);
   const summaryTitlePromptHash = buildThreadTitlePromptHash(true);
   const plainTitlePromptHash = buildThreadTitlePromptHash(false);
   const canonicalKey = "COALESCE(NULLIF(fi.canonical_url, ''), fi.url)";
   const allUnreadCondition = filterUnread ? `AND ${unreadSql}` : "";
   const searchFilter = searchParams.length ? `AND ${allFeedsSearchConditionSql}` : "";
-  const candidateUnreadCondition = filterUnread ? "AND candidate.read_at IS NULL" : "";
+  const candidateUnreadCondition = filterUnread ? `AND ${candidateUnreadSql}` : "";
   const generationCondition =
     generationQueueMode === "unreviewed"
       ? `AND (
@@ -243,14 +255,14 @@ function listAllThreads(
               = COALESCE(NULLIF(fi.canonical_url, ''), fi.url)
               ${candidateUnreadCondition}
             ORDER BY
-              CASE WHEN candidate.read_at IS NULL THEN 0 ELSE 1 END,
+              CASE WHEN ${candidateUnreadSql} THEN 0 ELSE 1 END,
               COALESCE(candidate.published_at, candidate.created_at) DESC,
               candidate.created_at DESC,
               candidate.id DESC
             LIMIT 1
           )
         ORDER BY
-          CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+          CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
           COALESCE(fi.published_at, fi.created_at) DESC,
           fi.created_at DESC,
           fi.id DESC
@@ -275,7 +287,7 @@ function listAllThreads(
               AND candidate.generation_status = 'completed'
               AND candidate.generation_reviewed_at IS NOT NULL
             ORDER BY
-              CASE WHEN candidate.read_at IS NULL THEN 0 ELSE 1 END,
+              CASE WHEN ${candidateUnreadSql} THEN 0 ELSE 1 END,
               COALESCE(candidate.published_at, candidate.created_at) DESC,
               candidate.created_at DESC,
               candidate.id DESC
@@ -283,7 +295,7 @@ function listAllThreads(
           )
         ORDER BY
           fi.generation_reviewed_at DESC,
-          CASE WHEN fi.read_at IS NULL THEN 0 ELSE 1 END,
+          CASE WHEN ${unreadSql} THEN 0 ELSE 1 END,
           COALESCE(fi.published_at, fi.created_at) DESC,
           fi.created_at DESC,
           fi.id DESC

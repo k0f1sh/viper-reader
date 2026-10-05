@@ -251,18 +251,18 @@ ipcMain.handle("hooks:run-command", (event, threadId: unknown) => {
 
 ipcMain.handle("app:get-info", () => appInfo);
 ipcMain.handle("feeds:list", () => listFeeds());
-ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean) => {
+ipcMain.handle("threads:list", (_event, feedId: string | null, page: number, unreadOnly: boolean, readStateAt?: number) => {
   if (feedId !== null) assertIdentifier(feedId, "feed ID");
   assertPage(page);
   assertBoolean(unreadOnly, "unread-only flag");
-  return listThreads(feedId, page, 100, unreadOnly);
+  return listThreads(feedId, page, 100, unreadOnly, "", readStateAt);
 });
-ipcMain.handle("threads:search", (_event, feedId: string | null, query: string, page: number, unreadOnly: boolean) => {
+ipcMain.handle("threads:search", (_event, feedId: string | null, query: string, page: number, unreadOnly: boolean, readStateAt?: number) => {
   if (feedId !== null) assertIdentifier(feedId, "feed ID");
   assertString(query, "search query", { minLength: 1, maxLength: 200 });
   assertPage(page);
   assertBoolean(unreadOnly, "unread-only flag");
-  return searchThreads(feedId, query, page, 100, unreadOnly);
+  return searchThreads(feedId, query, page, 100, unreadOnly, readStateAt);
 });
 ipcMain.handle("threads:list-generated-queue", (_event, page: number) => {
   assertPage(page);
