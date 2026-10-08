@@ -3,6 +3,10 @@ import type { FormEvent } from "react";
 import type { GeminiApiKeyStatus } from "../../shared/types";
 
 type SettingsModalProps = {
+  paneLayout: "stacked" | "horizontal";
+  onPaneLayoutChange: (layout: "stacked" | "horizontal") => void;
+  layoutError: string;
+  isLayoutSaving: boolean;
   apiKey: string;
   apiKeyStatus: GeminiApiKeyStatus | null;
   isSaving: boolean;
@@ -17,6 +21,10 @@ type SettingsModalProps = {
 };
 
 export function SettingsModal({
+  paneLayout,
+  onPaneLayoutChange,
+  layoutError,
+  isLayoutSaving,
   apiKey,
   apiKeyStatus,
   isSaving,
@@ -85,6 +93,20 @@ export function SettingsModal({
             <p className="settings-help">
               AIまたはLLMタグが付いた記事のタグ欄と行頭を強調します。
             </p>
+          </fieldset>
+
+          <fieldset disabled={isLayoutSaving}>
+            <legend>ペイン配置</legend>
+            <label className="browser-settings-checkbox">
+              <input type="radio" name="pane-layout" checked={paneLayout === "stacked"} onChange={() => onPaneLayoutChange("stacked")} />
+              現在の配置（右側を上下分割）
+            </label>
+            <label className="browser-settings-checkbox">
+              <input type="radio" name="pane-layout" checked={paneLayout === "horizontal"} onChange={() => onPaneLayoutChange("horizontal")} />
+              横3列（板一覧・スレ一覧・レス表示）
+            </label>
+            <p className="settings-help">変更するとすぐに反映・保存されます。</p>
+            {layoutError ? <div role="alert" className="settings-status-message">{layoutError}</div> : null}
           </fieldset>
 
           <CommandHookSettings onSaved={onCommandHookSaved} />

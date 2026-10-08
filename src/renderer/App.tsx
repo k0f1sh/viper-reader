@@ -104,6 +104,12 @@ export function App() {
     contentPaneRef,
     threadContentRef,
     threadListHeight,
+    paneLayout,
+    setPaneLayout,
+    layoutError,
+    isLayoutSaving,
+    threadListWidthPercent,
+    startHorizontalResize,
     feedPaneWidth,
     feedTreeHeight,
     articlePaneWidth,
@@ -800,6 +806,9 @@ export function App() {
         isArticleBrowserExpanded={isArticleBrowserExpanded}
         showArticlePane={shouldShowArticlePane}
         feedPaneWidth={feedPaneWidth}
+        paneLayout={paneLayout}
+        threadListWidthPercent={threadListWidthPercent}
+        onStartHorizontalResize={startHorizontalResize}
         threadListHeight={threadListHeight}
         articlePaneWidth={articlePaneWidth}
         appShellRef={appShellRef}
@@ -824,7 +833,7 @@ export function App() {
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
-        settings={apiSettings.isOpen ? { onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
+        settings={apiSettings.isOpen ? { paneLayout, onPaneLayoutChange: (layout) => void setPaneLayout(layout), layoutError, isLayoutSaving, onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
         browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
         modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}

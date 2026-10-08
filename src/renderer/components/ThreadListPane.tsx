@@ -82,6 +82,7 @@ export function ThreadListPane({
   onSubmitSearch,
   onClearSearch
 }: ThreadListPaneProps) {
+  const threadHeaderRef = useRef<HTMLDivElement>(null);
   const threadListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -173,7 +174,7 @@ export function ThreadListPane({
         </div>
       ) : null}
 
-      <div className="thread-list-header">
+      <div className="thread-list-header" ref={threadHeaderRef}>
         {threadColumnLabels.map((label, index) => (
           <span className="thread-header-cell" key={label}>
             <span className="thread-header-label">{label}</span>
@@ -188,7 +189,9 @@ export function ThreadListPane({
           </span>
         ))}
       </div>
-      <div className="thread-list" ref={threadListRef}>
+      <div className="thread-list" ref={threadListRef} onScroll={(event) => {
+        if (threadHeaderRef.current) threadHeaderRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`;
+      }}>
         {threads.map((thread) => {
           const isAiHighlighted = highlightAiArticles && hasAiArticleTag(thread.tags);
           const isGenerating = generatingThreadIds.has(thread.id)

@@ -17,6 +17,8 @@ const rendererSettingKeys = new Set([
   "threadColumnWidthsV3",
   "threadColumnWidthsV4",
   "threadListHeight",
+  "paneLayout",
+  "threadListWidthPercent",
   "threadTabs",
   "feedPaneWidth",
   "feedTreeHeight",

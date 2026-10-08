@@ -18,6 +18,9 @@ type AppWorkspaceProps = {
   showArticlePane: boolean;
   feedPaneWidth: number;
   threadListHeight: number;
+  paneLayout: "stacked" | "horizontal";
+  threadListWidthPercent: number;
+  onStartHorizontalResize: MouseEventHandler<HTMLDivElement>;
   articlePaneWidth: number;
   appShellRef: RefObject<HTMLDivElement | null>;
   contentPaneRef: RefObject<HTMLElement | null>;
@@ -39,6 +42,9 @@ export function AppWorkspace({
   showArticlePane,
   feedPaneWidth,
   threadListHeight,
+  paneLayout,
+  threadListWidthPercent,
+  onStartHorizontalResize,
   articlePaneWidth,
   appShellRef,
   contentPaneRef,
@@ -61,9 +67,9 @@ export function AppWorkspace({
       <div className="app-shell" ref={appShellRef} style={{ "--feed-pane-width": `${feedPaneWidth}px` } as React.CSSProperties}>
         <FeedPane {...feedPane} />
         <div aria-label="板一覧とコンテンツの境界" aria-orientation="vertical" className="feed-pane-splitter" onMouseDown={onStartFeedPaneResize} role="separator" />
-        <section className="content-pane" ref={contentPaneRef} style={{ "--thread-list-height": `${threadListHeight}%` } as React.CSSProperties}>
+        <section className={`content-pane ${paneLayout === "horizontal" ? "is-horizontal" : ""}`} ref={contentPaneRef} style={{ "--thread-list-height": `${threadListHeight}%`, "--thread-list-width": `${threadListWidthPercent}%` } as React.CSSProperties}>
           <ThreadListPane {...threadList} />
-          <div aria-label="スレタイ一覧とスレ本文の境界" className="pane-splitter" onMouseDown={onStartVerticalResize} role="separator" />
+          <div aria-label="スレタイ一覧とスレ本文の境界" aria-orientation={paneLayout === "horizontal" ? "vertical" : "horizontal"} className="pane-splitter" onMouseDown={paneLayout === "horizontal" ? onStartHorizontalResize : onStartVerticalResize} role="separator" />
           <section className="thread-workspace">
             {threadViewMode === "browser" ? (
               <ArticleBrowserPane {...articleBrowser} />

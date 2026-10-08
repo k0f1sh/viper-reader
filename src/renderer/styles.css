@@ -2845,3 +2845,83 @@ body.is-article-pane-resizing * {
   margin-top: 4px;
   font: 12px monospace;
 }
+
+/* 横3列配置 */
+.content-pane.is-horizontal {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: var(--thread-list-width, 40%) 6px minmax(0, 1fr);
+}
+
+.content-pane.is-horizontal > .pane-splitter {
+  border: 0;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #808080;
+  cursor: col-resize;
+}
+
+.content-pane.is-horizontal > .pane-splitter::before {
+  top: 50%;
+  left: 2px;
+  width: 1px;
+  height: 46px;
+  box-shadow: 2px 0 #ffffff, -1px 0 #ffffff;
+  transform: translateY(-50%);
+}
+
+.content-pane.is-horizontal .thread-list-pane,
+.content-pane.is-horizontal .thread-toolbar-right {
+  min-width: 0;
+}
+
+.content-pane.is-horizontal .thread-toolbar-right {
+  width: 100%;
+}
+
+.content-pane.is-horizontal .thread-search {
+  flex-wrap: wrap;
+}
+
+.content-pane.is-horizontal .thread-search input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.content-pane.is-horizontal .thread-list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding-block: 4px;
+}
+
+.content-pane.is-horizontal .thread-pagination-controls {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.content-pane.is-horizontal .thread-content.has-article-pane {
+  grid-template-columns: minmax(0, 1fr) 6px minmax(0, min(50%, var(--article-pane-width, 360px)));
+}
+
+.content-pane.is-horizontal .thread-header {
+  max-height: 40%;
+  overflow: auto;
+}
+
+.content-pane.is-horizontal .write-meta-row {
+  flex-wrap: wrap;
+}
+
+.content-pane.is-horizontal .write-body-row textarea {
+  min-width: 0;
+}
+
+.content-pane.is-horizontal .thread-body-pane,
+.content-pane.is-horizontal .article-body-pane {
+  min-width: 0;
+}
+
+.content-pane.is-horizontal .thread-toolbar-actions,
+.content-pane.is-horizontal .queue-status {
+  min-width: 0;
+  flex-wrap: wrap;
+}

@@ -42,7 +42,34 @@ export function parseThreadColumnWidths(v4Json: string | null, v3Json: string | 
   return null;
 }
 
+export type PaneLayout = "stacked" | "horizontal";
+
+export function parsePaneLayout(value: string | null): PaneLayout {
+  return value === "horizontal" ? "horizontal" : "stacked";
+}
+
+export function parseThreadListWidth(value: string | null): number {
+  const width = value === null || !value.trim() ? NaN : Number(value);
+  return Number.isFinite(width) ? Math.min(65, Math.max(25, width)) : 40;
+}
+
+export function normalizeArticlePaneWidth(width: number): number {
+  return Number.isFinite(width) ? Math.min(640, Math.max(80, width)) : 360;
+}
+
+export function getArticlePaneResizeWidth(width: number, layout: PaneLayout, containerWidth: number): number {
+  const maxWidth = layout === "horizontal"
+    ? normalizeArticlePaneWidth(containerWidth / 2)
+    : Math.max(260, Math.min(640, containerWidth - 420));
+  const minWidth = layout === "horizontal" ? Math.min(260, Math.max(80, maxWidth / 2)) : 260;
+  return normalizeArticlePaneWidth(Math.min(maxWidth, Math.max(minWidth, width)));
+}
+
 export function usePaneLayout() {
+  const [paneLayout, setPaneLayoutState] = useState<PaneLayout>("stacked");
+  const [layoutError, setLayoutError] = useState("");
+  const [isLayoutSaving, setIsLayoutSaving] = useState(false);
+  const [threadListWidthPercent, setThreadListWidthPercent] = useState(40);
   const [threadListHeight, setThreadListHeight] = useState(42);
   const [feedPaneWidth, setFeedPaneWidth] = useState(248);
   const [feedTreeHeight, setFeedTreeHeight] = useState(300);
@@ -66,8 +93,12 @@ export function usePaneLayout() {
       window.viperReader.getUserSetting("feedTreeHeight"),
       window.viperReader.getUserSetting("articlePaneWidth"),
       window.viperReader.getUserSetting("articlePaneVisible"),
-      window.viperReader.getUserSetting("writePanelVisible")
-    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedWritePanelVisible]) => {
+      window.viperReader.getUserSetting("writePanelVisible"),
+      window.viperReader.getUserSetting("paneLayout"),
+      window.viperReader.getUserSetting("threadListWidthPercent")
+    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedWritePanelVisible, savedPaneLayout, savedThreadListWidth]) => {
+      setPaneLayoutState(parsePaneLayout(savedPaneLayout));
+      setThreadListWidthPercent(parseThreadListWidth(savedThreadListWidth));
       if (height) setThreadListHeight(Number.parseFloat(height));
       if (savedFeedPaneWidth) {
         const width = Number.parseFloat(savedFeedPaneWidth);
@@ -86,7 +117,7 @@ export function usePaneLayout() {
       }
       if (savedArticlePaneWidth) {
         const width = Number.parseFloat(savedArticlePaneWidth);
-        if (Number.isFinite(width)) setArticlePaneWidth(Math.min(640, Math.max(260, width)));
+        setArticlePaneWidth(normalizeArticlePaneWidth(width));
       }
       setIsArticlePaneVisible(savedArticlePaneVisible === "true");
       setIsWritePanelVisible(savedWritePanelVisible !== "false");
@@ -94,6 +125,43 @@ export function usePaneLayout() {
       console.error("ペイン設定の読込に失敗しました:", error);
     });
   }, []);
+
+  async function setPaneLayout(next: PaneLayout) {
+    if (isLayoutSaving) return;
+    const previous = paneLayout;
+    setPaneLayoutState(next);
+    setLayoutError("");
+    setIsLayoutSaving(true);
+    try {
+      await window.viperReader?.saveUserSetting("paneLayout", next);
+    } catch (error) {
+      setPaneLayoutState(previous);
+      setLayoutError(error instanceof Error ? error.message : "ペイン配置の保存に失敗しました。");
+    } finally {
+      setIsLayoutSaving(false);
+    }
+  }
+
+  function startHorizontalResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const contentPane = contentPaneRef.current;
+    if (!contentPane) return;
+    const rect = contentPane.getBoundingClientRect();
+    let currentWidth = threadListWidthPercent;
+    function handleMouseMove(moveEvent: MouseEvent) {
+      currentWidth = parseThreadListWidth(String(((moveEvent.clientX - rect.left) / rect.width) * 100));
+      setThreadListWidthPercent(currentWidth);
+    }
+    function stopResize() {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+      document.body.classList.remove("is-column-resizing");
+      void window.viperReader?.saveUserSetting("threadListWidthPercent", String(currentWidth));
+    }
+    document.body.classList.add("is-column-resizing");
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+  }
 
   function startVerticalResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -191,8 +259,7 @@ export function usePaneLayout() {
     const rect = container.getBoundingClientRect();
     let currentWidth = articlePaneWidth;
     function handleMouseMove(moveEvent: MouseEvent) {
-      const maxWidth = Math.max(260, Math.min(640, rect.width - 420));
-      currentWidth = Math.min(maxWidth, Math.max(260, rect.right - moveEvent.clientX));
+      currentWidth = getArticlePaneResizeWidth(rect.right - moveEvent.clientX, paneLayout, rect.width);
       setArticlePaneWidth(currentWidth);
     }
     function stopResize() {
@@ -224,6 +291,12 @@ export function usePaneLayout() {
   }
 
   return {
+    paneLayout,
+    setPaneLayout,
+    layoutError,
+    isLayoutSaving,
+    threadListWidthPercent,
+    startHorizontalResize,
     appShellRef,
     contentPaneRef,
     threadContentRef,
