@@ -99,7 +99,7 @@ export function SettingsModal({
             <legend>ペイン配置</legend>
             <label className="browser-settings-checkbox">
               <input type="radio" name="pane-layout" checked={paneLayout === "stacked"} onChange={() => onPaneLayoutChange("stacked")} />
-              現在の配置（右側を上下分割）
+              デフォルト（右側を上下分割）
             </label>
             <label className="browser-settings-checkbox">
               <input type="radio" name="pane-layout" checked={paneLayout === "horizontal"} onChange={() => onPaneLayoutChange("horizontal")} />
