@@ -27,17 +27,17 @@
     "resident-prompt": "node scripts/feed-resident-prompt.mjs"
   },
   "dependencies": {
-    "@ghostery/adblocker-electron": "^2.18.2",
-    "@google/genai": "^2.13.0",
+    "@ghostery/adblocker-electron": "^2.20.1",
+    "@google/genai": "^2.30.0",
     "@mozilla/readability": "^0.6.0",
     "cheerio": "^1.0.0",
     "dotenv": "^17.4.2",
     "jsdom": "^29.1.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "robots-parser": "^3.0.1",
     "rss-parser": "^3.13.0",
-    "sanitize-html": "^2.18.0",
+    "sanitize-html": "^2.18.1",
     "undici": "^7.29.0"
   },
   "devDependencies": {
@@ -46,12 +46,12 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/sanitize-html": "^2.16.2",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.1.2",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "typescript-api": "npm:typescript@^5.9.3",
-    "vite": "^8.1.5"
+    "vite": "^8.3.4"
   },
   "build": {
     "appId": "dev.yushi.viperreader",
