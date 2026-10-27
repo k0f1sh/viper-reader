@@ -1,0 +1,385 @@
+/* Dark theme: charcoal reading surfaces and muted blue actions.
+   styles.css remains the classic theme and the shared layout foundation. */
+:root[data-theme="dark"] {
+  --dark-text: #dde2ec;
+  --dark-muted: #a5afbf;
+  --dark-line: #3c4351;
+  --dark-surface: #242830;
+  --dark-accent: #83acff;
+  --dark-selected: #293c60;
+  color-scheme: dark;
+}
+
+:where(html[data-theme="dark"]) body {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  font-family: "Noto Sans JP", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
+}
+
+:where(html[data-theme="dark"]) .app-frame { grid-template-rows: 30px minmax(0, 1fr) 24px; }
+
+:where(html[data-theme="dark"]) .app-frame, :where(html[data-theme="dark"]) .feed-pane, :where(html[data-theme="dark"]) .shortcut-bar, :where(html[data-theme="dark"]) .menu-bar, :where(html[data-theme="dark"]) .toolbar, :where(html[data-theme="dark"]) .thread-header, :where(html[data-theme="dark"]) .article-browser-toolbar, :where(html[data-theme="dark"]) .write-panel, :where(html[data-theme="dark"]) .log-toolbar, :where(html[data-theme="dark"]) .modal-menu-strip, :where(html[data-theme="dark"]) .statistics-content, :where(html[data-theme="dark"]) .settings-content {
+  background: var(--dark-surface);
+}
+
+:where(html[data-theme="dark"]) .app-shell {
+  border: 1px solid var(--dark-line);
+  background: var(--dark-line);
+}
+
+:where(html[data-theme="dark"]) .menu-bar {
+  min-height: 30px;
+  padding: 3px 6px;
+  border-top: 0;
+  border-bottom: 1px solid var(--dark-line);
+}
+
+:where(html[data-theme="dark"]) .shortcut-bar {
+  border-top: 1px solid var(--dark-line);
+  color: var(--dark-muted);
+}
+
+:where(html[data-theme="dark"]) .shortcut-bar kbd {
+  border: 1px solid var(--dark-line);
+  border-radius: 3px;
+  background: #1b1e25;
+}
+
+:where(html[data-theme="dark"]) .menu-item { color: var(--dark-text); border-radius: 4px; }
+:where(html[data-theme="dark"]) .menu-item:hover, :where(html[data-theme="dark"]) .menu-item:focus-visible, :where(html[data-theme="dark"]) .menu-item:active {
+  border-color: transparent;
+  background: #303746;
+}
+
+:where(html[data-theme="dark"]) .pane-title, :where(html[data-theme="dark"]) .log-pane-title {
+  min-height: 26px;
+  padding: 4px 8px;
+  border-top: 0;
+  border-bottom: 1px solid var(--dark-line);
+  color: #c8d1e1;
+  background: #282d37;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+:where(html[data-theme="dark"]) .toolbar { border-bottom: 1px solid var(--dark-line); }
+:where(html[data-theme="dark"]) .toolbar .pane-title { border: 0; background: transparent; }
+:where(html[data-theme="dark"]) .pane-subtitle { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .tree-heading { color: var(--dark-muted); font-weight: 600; }
+
+:where(html[data-theme="dark"]) .feed-tree, :where(html[data-theme="dark"]) .favorite-tree, :where(html[data-theme="dark"]) .thread-list, :where(html[data-theme="dark"]) .thread-list-pane, :where(html[data-theme="dark"]) .thread-reader-pane, :where(html[data-theme="dark"]) .thread-body-pane, :where(html[data-theme="dark"]) .thread-workspace, :where(html[data-theme="dark"]) .article-body-pane, :where(html[data-theme="dark"]) .article-browser-pane, :where(html[data-theme="dark"]) .article-browser-expanded {
+  background: #1b1e25;
+}
+
+:where(html[data-theme="dark"]) .feed-tree { padding: 6px; background: #242830; }
+:where(html[data-theme="dark"]) .favorite-tree { background: #242830; }
+:where(html[data-theme="dark"]) .feed-row { min-height: 26px; border-radius: 4px; color: var(--dark-text); }
+:where(html[data-theme="dark"]) .feed-row:hover, :where(html[data-theme="dark"]) .favorite-row:hover, :where(html[data-theme="dark"]) .favorite-row:focus-visible {
+  border-color: transparent;
+  background: #2b3341;
+}
+
+:where(html[data-theme="dark"]) .feed-count {
+  border: 0;
+  border-radius: 8px;
+  color: #bac4d5;
+  background: #343d4e;
+}
+
+:where(html[data-theme="dark"]) .feed-row.is-selected, :where(html[data-theme="dark"]) .favorite-row.is-selected {
+  border-color: transparent;
+  color: #b9d0ff;
+  background: var(--dark-selected);
+  box-shadow: inset 3px 0 var(--dark-accent);
+}
+:where(html[data-theme="dark"]) .feed-row.is-selected .feed-count { color: #b9d0ff; background: #3b5180; }
+:where(html[data-theme="dark"]) .favorite-row.is-selected .favorite-item-count { color: #b9d0ff; }
+:where(html[data-theme="dark"]) .favorite-row.is-selected .favorite-item-star { color: #efd27c; }
+
+:where(html[data-theme="dark"]) .feed-pane-splitter, :where(html[data-theme="dark"]) .pane-splitter, :where(html[data-theme="dark"]) .article-pane-splitter, :where(html[data-theme="dark"]) .favorite-divider, :where(html[data-theme="dark"]) .log-divider {
+  border: 0;
+  background: #353d4b;
+}
+:where(html[data-theme="dark"]) .feed-pane-splitter::before, :where(html[data-theme="dark"]) .pane-splitter::before, :where(html[data-theme="dark"]) .article-pane-splitter::before, :where(html[data-theme="dark"]) .favorite-divider::before {
+  background: #74839b;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) .feed-pane-splitter:hover, :where(html[data-theme="dark"]) .pane-splitter:hover, :where(html[data-theme="dark"]) .article-pane-splitter:hover {
+  background: #4e6590;
+}
+
+:where(html[data-theme="dark"]) .thread-list-header {
+  border-bottom: 1px solid var(--dark-line);
+  background: #282d37;
+  color: #c8d1e1;
+}
+:where(html[data-theme="dark"]) .thread-header-cell { border-right-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .thread-header-cell:hover { background: #343f53; }
+:where(html[data-theme="dark"]) .thread-row { border-bottom-color: #2c3240; color: var(--dark-text); background: #1b1e25; }
+:where(html[data-theme="dark"]) .thread-row:nth-child(even) { background: #20242c; }
+:where(html[data-theme="dark"]) .thread-row:hover { background: #2a3447; }
+:where(html[data-theme="dark"]) .thread-row.is-selected { color: #b9d0ff; background: var(--dark-selected); box-shadow: inset 3px 0 var(--dark-accent); }
+:where(html[data-theme="dark"]) .thread-row.is-selected :is(.thread-title, .thread-original-title, .thread-count,
+.thread-source, .thread-date, .thread-url, .thread-tags) {
+  color: #b9d0ff;
+  border-right-color: #43597e;
+}
+:where(html[data-theme="dark"]) .thread-row.is-selected .status-badge.generating { color: #9ac4ff; }
+:where(html[data-theme="dark"]) .thread-row.is-selected .status-badge.completed { color: #ffa6a6; }
+:where(html[data-theme="dark"]) .thread-row.is-ai-highlighted.is-selected .thread-tags { color: #ffe0a0; background: #4a3d25; }
+:where(html[data-theme="dark"]) .thread-original-title, :where(html[data-theme="dark"]) .thread-row.is-read:not(.is-selected) .thread-title { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .thread-source, :where(html[data-theme="dark"]) .thread-date, :where(html[data-theme="dark"]) .thread-url, :where(html[data-theme="dark"]) .thread-tags { color: #a8b5c9; }
+:where(html[data-theme="dark"]) .thread-count { color: #a8b5c9; }
+
+:where(html[data-theme="dark"]) .thread-list-pagination, :where(html[data-theme="dark"]) .refresh-status, :where(html[data-theme="dark"]) .thread-search-status, :where(html[data-theme="dark"]) .thread-status-legend, :where(html[data-theme="dark"]) .id-extraction-bar {
+  border-color: var(--dark-line);
+  color: var(--dark-muted);
+  background: #242a34;
+}
+:where(html[data-theme="dark"]) .queue-status span { border: 1px solid var(--dark-line); border-radius: 3px; background: #1b1e25; }
+
+/* These are actions, rather than feed rows or article links. */
+:where(html[data-theme="dark"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button) {
+  border: 1px solid #485366;
+  border-radius: 4px;
+  color: var(--dark-text);
+  background: #1b1e25;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button):hover:not(:disabled) {
+  border-color: #7f9cd4;
+  background: #2a3447;
+}
+:where(html[data-theme="dark"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button):active:not(:disabled) {
+  border-color: #8aacf0;
+  background: #354766;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) .refresh-button.is-active, :where(html[data-theme="dark"]) .log-toolbar button.is-active, :where(html[data-theme="dark"]) .favorite-button.is-favorite-active {
+  border-color: #617fae;
+  background: var(--dark-selected);
+  color: #b9d0ff;
+}
+:where(html[data-theme="dark"]) :is(.post-submit-btn, .settings-button[type="submit"]):not(:disabled) {
+  border-color: var(--dark-accent);
+  color: #fff;
+  background: #315fc5;
+}
+:where(html[data-theme="dark"]) :is(.post-submit-btn, .settings-button[type="submit"]):hover:not(:disabled) {
+  border-color: #3a6ad4;
+  color: #fff;
+  background: #3a6ad4;
+}
+:where(html[data-theme="dark"]) :is(.post-submit-btn, .settings-button[type="submit"]):active:not(:disabled) {
+  background: #315bbc;
+}
+:where(html[data-theme="dark"]) :is(button, .modal-buttons .btn):disabled {
+  border-color: #38404f;
+  color: #8994a6;
+  background: #282e39;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) button:focus-visible, :where(html[data-theme="dark"]) input:focus-visible, :where(html[data-theme="dark"]) textarea:focus-visible, :where(html[data-theme="dark"]) select:focus-visible {
+  outline: 2px solid #83acff;
+  outline-offset: 1px;
+}
+:where(html[data-theme="dark"]) :is(.menu-select, .thread-search input, .article-browser-url, .settings-input,
+.write-meta-row input, .write-body-row textarea, .add-feed-input,
+.resident-prompts-modal .feed-select, .resident-prompts-modal .prompt-textarea,
+.modal-content .form-input, .log-toolbar select) {
+  border: 1px solid #4d596d;
+  border-radius: 4px;
+  color: var(--dark-text);
+  background: #1b1e25;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) input[type="checkbox"], :where(html[data-theme="dark"]) input[type="radio"] { accent-color: var(--dark-accent); }
+
+:where(html[data-theme="dark"]) .thread-header { border-top: 0; border-bottom: 1px solid var(--dark-line); }
+:where(html[data-theme="dark"]) .thread-heading, :where(html[data-theme="dark"]) .article-body-heading { color: #e0e6f3; }
+:where(html[data-theme="dark"]) .original-title, :where(html[data-theme="dark"]) .article-tags { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .posts { padding: 12px 14px 28px; }
+:where(html[data-theme="dark"]) .post { margin-bottom: 16px; }
+:where(html[data-theme="dark"]) .post-body { font-size: 14px; line-height: 1.75; }
+:where(html[data-theme="dark"]) .article-body-text { color: var(--dark-text); font-size: 14px; line-height: 1.75; }
+/* Response colors below retain their semantic roles on dark surfaces. */
+:where(html[data-theme="dark"]) .article-body-heading { border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .write-panel { border-top-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .thread-response-loading, :where(html[data-theme="dark"]) .write-panel-busy { border-color: #44577b; color: #b6cbff; background: #26334b; }
+
+:where(html[data-theme="dark"]) .modal-backdrop { background: #06080db3; }
+:where(html[data-theme="dark"]) :is(.add-feed-modal, .settings-modal, .resident-prompts-modal, .statistics-modal,
+.generation-failure-modal, .title-generation-status-modal) {
+  border: 1px solid #4b5568;
+  border-radius: 8px;
+  background: #1b1e25;
+  box-shadow: 0 12px 40px #00000066;
+  overflow: hidden;
+}
+:where(html[data-theme="dark"]) .modal-title-bar {
+  border-bottom: 1px solid #3c4351;
+  color: #c8d1e1;
+  background: #1b1e25;
+  text-shadow: none;
+}
+:where(html[data-theme="dark"]) .modal-close-button {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #b2bfd2;
+  background: transparent;
+  box-shadow: none;
+}
+:where(html[data-theme="dark"]) .modal-close-button:hover:not(:disabled) { border-color: #677c9e; color: #dde2ec; background: #343f53; }
+:where(html[data-theme="dark"]) .modal-close-button:active:not(:disabled) { border-color: #7589a9; background: #3b4962; }
+:where(html[data-theme="dark"]) .settings-content, :where(html[data-theme="dark"]) .statistics-content { background: #1b1e25; }
+:where(html[data-theme="dark"]) .settings-content fieldset { border: 1px solid var(--dark-line); border-radius: 5px; }
+:where(html[data-theme="dark"]) .settings-content legend, :where(html[data-theme="dark"]) .settings-content label { color: #c8d1e1; }
+:where(html[data-theme="dark"]) .settings-help, :where(html[data-theme="dark"]) .api-key-status, :where(html[data-theme="dark"]) .api-key-status.is-none { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .modal-menu-strip { border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .modal-menu-strip span { border: 1px solid var(--dark-line); border-bottom: 0; color: #b6cbff; background: #1b1e25; }
+:where(html[data-theme="dark"]) .stats-section { border: 1px solid var(--dark-line); }
+:where(html[data-theme="dark"]) .stats-section-title, :where(html[data-theme="dark"]) .api-log-table span:nth-child(-n + 6),
+:where(html[data-theme="dark"]) .rss-log-table span:nth-child(-n + 5),
+:where(html[data-theme="dark"]) .article-fetch-log-table span:nth-child(-n + 6) { color: #c8d1e1; background: var(--dark-surface); }
+:where(html[data-theme="dark"]) .stat-label { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .feed-context-menu { border: 1px solid #485366; border-radius: 5px; background: #1b1e25; box-shadow: 0 4px 14px #00000066; }
+:where(html[data-theme="dark"]) .feed-context-menu button:hover { color: #b9d0ff; background: var(--dark-selected); }
+:where(html[data-theme="dark"]) .reply-popup { border: 1px solid #4d5c73; border-radius: 5px; background: #1b1e25; box-shadow: 0 4px 16px #00000066; }
+:where(html[data-theme="dark"]) .reply-popup-title { border-color: var(--dark-line); color: #c8d1e1; background: var(--dark-surface); }
+:where(html[data-theme="dark"]) .log-list { border: 0; background: #1b1e25; }
+:where(html[data-theme="dark"]) .log-toolbar { border-color: var(--dark-line); }
+
+:where(html[data-theme="dark"]) *::-webkit-scrollbar { width: 12px; height: 12px; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-track { background: #20252e; box-shadow: none; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-thumb { border: 3px solid #20252e; border-radius: 8px; background: #58677f; box-shadow: none; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-thumb:hover { background: #7184a1; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-thumb:active { border-color: #20252e; box-shadow: none; background: #8b9bb5; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-corner { border: 0; background: #20252e; box-shadow: none; }
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-button:vertical:decrement:start,
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-button:vertical:increment:end,
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-button:horizontal:decrement:start,
+:where(html[data-theme="dark"]) *::-webkit-scrollbar-button:horizontal:increment:end { display: none; }
+
+:where(html[data-theme="dark"]) .progress-blocks {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: #303e58;
+  animation: none;
+}
+:where(html[data-theme="dark"]) .progress-blocks::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: inherit;
+  background: #83acff;
+  content: "";
+  animation: dark-progress-move 1.4s ease-in-out infinite;
+}
+@keyframes dark-progress-move {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(286%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-theme="dark"]) .progress-blocks::before { left: 32.5%; animation: none; }
+}
+
+/* Content and status colors inherited from classic need dark counterparts. */
+:where(html[data-theme="dark"]) .post, :where(html[data-theme="dark"]) .post-body, :where(html[data-theme="dark"]) .favorite-row, :where(html[data-theme="dark"]) .write-meta-row label, :where(html[data-theme="dark"]) .resident-prompts-modal label, :where(html[data-theme="dark"]) .generation-failure-thread-title { color: var(--dark-text); }
+:where(html[data-theme="dark"]) .post-meta, :where(html[data-theme="dark"]) .post-date, :where(html[data-theme="dark"]) .post-id { color: #aab4c5; }
+:where(html[data-theme="dark"]) .post-name { color: #7bcea2; }
+:where(html[data-theme="dark"]) .post-no, :where(html[data-theme="dark"]) .post-mail, :where(html[data-theme="dark"]) .post-link, :where(html[data-theme="dark"]) .rss-post-content a[href] { color: #92b8ff; }
+:where(html[data-theme="dark"]) .post-link:visited, :where(html[data-theme="dark"]) .rss-post-content a[href]:visited { color: #c1a5e8; }
+:where(html[data-theme="dark"]) .post-id:hover, :where(html[data-theme="dark"]) .post-id:focus-visible { color: #c6dbff; background: #354766; outline-color: #83acff; }
+:where(html[data-theme="dark"]) .post-id.is-extracted { color: #eef4ff; background: #345a98; }
+:where(html[data-theme="dark"]) .post.is-user-post { background: #302733; border-color: #71516c; }
+:where(html[data-theme="dark"]) .read-marker { border-color: #815765; color: #ffafbd; background: #332630; }
+:where(html[data-theme="dark"]) .post.highlighted-post { animation-name: dark-post-highlight; }
+@keyframes dark-post-highlight {
+  from { background-color: #41482c; }
+  to { background-color: transparent; }
+}
+
+:where(html[data-theme="dark"]) .thread-title { color: var(--dark-text); }
+:where(html[data-theme="dark"]) .thread-row.is-ai-highlighted .thread-tags { color: #ffe0a0; background: #4a3d25; }
+:where(html[data-theme="dark"]) .thread-row.is-selected .status-badge.generating { color: #9ac4ff; }
+:where(html[data-theme="dark"]) .thread-row.is-selected .status-badge.completed { color: #ffa6a6; }
+:where(html[data-theme="dark"]) .status-badge.generating { color: #9ac4ff; }
+:where(html[data-theme="dark"]) .status-badge.completed { color: #ffa6a6; }
+:where(html[data-theme="dark"]) .queue-status .has-completed { color: #a2e1b1; background: #233d30; border-color: #4e7d5b; }
+:where(html[data-theme="dark"]) .thread-status-lamp { border-color: #9ba5b6; }
+:where(html[data-theme="dark"]) .feed-row.is-drop-inside, :where(html[data-theme="dark"]) .rss-tree-root.is-drop-inside { background: #293c60; outline-color: #83acff; }
+:where(html[data-theme="dark"]) .feed-row.is-drop-before { border-top-color: #83acff; }
+:where(html[data-theme="dark"]) .feed-row.is-drop-after { border-bottom-color: #83acff; }
+:where(html[data-theme="dark"]) .favorite-item-star { color: #e6bd77; }
+:where(html[data-theme="dark"]) .favorite-item-count, :where(html[data-theme="dark"]) .favorite-empty, :where(html[data-theme="dark"]) .log-empty, :where(html[data-theme="dark"]) .log-time, :where(html[data-theme="dark"]) .article-body-status, :where(html[data-theme="dark"]) .stats-loading, :where(html[data-theme="dark"]) .generation-failure-empty { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .article-browser-placeholder { color: var(--dark-text); background: #1b1e25; }
+:where(html[data-theme="dark"]) .article-browser-viewport { background: #1b1e25; }
+:where(html[data-theme="dark"]) .article-browser-notice, :where(html[data-theme="dark"]) .article-browser-placeholder.protection-warning { color: #f4d392; background: #3c3323; border-color: #6a5836; }
+:where(html[data-theme="dark"]) .article-browser-notice.is-error { color: #ffadb4; background: #3b2933; }
+:where(html[data-theme="dark"]) .article-browser-shield.blocker-active { color: #8ed5aa; }
+:where(html[data-theme="dark"]) .article-browser-shield.blocker-disabled-for-site,
+:where(html[data-theme="dark"]) .article-browser-shield.blocker-unavailable { color: #ffadb4; }
+
+:where(html[data-theme="dark"]) .log-pane, :where(html[data-theme="dark"]) .command-hook-notice { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .log-row { color: var(--dark-text); border-color: #323a48; }
+:where(html[data-theme="dark"]) .log-row.is-info, :where(html[data-theme="dark"]) .log-row.is-log { color: var(--dark-text); }
+:where(html[data-theme="dark"]) .log-row.is-info .log-level, :where(html[data-theme="dark"]) .log-row.is-log .log-level { color: #9bbcff; }
+:where(html[data-theme="dark"]) .log-row.is-warn { color: #f4d392; background: #382f24; }
+:where(html[data-theme="dark"]) .log-row.is-error { color: #ffadb4; background: #392731; }
+:where(html[data-theme="dark"]) .log-row:hover, :where(html[data-theme="dark"]) .log-row:focus-visible { background: #2a3447; outline-color: #83acff; }
+:where(html[data-theme="dark"]) .log-health { color: #8ed5aa; }
+:where(html[data-theme="dark"]) .log-health.has-issues { color: #f4d392; }
+:where(html[data-theme="dark"]) .log-repeat { color: #bdc8dc; background: #384254; }
+:where(html[data-theme="dark"]) .command-hook-output, :where(html[data-theme="dark"]) .generation-technical-details pre { color: var(--dark-text); background: #171b22; border-color: var(--dark-line); }
+
+/* Use dark native form controls too, including inputs in secondary dialogs. */
+:where(html[data-theme="dark"]) input:not([type="checkbox"]):not([type="radio"]), :where(html[data-theme="dark"]) textarea, :where(html[data-theme="dark"]) select {
+  color: var(--dark-text);
+  background-color: #1b1e25;
+  border-color: #4d596d;
+}
+:where(html[data-theme="dark"]) input::placeholder, :where(html[data-theme="dark"]) textarea::placeholder { color: #929eb1; opacity: 1; }
+:where(html[data-theme="dark"]) .feed-settings-title { color: var(--dark-text); background: #1b1e25; border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .add-feed-checkbox-help, :where(html[data-theme="dark"]) .settings-help { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .api-key-status, :where(html[data-theme="dark"]) .api-key-status.is-none, :where(html[data-theme="dark"]) .settings-status-message, :where(html[data-theme="dark"]) .resident-prompts-modal .prompt-status-message { color: #f4d392; background: #382f24; }
+:where(html[data-theme="dark"]) .write-error-msg, :where(html[data-theme="dark"]) .thread-closed-msg, :where(html[data-theme="dark"]) .stats-table .text-error { color: #ffadb4; }
+:where(html[data-theme="dark"]) .write-panel.is-busy { border-color: var(--dark-line); background: var(--dark-surface); }
+
+:where(html[data-theme="dark"]) .stat-cell { background: #1b1e25; border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .stat-value { color: var(--dark-text); }
+:where(html[data-theme="dark"]) .stats-table { border-color: var(--dark-line); background: repeating-linear-gradient(to bottom, #1b1e25 0 22px, #232832 22px 44px); }
+:where(html[data-theme="dark"]) .stats-table span { color: var(--dark-text); border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .stats-grid, :where(html[data-theme="dark"]) .statistics-content, :where(html[data-theme="dark"]) .generation-failure-actions { border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .generation-attempt-row, :where(html[data-theme="dark"]) .title-generation-attempt-row { color: var(--dark-text); background: #232832; border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .generation-attempt-row.is-failed, :where(html[data-theme="dark"]) .title-generation-attempt-row.is-failed { background: #392731; }
+
+:where(html[data-theme="dark"]) .thread-list-header,
+:where(html[data-theme="dark"]) .thread-header-cell { border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .thread-row :is(.thread-title, .thread-original-title,
+.thread-count, .thread-source, .thread-date, .thread-url, .thread-tags) { border-right-color: #353e50; }
+:where(html[data-theme="dark"]) .thread-status-legend-item { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .generation-failure-thread-title { background: #232832; border-color: var(--dark-line); }
+:where(html[data-theme="dark"]) .generation-attempt-row.is-failed,
+:where(html[data-theme="dark"]) .title-generation-attempt-row.is-failed { color: #ffadb4; }
+:where(html[data-theme="dark"]) .empty-state { color: var(--dark-muted); }
+:where(html[data-theme="dark"]) .post-url-copy-button { color: #a9b9d3; }

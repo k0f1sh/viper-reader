@@ -114,6 +114,10 @@ export function SettingsModal({
               <input type="radio" name="theme" checked={theme === "modern"} onChange={() => onThemeChange("modern")} />
               modern
             </label>
+            <label className="browser-settings-checkbox">
+              <input type="radio" name="theme" checked={theme === "dark"} onChange={() => onThemeChange("dark")} />
+              dark
+            </label>
             <p className="settings-help">変更するとすぐに反映・保存されます。</p>
             {themeError ? <div role="alert" className="settings-status-message">{themeError}</div> : null}
           </fieldset>

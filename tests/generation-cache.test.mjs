@@ -649,6 +649,8 @@ test("テーマ設定をSQLiteへ保存して再読込できる", () => {
   assert.equal(getRendererUserSetting("theme"), null);
   saveRendererUserSetting("theme", "modern");
   assert.equal(getRendererUserSetting("theme"), "modern");
+  saveRendererUserSetting("theme", "dark");
+  assert.equal(getRendererUserSetting("theme"), "dark");
   saveRendererUserSetting("theme", "classic");
   assert.equal(getRendererUserSetting("theme"), "classic");
 });
