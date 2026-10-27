@@ -1,3 +1,4 @@
+import { useTheme } from "./hooks/useTheme";
 import { useCommandHook } from "./hooks/useCommandHook";
 import { isRssBoard, isLocalBoard } from "../shared/boardPolicy";
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +23,7 @@ const threadColumnLabels = ["状態", "スレタイ", "タグ", "取得元", "�
 const maxRendererLogs = 300;
 
 export function App() {
+  const themeSettings = useTheme();
   const uiZoom = useUiZoom();
   const {
     feeds: feedList,
@@ -833,7 +835,7 @@ export function App() {
 
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
-        settings={apiSettings.isOpen ? { paneLayout, onPaneLayoutChange: (layout) => void setPaneLayout(layout), layoutError, isLayoutSaving, onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
+        settings={apiSettings.isOpen ? { theme: themeSettings.theme, onThemeChange: (theme) => void themeSettings.changeTheme(theme), isThemeSaving: themeSettings.isBusy, themeError: themeSettings.error, paneLayout, onPaneLayoutChange: (layout) => void setPaneLayout(layout), layoutError, isLayoutSaving, onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
         browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
         modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}

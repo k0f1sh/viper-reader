@@ -27,7 +27,8 @@ const rendererSettingKeys = new Set([
   "articlePaneVisible",
   "writePanelVisible",
   "articleBrowserBlockingEnabled",
-  "highlightAiArticles"
+  "highlightAiArticles",
+  "theme"
 ]);
 
 export function getUserSetting(key: string): string | null {

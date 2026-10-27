@@ -1,0 +1,303 @@
+/* Modern theme: light reading surfaces and cobalt actions.
+   styles.css remains the classic theme and the shared layout foundation. */
+:root[data-theme="modern"] {
+  --modern-text: #202735;
+  --modern-muted: #626d80;
+  --modern-line: #d9dee8;
+  --modern-surface: #f8f9fc;
+  --modern-accent: #2563eb;
+  --modern-selected: #eaf0ff;
+}
+
+:where(html[data-theme="modern"]) body {
+  color: var(--modern-text);
+  background: var(--modern-surface);
+  font-family: "Noto Sans JP", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
+}
+
+:where(html[data-theme="modern"]) .app-frame { grid-template-rows: 30px minmax(0, 1fr) 24px; }
+
+:where(html[data-theme="modern"]) .app-frame, :where(html[data-theme="modern"]) .feed-pane, :where(html[data-theme="modern"]) .shortcut-bar, :where(html[data-theme="modern"]) .menu-bar, :where(html[data-theme="modern"]) .toolbar, :where(html[data-theme="modern"]) .thread-header, :where(html[data-theme="modern"]) .article-browser-toolbar, :where(html[data-theme="modern"]) .write-panel, :where(html[data-theme="modern"]) .log-toolbar, :where(html[data-theme="modern"]) .modal-menu-strip, :where(html[data-theme="modern"]) .statistics-content, :where(html[data-theme="modern"]) .settings-content {
+  background: var(--modern-surface);
+}
+
+:where(html[data-theme="modern"]) .app-shell {
+  border: 1px solid var(--modern-line);
+  background: var(--modern-line);
+}
+
+:where(html[data-theme="modern"]) .menu-bar {
+  min-height: 30px;
+  padding: 3px 6px;
+  border-top: 0;
+  border-bottom: 1px solid var(--modern-line);
+}
+
+:where(html[data-theme="modern"]) .shortcut-bar {
+  border-top: 1px solid var(--modern-line);
+  color: var(--modern-muted);
+}
+
+:where(html[data-theme="modern"]) .shortcut-bar kbd {
+  border: 1px solid var(--modern-line);
+  border-radius: 3px;
+  background: white;
+}
+
+:where(html[data-theme="modern"]) .menu-item { color: var(--modern-text); border-radius: 4px; }
+:where(html[data-theme="modern"]) .menu-item:hover, :where(html[data-theme="modern"]) .menu-item:focus-visible, :where(html[data-theme="modern"]) .menu-item:active {
+  border-color: transparent;
+  background: #eef2fa;
+}
+
+:where(html[data-theme="modern"]) .pane-title, :where(html[data-theme="modern"]) .log-pane-title {
+  min-height: 26px;
+  padding: 4px 8px;
+  border-top: 0;
+  border-bottom: 1px solid var(--modern-line);
+  color: #39465c;
+  background: #f3f5f9;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+:where(html[data-theme="modern"]) .toolbar { border-bottom: 1px solid var(--modern-line); }
+:where(html[data-theme="modern"]) .toolbar .pane-title { border: 0; background: transparent; }
+:where(html[data-theme="modern"]) .pane-subtitle { color: var(--modern-muted); }
+:where(html[data-theme="modern"]) .tree-heading { color: var(--modern-muted); font-weight: 600; }
+
+:where(html[data-theme="modern"]) .feed-tree, :where(html[data-theme="modern"]) .favorite-tree, :where(html[data-theme="modern"]) .thread-list, :where(html[data-theme="modern"]) .thread-list-pane, :where(html[data-theme="modern"]) .thread-reader-pane, :where(html[data-theme="modern"]) .thread-body-pane, :where(html[data-theme="modern"]) .thread-workspace, :where(html[data-theme="modern"]) .article-body-pane, :where(html[data-theme="modern"]) .article-browser-pane, :where(html[data-theme="modern"]) .article-browser-expanded {
+  background: #fff;
+}
+
+:where(html[data-theme="modern"]) .feed-tree { padding: 6px; background: #f8f9fc; }
+:where(html[data-theme="modern"]) .favorite-tree { background: #f8f9fc; }
+:where(html[data-theme="modern"]) .feed-row { min-height: 26px; border-radius: 4px; color: var(--modern-text); }
+:where(html[data-theme="modern"]) .feed-row:hover, :where(html[data-theme="modern"]) .favorite-row:hover, :where(html[data-theme="modern"]) .favorite-row:focus-visible {
+  border-color: transparent;
+  background: #f0f3f9;
+}
+
+:where(html[data-theme="modern"]) .feed-count {
+  border: 0;
+  border-radius: 8px;
+  color: #58667b;
+  background: #e9edf4;
+}
+
+:where(html[data-theme="modern"]) .feed-row.is-selected, :where(html[data-theme="modern"]) .favorite-row.is-selected {
+  border-color: transparent;
+  color: #214eb3;
+  background: var(--modern-selected);
+  box-shadow: inset 3px 0 var(--modern-accent);
+}
+:where(html[data-theme="modern"]) .feed-row.is-selected .feed-count { color: #214eb3; background: #cfdcfc; }
+:where(html[data-theme="modern"]) .favorite-row.is-selected .favorite-item-count { color: #214eb3; }
+:where(html[data-theme="modern"]) .favorite-row.is-selected .favorite-item-star { color: #927019; }
+
+:where(html[data-theme="modern"]) .feed-pane-splitter, :where(html[data-theme="modern"]) .pane-splitter, :where(html[data-theme="modern"]) .article-pane-splitter, :where(html[data-theme="modern"]) .favorite-divider, :where(html[data-theme="modern"]) .log-divider {
+  border: 0;
+  background: #e3e7ef;
+}
+:where(html[data-theme="modern"]) .feed-pane-splitter::before, :where(html[data-theme="modern"]) .pane-splitter::before, :where(html[data-theme="modern"]) .article-pane-splitter::before, :where(html[data-theme="modern"]) .favorite-divider::before {
+  background: #99a5b8;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) .feed-pane-splitter:hover, :where(html[data-theme="modern"]) .pane-splitter:hover, :where(html[data-theme="modern"]) .article-pane-splitter:hover {
+  background: #a7bff4;
+}
+
+:where(html[data-theme="modern"]) .thread-list-header {
+  border-bottom: 1px solid var(--modern-line);
+  background: #f3f5f9;
+  color: #39465c;
+}
+:where(html[data-theme="modern"]) .thread-header-cell { border-right-color: var(--modern-line); }
+:where(html[data-theme="modern"]) .thread-header-cell:hover { background: #e9eef8; }
+:where(html[data-theme="modern"]) .thread-row { border-bottom-color: #edf0f5; color: var(--modern-text); }
+:where(html[data-theme="modern"]) .thread-row:nth-child(even) { background: #fafbfe; }
+:where(html[data-theme="modern"]) .thread-row:hover { background: #f0f4ff; }
+:where(html[data-theme="modern"]) .thread-row.is-selected { color: #214eb3; background: var(--modern-selected); box-shadow: inset 3px 0 var(--modern-accent); }
+:where(html[data-theme="modern"]) .thread-row.is-selected :is(.thread-title, .thread-original-title, .thread-count,
+.thread-source, .thread-date, .thread-url, .thread-tags) {
+  color: #214eb3;
+  border-right-color: #cbd9f5;
+}
+:where(html[data-theme="modern"]) .thread-row.is-selected .status-badge.generating { color: #246c96; }
+:where(html[data-theme="modern"]) .thread-row.is-selected .status-badge.completed { color: #a53c36; }
+:where(html[data-theme="modern"]) .thread-row.is-ai-highlighted.is-selected .thread-tags { color: #704000; background: #f9e8b2; }
+:where(html[data-theme="modern"]) .thread-original-title, :where(html[data-theme="modern"]) .thread-row.is-read:not(.is-selected) .thread-title { color: var(--modern-muted); }
+:where(html[data-theme="modern"]) .thread-source, :where(html[data-theme="modern"]) .thread-date, :where(html[data-theme="modern"]) .thread-url, :where(html[data-theme="modern"]) .thread-tags { color: #536b78; }
+:where(html[data-theme="modern"]) .thread-count { color: #536b78; }
+
+:where(html[data-theme="modern"]) .thread-list-pagination, :where(html[data-theme="modern"]) .refresh-status, :where(html[data-theme="modern"]) .thread-search-status, :where(html[data-theme="modern"]) .thread-status-legend, :where(html[data-theme="modern"]) .id-extraction-bar {
+  border-color: var(--modern-line);
+  color: var(--modern-muted);
+  background: #f6f9fa;
+}
+:where(html[data-theme="modern"]) .queue-status span { border: 1px solid var(--modern-line); border-radius: 3px; background: #fff; }
+
+/* These are actions, rather than feed rows or article links. */
+:where(html[data-theme="modern"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button) {
+  border: 1px solid #d3d9e4;
+  border-radius: 4px;
+  color: var(--modern-text);
+  background: #fff;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button):hover:not(:disabled) {
+  border-color: #9cb4e7;
+  background: #f0f4ff;
+}
+:where(html[data-theme="modern"]) :is(.zoom-controls button, .refresh-button, .deep-dive-button,
+.article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button,
+.thread-list-pagination button, .thread-search-status button,
+.id-extraction-bar button, .settings-button, .modal-buttons .btn,
+.load-button, .post-submit-btn, .log-toolbar button):active:not(:disabled) {
+  border-color: #7498e3;
+  background: #e2eaff;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) .refresh-button.is-active, :where(html[data-theme="modern"]) .log-toolbar button.is-active, :where(html[data-theme="modern"]) .favorite-button.is-favorite-active {
+  border-color: #a3baf0;
+  background: var(--modern-selected);
+  color: #214eb3;
+}
+:where(html[data-theme="modern"]) :is(.post-submit-btn, .settings-button[type="submit"]):not(:disabled) {
+  border-color: var(--modern-accent);
+  color: #fff;
+  background: var(--modern-accent);
+}
+:where(html[data-theme="modern"]) :is(.post-submit-btn, .settings-button[type="submit"]):hover:not(:disabled) {
+  border-color: #1d4ed8;
+  color: #fff;
+  background: #1d4ed8;
+}
+:where(html[data-theme="modern"]) :is(.post-submit-btn, .settings-button[type="submit"]):active:not(:disabled) {
+  background: #1e40af;
+}
+:where(html[data-theme="modern"]) :is(button, .modal-buttons .btn):disabled {
+  border-color: #dce3e7;
+  color: #8a969e;
+  background: #f2f5f6;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) button:focus-visible, :where(html[data-theme="modern"]) input:focus-visible, :where(html[data-theme="modern"]) textarea:focus-visible, :where(html[data-theme="modern"]) select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+:where(html[data-theme="modern"]) :is(.menu-select, .thread-search input, .article-browser-url, .settings-input,
+.write-meta-row input, .write-body-row textarea, .add-feed-input,
+.resident-prompts-modal .feed-select, .resident-prompts-modal .prompt-textarea,
+.modal-content .form-input, .log-toolbar select) {
+  border: 1px solid #cbd3e0;
+  border-radius: 4px;
+  color: var(--modern-text);
+  background: #fff;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) input[type="checkbox"], :where(html[data-theme="modern"]) input[type="radio"] { accent-color: var(--modern-accent); }
+
+:where(html[data-theme="modern"]) .thread-header { border-top: 0; border-bottom: 1px solid var(--modern-line); }
+:where(html[data-theme="modern"]) .thread-heading, :where(html[data-theme="modern"]) .article-body-heading { color: #263246; }
+:where(html[data-theme="modern"]) .original-title, :where(html[data-theme="modern"]) .article-tags { color: var(--modern-muted); }
+:where(html[data-theme="modern"]) .posts { padding: 12px 14px 28px; }
+:where(html[data-theme="modern"]) .post { margin-bottom: 16px; }
+:where(html[data-theme="modern"]) .post-body { font-size: 14px; line-height: 1.75; }
+:where(html[data-theme="modern"]) .article-body-text { color: var(--modern-text); font-size: 14px; line-height: 1.75; }
+/* Response names, numbers, IDs, links, and markers retain their classic colors. */
+:where(html[data-theme="modern"]) .article-body-heading { border-color: var(--modern-line); }
+:where(html[data-theme="modern"]) .write-panel { border-top-color: var(--modern-line); }
+:where(html[data-theme="modern"]) .thread-response-loading, :where(html[data-theme="modern"]) .write-panel-busy { border-color: #c7dfe2; color: #3054a0; background: #eef7f8; }
+
+:where(html[data-theme="modern"]) .modal-backdrop { background: #182e4052; }
+:where(html[data-theme="modern"]) :is(.add-feed-modal, .settings-modal, .resident-prompts-modal, .statistics-modal,
+.generation-failure-modal, .title-generation-status-modal) {
+  border: 1px solid #bccbd2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 40px #172b3b33;
+  overflow: hidden;
+}
+:where(html[data-theme="modern"]) .modal-title-bar {
+  border-bottom: 1px solid #d9dee8;
+  color: #39465c;
+  background: #fff;
+  text-shadow: none;
+}
+:where(html[data-theme="modern"]) .modal-close-button {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #5d707b;
+  background: transparent;
+  box-shadow: none;
+}
+:where(html[data-theme="modern"]) .modal-close-button:hover:not(:disabled) { border-color: #c2cfd5; color: #202735; background: #dce6ea; }
+:where(html[data-theme="modern"]) .modal-close-button:active:not(:disabled) { border-color: #adbec7; background: #cbdce2; }
+:where(html[data-theme="modern"]) .settings-content, :where(html[data-theme="modern"]) .statistics-content { background: #fff; }
+:where(html[data-theme="modern"]) .settings-content fieldset { border: 1px solid var(--modern-line); border-radius: 5px; }
+:where(html[data-theme="modern"]) .settings-content legend, :where(html[data-theme="modern"]) .settings-content label { color: #39465c; }
+:where(html[data-theme="modern"]) .settings-help, :where(html[data-theme="modern"]) .api-key-status, :where(html[data-theme="modern"]) .api-key-status.is-none { color: var(--modern-muted); }
+:where(html[data-theme="modern"]) .modal-menu-strip { border-color: var(--modern-line); }
+:where(html[data-theme="modern"]) .modal-menu-strip span { border: 1px solid var(--modern-line); border-bottom: 0; color: #3054a0; background: #fff; }
+:where(html[data-theme="modern"]) .stats-section { border: 1px solid var(--modern-line); }
+:where(html[data-theme="modern"]) .stats-section-title, :where(html[data-theme="modern"]) .api-log-table span:nth-child(-n + 6),
+:where(html[data-theme="modern"]) .rss-log-table span:nth-child(-n + 5),
+:where(html[data-theme="modern"]) .article-fetch-log-table span:nth-child(-n + 6) { color: #39465c; background: var(--modern-surface); }
+:where(html[data-theme="modern"]) .stat-label { color: var(--modern-muted); }
+:where(html[data-theme="modern"]) .feed-context-menu { border: 1px solid #d3d9e4; border-radius: 5px; background: #fff; box-shadow: 0 4px 14px #172b3b26; }
+:where(html[data-theme="modern"]) .feed-context-menu button:hover { color: #214eb3; background: var(--modern-selected); }
+:where(html[data-theme="modern"]) .reply-popup { border: 1px solid #b9cbd3; border-radius: 5px; background: #fff; box-shadow: 0 4px 16px #172b3b26; }
+:where(html[data-theme="modern"]) .reply-popup-title { border-color: var(--modern-line); color: #39465c; background: var(--modern-surface); }
+:where(html[data-theme="modern"]) .log-list { border: 0; background: #fff; }
+:where(html[data-theme="modern"]) .log-toolbar { border-color: var(--modern-line); }
+
+:where(html[data-theme="modern"]) *::-webkit-scrollbar { width: 12px; height: 12px; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-track { background: #f0f3f5; box-shadow: none; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-thumb { border: 3px solid #f0f3f5; border-radius: 8px; background: #a9b8c1; box-shadow: none; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-thumb:hover { background: #839aa6; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-thumb:active { border-color: #f0f3f5; box-shadow: none; background: #6c8794; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-corner { border: 0; background: #f0f3f5; box-shadow: none; }
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-button:vertical:decrement:start,
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-button:vertical:increment:end,
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-button:horizontal:decrement:start,
+:where(html[data-theme="modern"]) *::-webkit-scrollbar-button:horizontal:increment:end { display: none; }
+
+:where(html[data-theme="modern"]) .progress-blocks {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: #e4ebfd;
+  animation: none;
+}
+:where(html[data-theme="modern"]) .progress-blocks::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: inherit;
+  background: #2563eb;
+  content: "";
+  animation: modern-progress-move 1.4s ease-in-out infinite;
+}
+@keyframes modern-progress-move {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(286%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-theme="modern"]) .progress-blocks::before { left: 32.5%; animation: none; }
+}

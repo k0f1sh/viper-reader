@@ -1,8 +1,13 @@
+import type { Theme } from "../../shared/theme";
 import { CommandHookSettings } from "./CommandHookSettings";
 import type { FormEvent } from "react";
 import type { GeminiApiKeyStatus } from "../../shared/types";
 
 type SettingsModalProps = {
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+  isThemeSaving: boolean;
+  themeError: string;
   paneLayout: "stacked" | "horizontal";
   onPaneLayoutChange: (layout: "stacked" | "horizontal") => void;
   layoutError: string;
@@ -21,6 +26,10 @@ type SettingsModalProps = {
 };
 
 export function SettingsModal({
+  theme,
+  onThemeChange,
+  isThemeSaving,
+  themeError,
   paneLayout,
   onPaneLayoutChange,
   layoutError,
@@ -93,6 +102,20 @@ export function SettingsModal({
             <p className="settings-help">
               AIまたはLLMタグが付いた記事のタグ欄と行頭を強調します。
             </p>
+          </fieldset>
+
+          <fieldset disabled={isThemeSaving}>
+            <legend>テーマ</legend>
+            <label className="browser-settings-checkbox">
+              <input type="radio" name="theme" checked={theme === "classic"} onChange={() => onThemeChange("classic")} />
+              classic（デフォルト）
+            </label>
+            <label className="browser-settings-checkbox">
+              <input type="radio" name="theme" checked={theme === "modern"} onChange={() => onThemeChange("modern")} />
+              modern
+            </label>
+            <p className="settings-help">変更するとすぐに反映・保存されます。</p>
+            {themeError ? <div role="alert" className="settings-status-message">{themeError}</div> : null}
           </fieldset>
 
           <fieldset disabled={isLayoutSaving}>

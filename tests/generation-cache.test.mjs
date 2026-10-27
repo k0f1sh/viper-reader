@@ -643,3 +643,12 @@ test("A生成開始→B表示→A完了の取得ではAの未表示レスを既�
   assert.equal(getThread(a).readMarkerNo, null);
   assert.equal(db.prepare("SELECT last_read_post_no FROM feed_items WHERE id = ?").get(a).last_read_post_no, 2);
 });
+
+
+test("テーマ設定をSQLiteへ保存して再読込できる", () => {
+  assert.equal(getRendererUserSetting("theme"), null);
+  saveRendererUserSetting("theme", "modern");
+  assert.equal(getRendererUserSetting("theme"), "modern");
+  saveRendererUserSetting("theme", "classic");
+  assert.equal(getRendererUserSetting("theme"), "classic");
+});
