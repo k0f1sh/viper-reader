@@ -1,5 +1,5 @@
-export type Theme = "classic" | "modern" | "dark";
+export type Theme = "classic" | "modern" | "dark" | "blue";
 
 export function parseTheme(value: string | null): Theme {
-  return value === "modern" || value === "dark" ? value : "classic";
+  return value === "modern" || value === "dark" || value === "blue" ? value : "classic";
 }

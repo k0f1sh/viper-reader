@@ -1,0 +1,140 @@
+/* Blue theme: soft blue headers, warm panels, and inset reading surfaces. */
+:root[data-theme="blue"] {
+  color-scheme: light;
+  accent-color: #245edb;
+  --blue-panel: #ece9d8;
+  --blue-line: #aca899;
+  --blue-title: linear-gradient(#e3ebf5, #d5e1ef);
+}
+
+:where(html[data-theme="blue"]) body,
+:where(html[data-theme="blue"]) :is(.app-frame, .feed-pane, .menu-bar, .shortcut-bar,
+.toolbar, .thread-header, .article-browser-toolbar, .write-panel, .log-pane,
+.log-toolbar, .modal-menu-strip, .settings-content, .statistics-content,
+.thread-list-pagination, .command-hook-notice) {
+  background: var(--blue-panel);
+}
+
+:where(html[data-theme="blue"]) .app-shell {
+  border: 1px solid #9aafc8;
+  background: var(--blue-panel);
+}
+
+:where(html[data-theme="blue"]) :is(.pane-title, .log-pane-title, .modal-title-bar) {
+  border-top: 1px solid #f2f6fb;
+  border-bottom: 1px solid #a9bbd0;
+  color: #294568;
+  background: var(--blue-title);
+  text-shadow: none;
+}
+
+:where(html[data-theme="blue"]) .pane-subtitle { color: #506681; }
+:where(html[data-theme="blue"]) .log-health { color: #386044; }
+:where(html[data-theme="blue"]) .log-health.has-issues { color: #8a4e16; }
+
+:where(html[data-theme="blue"]) :is(.feed-tree, .favorite-tree) { background: #fff; }
+:where(html[data-theme="blue"]) :is(.thread-body-pane, .article-body-pane, .reply-popup) {
+  background: #fffef8;
+}
+
+:where(html[data-theme="blue"]) :is(.feed-row, .favorite-row):hover {
+  border-color: #b8d0f7;
+  background: #e8f1ff;
+}
+:where(html[data-theme="blue"]) :is(.feed-row, .favorite-row, .thread-row).is-selected {
+  border-color: #245edb;
+  color: #fff;
+  background: #316ac5;
+}
+:where(html[data-theme="blue"]) .thread-row.is-selected :is(.thread-title,
+.thread-original-title, .thread-count, .thread-source, .thread-date, .thread-url, .thread-tags),
+:where(html[data-theme="blue"]) .favorite-row.is-selected .favorite-item-count { color: #fff; }
+:where(html[data-theme="blue"]) .thread-row:hover:not(.is-selected) { background: #edf4ff; }
+
+:where(html[data-theme="blue"]) .thread-list-header {
+  border-bottom-color: var(--blue-line);
+  background: linear-gradient(#fff, #ece9d8);
+}
+:where(html[data-theme="blue"]) .thread-header-cell { border-right-color: #d6d2c2; }
+:where(html[data-theme="blue"]) .thread-header-cell:hover {
+  background: #fff5cc;
+  box-shadow: inset 0 -2px #f3b643;
+}
+
+:where(html[data-theme="blue"]) :is(.feed-pane-splitter, .pane-splitter,
+.article-pane-splitter, .favorite-divider, .log-divider) {
+  border-color: #fff #c5c1b1 #c5c1b1 #fff;
+  background: var(--blue-panel);
+}
+
+:where(html[data-theme="blue"]) :is(.zoom-controls button, .refresh-button,
+.deep-dive-button, .article-browser-toolbar button, .article-browser-placeholder button,
+.pane-title-actions button, .article-body-title button, .thread-header-actions > button,
+.thread-list-pagination button, .thread-search-status button, .id-extraction-bar button,
+.settings-button, .modal-buttons .btn, .local-thread-actions .btn, .load-button,
+.post-submit-btn, .log-toolbar button) {
+  border: 1px solid #003c74;
+  border-radius: 3px;
+  color: #152039;
+  background: linear-gradient(#fff 0%, #f4f3eb 55%, #e1ddcc);
+  box-shadow: inset 0 0 0 1px #fff;
+  text-shadow: none;
+}
+:where(html[data-theme="blue"]) :is(button):hover:not(:disabled):not(.feed-row):not(.favorite-row):not(.thread-row):not(.log-row):not(.menu-item):not(.modal-close-button) {
+  border-color: #245edb;
+  box-shadow: inset 0 0 0 2px #f4c45a;
+}
+:where(html[data-theme="blue"]) :is(button):active:not(:disabled):not(.feed-row):not(.favorite-row):not(.thread-row):not(.log-row):not(.menu-item):not(.modal-close-button) {
+  background: #dcd9cb;
+  box-shadow: inset 1px 1px 2px #aaa694;
+}
+:where(html[data-theme="blue"]) button:disabled { color: #8a897f; text-shadow: none; }
+:where(html[data-theme="blue"]) .menu-item:hover,
+:where(html[data-theme="blue"]) .menu-item:focus-visible { border-color: #316ac5; background: #c1d2ee; }
+
+:where(html[data-theme="blue"]) :is(input:not([type="radio"]):not([type="checkbox"]), textarea, select) {
+  border: 1px solid #7f9db9;
+  background-color: #fff;
+  color: #101010;
+}
+:where(html[data-theme="blue"]) :is(input, textarea, select):focus-visible {
+  outline: 2px solid #245edb;
+  outline-offset: 1px;
+}
+:where(html[data-theme="blue"]) .settings-content fieldset {
+  border: 1px solid #d0cbb8;
+  border-radius: 4px;
+}
+:where(html[data-theme="blue"]) .settings-content legend { color: #0046d5; }
+
+:where(html[data-theme="blue"]) [role="dialog"] {
+  border: 1px solid #9aafc8;
+  border-radius: 3px;
+  background: var(--blue-panel);
+  box-shadow: 2px 3px 8px #12386a33;
+}
+:where(html[data-theme="blue"]) .modal-title-bar { border-radius: 2px 2px 0 0; }
+:where(html[data-theme="blue"]) .modal-close-button {
+  border: 1px solid #9aafc8;
+  border-radius: 2px;
+  color: #294568;
+  background: #edf2f8;
+  box-shadow: none;
+  text-shadow: none;
+}
+:where(html[data-theme="blue"]) .modal-close-button:hover { background: #dce6f2; }
+:where(html[data-theme="blue"]) .modal-close-button:active { background: #c7d7e9; }
+
+:where(html[data-theme="blue"]) .progress-blocks {
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+  background: repeating-linear-gradient(to right, #3bb53b 0, #83d46c 5px, #3bb53b 9px, transparent 9px, transparent 13px), #fff;
+}
+:where(html[data-theme="blue"]) *::-webkit-scrollbar-track { background: #f1efe2; }
+:where(html[data-theme="blue"]) *::-webkit-scrollbar-thumb,
+:where(html[data-theme="blue"]) *::-webkit-scrollbar-button {
+  border: 1px solid #fff;
+  border-radius: 3px;
+  background-color: #c2d3f5;
+  box-shadow: inset 0 0 0 1px #8ba9df;
+}

@@ -60,6 +60,16 @@ test("テーマはclassicで開始し、切り替え・再読込・保存失敗�
     assert.equal(stored, "dark");
     await mount();
     assert.equal(applied(), "dark");
+    await act(async () => current.changeTheme("blue"));
+    assert.equal(applied(), "blue");
+    assert.equal(stored, "blue");
+    await mount();
+    assert.equal(applied(), "blue");
+    failSave = true;
+    await act(async () => current.changeTheme("classic"));
+    assert.equal(applied(), "blue");
+    assert.equal(stored, "blue");
+    failSave = false;
     await act(async () => current.changeTheme("modern"));
     failSave = true;
     await act(async () => current.changeTheme("classic"));
