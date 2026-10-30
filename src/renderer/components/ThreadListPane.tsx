@@ -1,5 +1,5 @@
 import { isLocalBoard } from "../../shared/boardPolicy";
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { FeedSource, ReadingQueueSummary, SmartView, ThreadListItem } from "../../shared/types";
 import { formatThreadDate } from "./formatters";
@@ -16,6 +16,8 @@ type ThreadListPaneProps = {
   showUnreadOnly: boolean;
   isUnreadOnlyLocked: boolean;
   threadColumnLabels: readonly string[];
+  threadColumnOrder: readonly number[];
+  onMoveColumn: (source: number, target: number) => void;
   threadGridColumns: string;
   threadListMinWidth: number;
   onRefresh: () => void;
@@ -55,6 +57,8 @@ export function ThreadListPane({
   showUnreadOnly,
   isUnreadOnlyLocked,
   threadColumnLabels,
+  threadColumnOrder,
+  onMoveColumn,
   threadGridColumns,
   threadListMinWidth,
   onRefresh,
@@ -82,6 +86,8 @@ export function ThreadListPane({
   onSubmitSearch,
   onClearSearch
 }: ThreadListPaneProps) {
+  const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
+  const [dropColumn, setDropColumn] = useState<number | null>(null);
   const threadHeaderRef = useRef<HTMLDivElement>(null);
   const threadListRef = useRef<HTMLDivElement>(null);
 
@@ -175,14 +181,40 @@ export function ThreadListPane({
       ) : null}
 
       <div className="thread-list-header" ref={threadHeaderRef}>
-        {threadColumnLabels.map((label, index) => (
-          <span className="thread-header-cell" key={label}>
-            <span className="thread-header-label">{label}</span>
+        {threadColumnOrder.map((column, index) => (
+          <span
+            className={`thread-header-cell ${dropColumn === column && draggedColumn !== column ? "is-drop-target" : ""}`}
+            key={column}
+            onDragOver={(event) => {
+              if (draggedColumn === null) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setDropColumn(column);
+            }}
+            onDragLeave={() => setDropColumn(null)}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (draggedColumn !== null) onMoveColumn(draggedColumn, column);
+              setDraggedColumn(null);
+              setDropColumn(null);
+            }}
+          >
+            <span
+              className="thread-header-label"
+              draggable
+              title="ドラッグして列を並べ替え"
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", String(column));
+                setDraggedColumn(column);
+              }}
+              onDragEnd={() => { setDraggedColumn(null); setDropColumn(null); }}
+            >{threadColumnLabels[column]}</span>
             {index < threadColumnLabels.length - 1 ? (
               <span
-                aria-label={`${label}列の幅を変更`}
+                aria-label={`${threadColumnLabels[column]}列の幅を変更`}
                 className="column-resize-handle"
-                onMouseDown={(event) => onStartColumnResize(index, event)}
+                onMouseDown={(event) => onStartColumnResize(column, event)}
                 role="separator"
               />
             ) : null}
@@ -234,6 +266,43 @@ export function ThreadListPane({
               onShowTitleGenerationStatus(thread.id);
             }
           }
+          const cells = [
+            <span
+              aria-label={lampLabel}
+              className="thread-generation-cell"
+            >
+              <span
+                className={isLampClickable ? "thread-status-marker is-clickable" : "thread-status-marker"}
+                onClick={(event) => {
+                  if (!isLampClickable) return;
+                  event.stopPropagation();
+                  showLampDetails();
+                }}
+                onKeyDown={(event) => {
+                  if (!isLampClickable || (event.key !== "Enter" && event.key !== " ")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showLampDetails();
+                }}
+                role={isLampClickable ? "button" : undefined}
+                tabIndex={isLampClickable ? 0 : undefined}
+                title={lampLabel}
+              >
+                <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
+              </span>
+            </span>,
+            <span className="thread-title">
+              {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
+            </span>,
+            <span className="thread-tags" title={isLocalBoard(thread) ? undefined : formatArticleTags(thread.tags)}>
+              {isLocalBoard(thread) ? "—" : formatArticleTags(thread.tags)}
+            </span>,
+            <span className="thread-source">{thread.source}</span>,
+            <span className="thread-original-title">{thread.originalTitle}</span>,
+            <span className="thread-count">{thread.responseCount}</span>,
+            <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>,
+            <span className="thread-url">{thread.url}</span>
+          ];
           return (
             <button
               className={`thread-row ${thread.id === selectedThreadId ? "is-selected" : ""} ${
@@ -245,41 +314,9 @@ export function ThreadListPane({
               onClick={() => onSelectThread(thread.id)}
               type="button"
             >
-              <span
-                aria-label={lampLabel}
-                className="thread-generation-cell"
-              >
-                <span
-                  className={isLampClickable ? "thread-status-marker is-clickable" : "thread-status-marker"}
-                  onClick={(event) => {
-                    if (!isLampClickable) return;
-                    event.stopPropagation();
-                    showLampDetails();
-                  }}
-                  onKeyDown={(event) => {
-                    if (!isLampClickable || (event.key !== "Enter" && event.key !== " ")) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    showLampDetails();
-                  }}
-                  role={isLampClickable ? "button" : undefined}
-                  tabIndex={isLampClickable ? 0 : undefined}
-                  title={lampLabel}
-                >
-                  <span aria-hidden="true" className={`thread-status-lamp is-${lampStatus}`} />
-                </span>
-              </span>
-              <span className="thread-title">
-                {thread.contentVersion !== thread.generatedContentVersion ? "[更新あり] " : ""}{thread.threadTitle}
-              </span>
-              <span className="thread-tags" title={isLocalBoard(thread) ? undefined : formatArticleTags(thread.tags)}>
-                {isLocalBoard(thread) ? "—" : formatArticleTags(thread.tags)}
-              </span>
-              <span className="thread-source">{thread.source}</span>
-              <span className="thread-original-title">{thread.originalTitle}</span>
-              <span className="thread-count">{thread.responseCount}</span>
-              <span className="thread-date">{formatThreadDate(thread.publishedAt)}</span>
-              <span className="thread-url">{thread.url}</span>
+              {threadColumnOrder.map((column) => (
+                <Fragment key={column}>{cells[column]}</Fragment>
+              ))}
             </button>
           );
         })}

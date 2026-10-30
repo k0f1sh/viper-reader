@@ -923,7 +923,13 @@ body.is-article-pane-resizing * {
   white-space: nowrap;
 }
 
+.thread-header-cell.is-drop-target {
+  box-shadow: inset 3px 0 #000080;
+}
+
 .thread-header-label {
+  cursor: grab;
+  user-select: none;
   display: block;
   min-width: 0;
   overflow: hidden;

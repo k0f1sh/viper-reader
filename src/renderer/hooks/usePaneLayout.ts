@@ -4,6 +4,20 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 const defaultThreadColumnWidths = [44, 360, 180, 170, 300, 54, 126, 260];
 const minThreadColumnWidths = [44, 220, 100, 100, 180, 44, 96, 140];
 
+const defaultThreadColumnOrder = defaultThreadColumnWidths.map((_, index) => index);
+
+export function parseThreadColumnOrder(json: string | null): number[] {
+  try {
+    const order: unknown = JSON.parse(json ?? "null");
+    if (Array.isArray(order) && order.length === defaultThreadColumnOrder.length
+      && new Set(order).size === order.length
+      && order.every((index) => Number.isInteger(index) && defaultThreadColumnOrder.includes(index))) {
+      return order;
+    }
+  } catch { /* Use the default order for invalid saved settings. */ }
+  return [...defaultThreadColumnOrder];
+}
+
 export function parseThreadColumnWidths(v4Json: string | null, v3Json: string | null, v2Json: string | null): number[] | null {
   function parse(json: string | null): unknown {
     if (!json) return null;
@@ -77,6 +91,7 @@ export function usePaneLayout() {
   const [isArticlePaneVisible, setIsArticlePaneVisible] = useState(false);
   const [isWritePanelVisible, setIsWritePanelVisible] = useState(true);
   const [threadColumnWidths, setThreadColumnWidths] = useState(defaultThreadColumnWidths);
+  const [threadColumnOrder, setThreadColumnOrder] = useState(defaultThreadColumnOrder);
   const appShellRef = useRef<HTMLDivElement>(null);
   const contentPaneRef = useRef<HTMLElement>(null);
   const threadContentRef = useRef<HTMLElement>(null);
@@ -95,8 +110,10 @@ export function usePaneLayout() {
       window.viperReader.getUserSetting("articlePaneVisible"),
       window.viperReader.getUserSetting("writePanelVisible"),
       window.viperReader.getUserSetting("paneLayout"),
-      window.viperReader.getUserSetting("threadListWidthPercent")
-    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedWritePanelVisible, savedPaneLayout, savedThreadListWidth]) => {
+      window.viperReader.getUserSetting("threadListWidthPercent"),
+      window.viperReader.getUserSetting("threadColumnOrder")
+    ]).then(([height, widthsV4Json, widthsV3Json, widthsV2Json, savedFeedPaneWidth, savedFeedTreeHeight, savedArticlePaneWidth, savedArticlePaneVisible, savedWritePanelVisible, savedPaneLayout, savedThreadListWidth, savedThreadColumnOrder]) => {
+      setThreadColumnOrder(parseThreadColumnOrder(savedThreadColumnOrder));
       setPaneLayoutState(parsePaneLayout(savedPaneLayout));
       setThreadListWidthPercent(parseThreadListWidth(savedThreadListWidth));
       if (height) setThreadListHeight(Number.parseFloat(height));
@@ -230,6 +247,14 @@ export function usePaneLayout() {
     window.addEventListener("mouseup", stopResize);
   }
 
+  function moveThreadColumn(source: number, target: number) {
+    if (source === target || !threadColumnOrder.includes(source) || !threadColumnOrder.includes(target)) return;
+    const next = threadColumnOrder.filter((column) => column !== source);
+    next.splice(threadColumnOrder.indexOf(target), 0, source);
+    setThreadColumnOrder(next);
+    void window.viperReader?.saveUserSetting("threadColumnOrder", JSON.stringify(next));
+  }
+
   function startThreadColumnResize(columnIndex: number, event: ReactMouseEvent<HTMLSpanElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -306,7 +331,9 @@ export function usePaneLayout() {
     articlePaneWidth,
     isArticlePaneVisible,
     isWritePanelVisible,
-    threadGridColumns: threadColumnWidths.map((width) => `${width}px`).join(" "),
+    threadColumnOrder,
+    moveThreadColumn,
+    threadGridColumns: threadColumnOrder.map((index) => `${threadColumnWidths[index]}px`).join(" "),
     threadListMinWidth: threadColumnWidths.reduce((total, width) => total + width, 0),
     startVerticalResize,
     startFeedPaneResize,
