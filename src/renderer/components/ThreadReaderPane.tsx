@@ -120,6 +120,7 @@ export function ThreadReaderPane({
             <div>
               <div className="thread-heading">{selectedThread.threadTitle}</div>
               {!isLocal ? <div className="original-title">元記事: {selectedThread.originalTitle}</div> : null}
+              {!isLocal ? <div className="original-title">取得元: {selectedThread.source}</div> : null}
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions">
