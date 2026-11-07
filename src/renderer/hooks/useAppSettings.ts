@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { FeedSource, GeminiApiKeyStatus, StatisticsSummary } from "../../shared/types";
 import { defaultReplyModel, defaultTitleModel } from "../../shared/geminiModels";
 
+import { parseBrowserDomains, type BrowserDomains } from "../../shared/browserDomains";
+
 type UseAppSettingsOptions = {
   feeds: FeedSource[];
   selectedFeedId: string;
@@ -9,6 +11,20 @@ type UseAppSettingsOptions = {
 };
 
 export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSettingsOptions) {
+  const [domains, setDomains] = useState<BrowserDomains>({ enabled: false, domains: [] });
+  const [domainsLoaded, setDomainsLoaded] = useState(false);
+  useEffect(() => { void window.viperReader?.getUserSetting("browserDomains").then(value => {
+    if (value) setDomains(parseBrowserDomains(value));
+  }).catch(console.error).finally(() => setDomainsLoaded(true)); }, []);
+  async function saveDomains(value: BrowserDomains) {
+    setBrowserSettingsSaving(true);
+    try {
+      await window.viperReader?.saveUserSetting("browserDomains", JSON.stringify(value));
+      setDomains(value);
+      setBrowserSettingsMessage(value.enabled ? "サイト設定を保存しました。" : "サイト設定を保存しました。自動表示はOFFです。");
+    } catch (error) { setBrowserSettingsMessage(String(error)); }
+    finally { setBrowserSettingsSaving(false); }
+  }
   const [statisticsOpen, setStatisticsOpen] = useState(false);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statistics, setStatistics] = useState<StatisticsSummary | null>(null);
@@ -214,7 +230,7 @@ export function useAppSettings({ feeds, selectedFeedId, reloadFeeds }: UseAppSet
   return {
     statistics: { isOpen: statisticsOpen, isLoading: statisticsLoading, value: statistics, open: openStatistics, close: () => setStatisticsOpen(false) },
     api: { isOpen: apiSettingsOpen, key: apiKey, status: apiKeyStatus, isSaving: apiKeySaving, message: apiKeyMessage, highlightAiArticles, setHighlightAiArticles: setAiArticleHighlight, setKey: setApiKey, open: openApiSettings, close: () => setApiSettingsOpen(false), save: saveApiKey, clear: clearApiKey },
-    browser: { isOpen: browserSettingsOpen, blockingEnabled: browserBlockingEnabled, isSaving: browserSettingsSaving, message: browserSettingsMessage, open: openBrowserSettings, close: () => setBrowserSettingsOpen(false), setBlocking: setBrowserBlocking },
+    browser: { domains, domainsLoaded, saveDomains, isOpen: browserSettingsOpen, blockingEnabled: browserBlockingEnabled, isSaving: browserSettingsSaving, message: browserSettingsMessage, open: openBrowserSettings, close: () => setBrowserSettingsOpen(false), setBlocking: setBrowserBlocking },
     models: { isOpen: modelSettingsOpen, titleModel, replyModel, isSaving: modelSettingsSaving, open: () => setModelSettingsOpen(true), close: () => setModelSettingsOpen(false), save: saveModels },
     prompts: { isOpen: promptsOpen, feedId: promptFeedId, text: promptText, isLoading: promptLoading, message: promptMessage, setFeedId: setPromptFeedId, setText: setPromptText, open: openPrompts, close: () => setPromptsOpen(false), save: savePrompt, clear: clearPrompt }
   };

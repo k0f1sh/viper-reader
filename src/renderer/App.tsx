@@ -1,3 +1,4 @@
+import { articleHost, matchesDomain } from "../shared/browserDomains";
 import { useTheme } from "./hooks/useTheme";
 import { useCommandHook } from "./hooks/useCommandHook";
 import { isRssBoard, isLocalBoard } from "../shared/boardPolicy";
@@ -394,7 +395,11 @@ export function App() {
     }, 150);
   }
 
-  function selectThread(thread: ThreadListItem | ThreadDetail, feedSelection?: string) {
+  async function selectThread(thread: ThreadListItem | ThreadDetail, feedSelection?: string) {
+    let domainSettings = browserSettings.domains;
+    if (!browserSettings.domainsLoaded && window.viperReader) {
+      try { const saved = await window.viperReader.getUserSetting("browserDomains"); if (saved) domainSettings = JSON.parse(saved); } catch { /* Use defaults on read failure. */ }
+    }
     if (smartView === "generated" && selectedThreadId && selectedThreadId !== thread.id) {
       void window.viperReader?.markThreadGenerationReviewed(selectedThreadId).then(reloadQueueSummary);
     }
@@ -408,7 +413,7 @@ export function App() {
     }
     const feed = feedList.find((candidate) => candidate.id === thread.feedId);
     setIsArticleBrowserExpanded(false);
-    setThreadViewMode(feed?.defaultToArticleBrowser ? "browser" : "replies");
+    setThreadViewMode((feed?.defaultToArticleBrowser || (domainSettings.enabled && matchesDomain(thread.url, domainSettings.domains))) ? "browser" : "replies");
     setSelectedFeedId(feedSelection ?? thread.feedId);
     setSelectedThreadId(thread.id);
   }
@@ -784,6 +789,10 @@ export function App() {
     onAnchorMouseLeave: handleMouseLeaveWithDelay,
     isArticlePaneVisible: shouldShowArticlePane,
     onToggleArticlePane: toggleArticlePane,
+    domainRegistered: selectedThread ? matchesDomain(selectedThread.url, browserSettings.domains.domains) : false,
+    onRegisterDomain: () => { const host = articleHost(selectedThread?.url ?? ""); if (host) void browserSettings.saveDomains({ ...browserSettings.domains, domains: [...new Set([...browserSettings.domains.domains, host])] }); },
+    domainMessage: browserSettings.message,
+    domainSaving: browserSettings.isSaving,
     onShowArticleBrowser: () => setThreadViewMode("browser"),
     isWritePanelVisible,
     onToggleWritePanel: toggleWritePanel
@@ -840,7 +849,7 @@ export function App() {
       <AppDialogs
         statistics={statisticsSettings.isOpen ? { statistics: statisticsSettings.value, isLoading: statisticsSettings.isLoading, onClose: statisticsSettings.close } : null}
         settings={apiSettings.isOpen ? { theme: themeSettings.theme, onThemeChange: (theme) => void themeSettings.changeTheme(theme), isThemeSaving: themeSettings.isBusy, themeError: themeSettings.error, paneLayout, onPaneLayoutChange: (layout) => void setPaneLayout(layout), layoutError, isLayoutSaving, onCommandHookSaved: () => void commandHook.reload(), apiKey: apiSettings.key, apiKeyStatus: apiSettings.status, isSaving: apiSettings.isSaving, statusMessage: apiSettings.message, highlightAiArticles: apiSettings.highlightAiArticles, onApiKeyChange: apiSettings.setKey, onSave: () => void apiSettings.save(), onClear: () => void apiSettings.clear(), onHighlightAiArticlesChange: (enabled) => void apiSettings.setHighlightAiArticles(enabled), onClose: apiSettings.close } : null}
-        browserSettings={browserSettings.isOpen ? { blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
+        browserSettings={browserSettings.isOpen ? { domains: browserSettings.domains, onDomainsChange: browserSettings.saveDomains, blockingEnabled: browserSettings.blockingEnabled, isSaving: browserSettings.isSaving, statusMessage: browserSettings.message, onBlockingEnabledChange: (enabled) => void browserSettings.setBlocking(enabled), onClose: browserSettings.close } : null}
         modelSettings={modelSettings.isOpen ? { titleModel: modelSettings.titleModel, replyModel: modelSettings.replyModel, isSaving: modelSettings.isSaving, onSave: (models) => void modelSettings.save(models), onClose: modelSettings.close } : null}
         residentPrompts={promptSettings.isOpen ? { feeds: feedList, promptTargetFeedId: promptSettings.feedId, promptText: promptSettings.text, isPromptLoading: promptSettings.isLoading, promptStatusMessage: promptSettings.message, onPromptTargetFeedIdChange: promptSettings.setFeedId, onPromptTextChange: promptSettings.setText, onSavePrompt: () => void promptSettings.save(), onClearPrompt: () => void promptSettings.clear(), onClose: promptSettings.close } : null}
         addFeed={isAddFeedOpen ? { addFeedTitle, addFeedUrl, addFeedError, generateTitleFromSummary: addFeedGenerateTitleFromSummary, skipTitleConversion: addFeedSkipTitleConversion, isAddFeedLoading, onTitleChange: (title) => updateAddFeedForm({ title }), onUrlChange: (url) => updateAddFeedForm({ url }), onGenerateTitleFromSummaryChange: (generateTitleFromSummary) => updateAddFeedForm({ generateTitleFromSummary }), onSkipTitleConversionChange: (skipTitleConversion) => updateAddFeedForm({ skipTitleConversion }), onAddFeed: () => void addFeed(), onClose: () => setIsAddFeedOpen(false) } : null}

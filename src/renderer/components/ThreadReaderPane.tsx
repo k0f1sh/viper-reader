@@ -6,6 +6,7 @@ import { PostBody } from "./PostBody";
 import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
+ domainRegistered: boolean; domainSaving: boolean; domainMessage: string; onRegisterDomain: () => void;
   canRunCommandHook: boolean;
   commandHookRunning: boolean;
   onRunCommandHook: () => void;
@@ -49,7 +50,7 @@ type ThreadReaderPaneProps = {
   onToggleWritePanel: () => void;
 };
 
-export function ThreadReaderPane({
+export function ThreadReaderPane({ domainRegistered, domainSaving, domainMessage, onRegisterDomain,
   canRunCommandHook,
   commandHookRunning,
   onRunCommandHook,
@@ -124,6 +125,8 @@ export function ThreadReaderPane({
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions">
+              {selectedThread.url?.match(/^https?:\/\//) && <button className="deep-dive-button" disabled={domainRegistered || domainSaving} onClick={onRegisterDomain}>{domainRegistered ? "内蔵ブラウザの初期表示対象に追加済み" : "このサイトを内蔵ブラウザの初期表示対象に追加"}</button>}
+              {domainMessage && <span role="status">{domainMessage}</span>}
               <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
                 {commandHookRunning ? "フック実行中..." : "フック実行"}
               </button>

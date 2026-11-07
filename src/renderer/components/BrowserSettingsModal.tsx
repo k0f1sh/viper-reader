@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { normalizeDomain, type BrowserDomains } from "../../shared/browserDomains";
 type BrowserSettingsModalProps = {
+  domains: BrowserDomains;
+  onDomainsChange: (value: BrowserDomains) => void;
   blockingEnabled: boolean;
   isSaving: boolean;
   statusMessage: string;
@@ -7,12 +11,15 @@ type BrowserSettingsModalProps = {
 };
 
 export function BrowserSettingsModal({
+  domains, onDomainsChange,
   blockingEnabled,
   isSaving,
   statusMessage,
   onBlockingEnabledChange,
   onClose
 }: BrowserSettingsModalProps) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="settings-modal" aria-label="ブラウザ設定" role="dialog">
@@ -23,6 +30,15 @@ export function BrowserSettingsModal({
           </button>
         </div>
         <div className="settings-content">
+          <fieldset disabled={isSaving}>
+            <legend>サイト別の初期表示</legend>
+            <label><input type="checkbox" checked={domains.enabled} onChange={e => onDomainsChange({ ...domains, enabled: e.target.checked })} />指定サイトを最初から内蔵ブラウザで開く</label>
+            <p>サブドメインも対象になります。</p>
+            <input aria-label="対象ドメイン" placeholder="togetter.com" value={input} onChange={e => setInput(e.target.value)} />
+            <button onClick={() => { try { const d = normalizeDomain(input); onDomainsChange({ ...domains, domains: [...new Set([...domains.domains, d])] }); setInput(""); setError(""); } catch (e) { setError(String(e)); } }}>追加</button>
+            {domains.domains.map(d => <div key={d}>{d} <button onClick={() => onDomainsChange({ ...domains, domains: domains.domains.filter(v => v !== d) })}>削除</button></div>)}
+            {error && <p role="alert">{error}</p>}
+          </fieldset>
           <fieldset disabled={isSaving}>
             <legend>広告ブロック</legend>
             <label className="browser-settings-checkbox">

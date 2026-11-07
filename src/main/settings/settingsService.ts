@@ -8,6 +8,8 @@ const titleModelSettingKey = "titleModel";
 const geminiApiKeySettingKey = "geminiApiKey";
 const encryptedSettingPrefix = "safe-storage:v1:";
 const plainTextSettingPrefix = "plain-text:v1:";
+import { parseBrowserDomains } from "../../shared/browserDomains.js";
+
 const rendererSettingKeys = new Set([
   "ui_zoom_percent_v1",
   "replyModel",
@@ -29,6 +31,7 @@ const rendererSettingKeys = new Set([
   "writePanelVisible",
   "articleBrowserBlockingEnabled",
   "highlightAiArticles",
+  "browserDomains",
   "theme"
 ]);
 
@@ -62,6 +65,7 @@ export function getRendererUserSetting(key: string): string | null {
 
 export function saveRendererUserSetting(key: string, value: string): void {
   assertRendererSettingKey(key);
+  if (key === "browserDomains") value = JSON.stringify(parseBrowserDomains(value));
   saveUserSetting(key, value);
 }
 
