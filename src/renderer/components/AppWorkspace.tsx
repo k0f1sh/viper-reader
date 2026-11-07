@@ -56,7 +56,7 @@ export function AppWorkspace({
   if (threadViewMode === "browser" && isArticleBrowserExpanded) {
     return (
       <div className="article-browser-expanded">
-        <ArticleBrowserPane {...articleBrowser} />
+        <ThreadReaderPane {...threadReader} browserContent={<ArticleBrowserPane {...articleBrowser} />} />
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function AppWorkspace({
           <div aria-label="スレタイ一覧とスレ本文の境界" aria-orientation={paneLayout === "horizontal" ? "vertical" : "horizontal"} className="pane-splitter" onMouseDown={paneLayout === "horizontal" ? onStartHorizontalResize : onStartVerticalResize} role="separator" />
           <section className="thread-workspace">
             {threadViewMode === "browser" ? (
-              <ArticleBrowserPane {...articleBrowser} />
+              <ThreadReaderPane {...threadReader} browserContent={<ArticleBrowserPane {...articleBrowser} />} />
             ) : (
               <section className={`thread-content ${showArticlePane ? "has-article-pane" : ""}`} ref={threadContentRef} style={{ "--article-pane-width": `${articlePaneWidth}px` } as React.CSSProperties}>
                 <ThreadReaderPane {...threadReader} />

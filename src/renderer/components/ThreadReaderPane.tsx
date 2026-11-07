@@ -1,11 +1,12 @@
 import { isLocalBoard, canUseThreadPane } from "../../shared/boardPolicy";
 import { Fragment } from "react";
-import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
+import type { ReactNode, FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
 import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
+  browserContent?: ReactNode;
  domainRegistered: boolean; domainSaving: boolean; domainMessage: string; onRegisterDomain: () => void;
   canRunCommandHook: boolean;
   commandHookRunning: boolean;
@@ -50,7 +51,7 @@ type ThreadReaderPaneProps = {
   onToggleWritePanel: () => void;
 };
 
-export function ThreadReaderPane({ domainRegistered, domainSaving, domainMessage, onRegisterDomain,
+export function ThreadReaderPane({ browserContent, domainRegistered, domainSaving, domainMessage, onRegisterDomain,
   canRunCommandHook,
   commandHookRunning,
   onRunCommandHook,
@@ -204,6 +205,7 @@ export function ThreadReaderPane({ domainRegistered, domainSaving, domainMessage
               ) : null}
             </div>
           </div>
+          {browserContent ?? <>
           {hasArticleUpdate ? (
             <div className="id-extraction-bar" role="status">
               <span>記事に更新あり。既存のAIレスは更新前の内容です。更新すると本文を取得し直し、AIレスを置き換えます。書き込みとその番号は保持します。</span>
@@ -352,6 +354,7 @@ export function ThreadReaderPane({ domainRegistered, domainSaving, domainMessage
               {postError && <div className="write-error-msg">{postError}</div>}
             </form>
           ) : null}
+          </>}
         </section>
       ) : (
         <div className="empty-state">スレッドがありません。板を選んで更新するか、自由板でスレを立ててください。</div>

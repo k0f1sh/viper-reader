@@ -2931,3 +2931,7 @@ body.is-article-pane-resizing * {
   min-width: 0;
   flex-wrap: wrap;
 }
+
+.thread-reader-pane > .article-browser-pane {
+  flex: 1;
+}
