@@ -24,6 +24,8 @@ export class ArticleBrowserController {
   private pendingRequest: ShowArticleBrowserRequest | null = null;
   private isVisible = false;
   private resetHistoryAfterLoad = false;
+  private loadGeneration = 0;
+  private awaitingPage = false;
   private loadedThreadId: string | null = null;
 
   constructor(
@@ -53,6 +55,11 @@ export class ArticleBrowserController {
     const safeUrl = parseInternalArticleUrl(request.url, this.screenshotMode);
     const isSameThread = this.state.threadId === request.threadId;
     this.isVisible = true;
+    if (!isSameThread) {
+      this.loadGeneration += 1;
+      this.awaitingPage = true;
+      this.hideNativeView();
+    }
     this.state = {
       ...this.state,
       threadId: request.threadId,
@@ -71,7 +78,7 @@ export class ArticleBrowserController {
       return this.state;
     }
 
-    if (isSameThread && this.view?.webContents.getURL()) {
+    if (isSameThread && this.loadedThreadId === request.threadId && this.view?.webContents.getURL()) {
       this.pendingRequest = null;
       this.view.setBounds(bounds);
       this.blocker.syncForUrl(this.view.webContents.getURL());
@@ -198,6 +205,9 @@ export class ArticleBrowserController {
   }
 
   private async load(request: ShowArticleBrowserRequest): Promise<void> {
+    const generation = ++this.loadGeneration;
+    this.awaitingPage = true;
+    this.hideNativeView();
     const view = this.ensureView();
     view.setBounds(clampBounds(request.bounds, this.owner.getContentBounds()));
     this.blocker.syncForUrl(request.url);
@@ -219,8 +229,12 @@ export class ArticleBrowserController {
 
     try {
       await view.webContents.loadURL(request.url);
+      if (generation !== this.loadGeneration) return;
+      this.awaitingPage = false;
+      this.showNativeView();
+      this.sendState();
     } catch (error) {
-      if (this.state.threadId !== request.threadId) {
+      if (generation !== this.loadGeneration) {
         return;
       }
       this.state = {
@@ -398,7 +412,7 @@ export class ArticleBrowserController {
   }
 
   private showNativeView(): void {
-    if (this.view && this.isVisible && !this.state.error) {
+    if (this.view && this.isVisible && !this.awaitingPage && !this.state.error) {
       this.view.setVisible(true);
     }
   }
