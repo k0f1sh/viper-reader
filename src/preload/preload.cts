@@ -67,6 +67,7 @@ export type ViperReaderApi = {
   retryArticleBrowserBlocker: () => Promise<ArticleBrowserState>;
   getArticleBrowserState: () => Promise<ArticleBrowserState>;
   onArticleBrowserState: (callback: (state: ArticleBrowserState) => void) => () => void;
+  onArticleBrowserNavigateThread: (callback: (key: "j" | "k") => void) => () => void;
   onToggleArticleBrowserExpanded: (callback: () => void) => () => void;
   regenerateThreadTitle: (threadId: string) => Promise<ThreadDetail | null>;
   generateThreadResponses: (threadId: string, force: boolean) => Promise<ThreadGenerationStartResult>;
@@ -157,6 +158,13 @@ const api: ViperReaderApi = {
     const listener = (_event: Electron.IpcRendererEvent, state: ArticleBrowserState) => callback(state);
     ipcRenderer.on("article-browser:state", listener);
     return () => ipcRenderer.removeListener("article-browser:state", listener);
+  },
+  onArticleBrowserNavigateThread: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, key: unknown) => {
+      if (key === "j" || key === "k") callback(key);
+    };
+    ipcRenderer.on("article-browser:navigate-thread", listener);
+    return () => ipcRenderer.removeListener("article-browser:navigate-thread", listener);
   },
   onToggleArticleBrowserExpanded: (callback) => {
     const listener = () => callback();

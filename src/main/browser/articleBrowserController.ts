@@ -23,6 +23,7 @@ export class ArticleBrowserController {
   private state: ArticleBrowserState;
   private pendingRequest: ShowArticleBrowserRequest | null = null;
   private isVisible = false;
+  private isAttached = false;
   private resetHistoryAfterLoad = false;
   private loadGeneration = 0;
   private awaitingPage = false;
@@ -199,7 +200,8 @@ export class ArticleBrowserController {
     if (!this.view) {
       return;
     }
-    this.owner.contentView.removeChildView(this.view);
+    if (this.isAttached) this.owner.contentView.removeChildView(this.view);
+    this.isAttached = false;
     this.view.webContents.close();
     this.view = null;
   }
@@ -266,10 +268,13 @@ export class ArticleBrowserController {
     });
     view.setBackgroundColor("#ffffff");
     view.setVisible(false);
-    this.owner.contentView.addChildView(view);
     this.view = view;
 
     const contents = view.webContents;
+    // Loading pages can acquire focus even after their native view is hidden.
+    contents.on("focus", () => {
+      if (!this.isVisible || this.awaitingPage || this.state.error) this.focusOwner();
+    });
     contents.on("before-input-event", (event, input) => {
       const key = input.key.toLowerCase();
       const hasNoModifiers =
@@ -284,9 +289,7 @@ export class ArticleBrowserController {
       if (input.type === "keyDown" && hasNoModifiers && (key === "j" || key === "k")) {
         event.preventDefault();
         this.focusOwner();
-        const keyCode = key === "j" ? "J" : "K";
-        this.owner.webContents.sendInputEvent({ type: "keyDown", keyCode });
-        this.owner.webContents.sendInputEvent({ type: "keyUp", keyCode });
+        this.owner.webContents.send("article-browser:navigate-thread", key);
         return;
       }
       if (isPlainKeyDown && (key === "n" || key === "p")) {
@@ -413,12 +416,24 @@ export class ArticleBrowserController {
 
   private showNativeView(): void {
     if (this.view && this.isVisible && !this.awaitingPage && !this.state.error) {
+      const ownerHadFocus = this.owner.webContents.isFocused();
+      if (!this.isAttached) {
+        this.owner.contentView.addChildView(this.view);
+        this.isAttached = true;
+      }
       this.view.setVisible(true);
+      if (ownerHadFocus) this.focusOwner();
     }
   }
 
   private hideNativeView(): void {
+    const hadFocus = this.view?.webContents.isFocused() ?? false;
     this.view?.setVisible(false);
+    if (this.view && this.isAttached) {
+      this.owner.contentView.removeChildView(this.view);
+      this.isAttached = false;
+    }
+    if (hadFocus) this.focusOwner();
   }
 
   private focusOwner(): void {

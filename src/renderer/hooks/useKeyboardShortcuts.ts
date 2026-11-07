@@ -180,6 +180,12 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const unsubscribe = window.viperReader?.onArticleBrowserNavigateThread((key) => {
+      handleKeyDown(new KeyboardEvent("keydown", { key }));
+    });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      unsubscribe?.();
+    };
   }, []);
 }
