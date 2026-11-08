@@ -38,7 +38,7 @@ export function ShareThreadButton({ thread }: { thread: ThreadDetail }) {
           ? "レス生成後にコピーできます"
           : !canCopy ? "元記事URLがないためコピーできません" : "元記事タイトル・URL・レス2の要約をコピー"}
       >
-        {status === "copied" ? "コピーしました" : status === "copying" ? "コピー中..." : "共有用にコピー"}
+        {status === "copied" ? "コピー完了" : status === "copying" ? "コピー中..." : "要約をコピー"}
       </button>
       <span role="status">
         {status === "error" ? " コピーに失敗しました。再度お試しください。" : ""}

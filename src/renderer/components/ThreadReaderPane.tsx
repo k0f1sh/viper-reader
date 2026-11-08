@@ -127,14 +127,8 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions">
-              <ShareThreadButton key={selectedThread.id} thread={selectedThread} />
-              {selectedThread.url?.match(/^https?:\/\//) && <button className="deep-dive-button" disabled={domainRegistered || domainSaving} onClick={onRegisterDomain}>{domainRegistered ? "内蔵ブラウザの初期表示対象に追加済み" : "このサイトを内蔵ブラウザの初期表示対象に追加"}</button>}
-              {domainMessage && <span role="status">{domainMessage}</span>}
-              <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
-                {commandHookRunning ? "フック実行中..." : "フック実行"}
-              </button>
-              {selectedThread.url ? <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button">
-                元記事
+              {selectedThread.url ? <button className="deep-dive-button" onClick={onShowArticleBrowser} type="button" title="元記事を内蔵ブラウザで開く">
+                内蔵ブラウザで開く
               </button> : null}
               {canUsePane ? (
                 <button
@@ -142,7 +136,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                   onClick={onToggleArticlePane}
                   type="button"
                 >
-                  {isArticlePaneVisible ? "記事本文を閉じる" : "記事本文"}
+                  {isArticlePaneVisible ? "本文を隠す" : "本文を表示"}
                 </button>
               ) : null}
               {canUsePane ? (
@@ -153,7 +147,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                   aria-expanded={isWritePanelVisible}
                   aria-controls="write-panel"
                 >
-                  {isWritePanelVisible ? "書き込み欄を隠す" : "書き込み欄を表示"}
+                  {isWritePanelVisible ? "書込欄を隠す" : "書込欄を表示"}
                 </button>
               ) : null}
               <button
@@ -162,28 +156,9 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                 type="button"
                 title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
               >
-                {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り"}
+                {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り登録"}
               </button>
-              {!isLocal && !skipTitleConversion ? (
-                <button
-                  className="deep-dive-button"
-                  onClick={onRegenerateThreadTitle}
-                  disabled={isRegeneratingTitle}
-                  type="button"
-                  title="このスレだけスレタイを再生成"
-                >
-                  {isRegeneratingTitle ? "スレタイ生成中..." : "スレタイ再生成"}
-                </button>
-              ) : null}
-              <button
-                className="deep-dive-button"
-                onClick={onDeleteContent}
-                disabled={isDeletingContent || isWritePanelBusy}
-                type="button"
-                title={isLocal ? "このスレを本文・全レスごと物理削除" : "記事本文のキャッシュと、このスレの書き込みを物理削除"}
-              >
-                {isDeletingContent ? "削除中..." : isLocal ? "スレ削除" : "本文・レス削除"}
-              </button>
+              <ShareThreadButton key={selectedThread.id} thread={selectedThread} />
               {!isLocal && selectedThread.posts.length <= 1 ? (
                 <button
                   className="deep-dive-button"
@@ -192,7 +167,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                   type="button"
                   title="生成を開始して、完了を待たずに別の記事へ移動できます"
                 >
-                  {isSelectedThreadGenerating ? "生成中..." : "生成"}
+                  {isSelectedThreadGenerating ? "AIレスを生成中..." : "AIレスを生成"}
                 </button>
               ) : null}
               {!isLocal && selectedThread.posts.length > 1 && !selectedThread.posts.some((post) => post.isUser) ? (
@@ -202,9 +177,34 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                   disabled={isSelectedThreadGenerating}
                   type="button"
                 >
-                  再生成
+                  {isSelectedThreadGenerating ? "AIレスを生成中..." : "AIレスを再生成"}
                 </button>
               ) : null}
+              {!isLocal && !skipTitleConversion ? (
+                <button
+                  className="deep-dive-button"
+                  onClick={onRegenerateThreadTitle}
+                  disabled={isRegeneratingTitle}
+                  type="button"
+                  title="このスレだけスレタイを再生成"
+                >
+                  {isRegeneratingTitle ? "スレタイを生成中..." : "スレタイを再生成"}
+                </button>
+              ) : null}
+              <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="設定した外部コマンドを実行 (t)">
+                {commandHookRunning ? "外部コマンドを実行中..." : "外部コマンドを実行"}
+              </button>
+              {selectedThread.url?.match(/^https?:\/\//) && <button className="deep-dive-button" disabled={domainRegistered || domainSaving} onClick={onRegisterDomain} title="このサイトの記事を内蔵ブラウザで初期表示する" type="button">{domainRegistered ? "元記事表示を優先済み" : domainSaving ? "設定中..." : "元記事表示を優先"}</button>}
+              {domainMessage && <span role="status">{domainMessage}</span>}
+              <button
+                className="deep-dive-button"
+                onClick={onDeleteContent}
+                disabled={isDeletingContent || isWritePanelBusy}
+                type="button"
+                title={isLocal ? "このスレを本文・全レスごと物理削除" : "記事本文のキャッシュと、ユーザーの書き込みを含む全レスを削除"}
+              >
+                {isDeletingContent ? "削除中..." : isLocal ? "スレを削除" : "本文・レスを削除"}
+              </button>
             </div>
           </div>
           {browserContent ?? <>
