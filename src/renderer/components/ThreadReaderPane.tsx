@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import type { ReactNode, FormEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import type { ThreadDetail } from "../../shared/types";
 import { PostBody } from "./PostBody";
+import { ShareThreadButton } from "./ShareThreadButton";
 import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
@@ -126,6 +127,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
               {!isLocal ? <div className="article-tags">タグ: {formatArticleTags(selectedThread.tags)}</div> : null}
             </div>
             <div className="thread-header-actions">
+              <ShareThreadButton key={selectedThread.id} thread={selectedThread} />
               {selectedThread.url?.match(/^https?:\/\//) && <button className="deep-dive-button" disabled={domainRegistered || domainSaving} onClick={onRegisterDomain}>{domainRegistered ? "内蔵ブラウザの初期表示対象に追加済み" : "このサイトを内蔵ブラウザの初期表示対象に追加"}</button>}
               {domainMessage && <span role="status">{domainMessage}</span>}
               <button className="deep-dive-button" type="button" disabled={!canRunCommandHook} onClick={onRunCommandHook} title="外部コマンドフックを実行 (t)">
