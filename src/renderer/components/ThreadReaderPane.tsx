@@ -26,6 +26,7 @@ type ThreadReaderPaneProps = {
   readMarkerNo: number | null;
   extractedPostId: string | null;
   replyBodyRef: RefObject<HTMLTextAreaElement | null>;
+  onToggleLike: () => void;
   onToggleFavorite: () => void;
   onRegenerateThreadTitle: () => void;
   onGenerateResponses: (force?: boolean) => void;
@@ -71,6 +72,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
   extractedPostId,
   replyBodyRef,
   onToggleFavorite,
+  onToggleLike,
   onRegenerateThreadTitle,
   onGenerateResponses,
   onGenerateReplies,
@@ -157,6 +159,9 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
                 title={selectedThread.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
               >
                 {selectedThread.isFavorite ? "★ お気に入り解除" : "☆ お気に入り登録"}
+              </button>
+              <button type="button" className={`deep-dive-button favorite-button ${selectedThread.likedAt ? "is-favorite-active" : ""}`} onClick={onToggleLike} aria-pressed={!!selectedThread.likedAt} title="いいね切替 (v)">
+                {selectedThread.likedAt ? "♥ いいね済み" : "♡ いいね"}
               </button>
               <ShareThreadButton key={selectedThread.id} thread={selectedThread} />
               {!isLocal && selectedThread.posts.length <= 1 ? (

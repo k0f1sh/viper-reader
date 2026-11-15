@@ -26,6 +26,7 @@ type UseKeyboardShortcutsOptions = {
   onRefresh: () => void;
   onGenerateResponses: () => void;
   onGenerateReplies: () => void;
+  onToggleLike: () => void;
   onToggleFavorite: () => void;
   onToggleThreadRead: () => void;
   onToggleThreadView: () => void;
@@ -126,6 +127,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
           { id: "__unread_queue__", select: () => current.onSelectSmartView("unread") },
           { id: "__generated_queue__", select: () => current.onSelectSmartView("generated") },
           { id: "__reviewed_queue__", select: () => current.onSelectSmartView("reviewed") },
+          { id: "__liked_queue__", select: () => current.onSelectSmartView("liked") },
           { id: allFeedsId, select: () => current.onSelectFeed(allFeedsId) },
           ...current.feeds.map((feed) => ({ id: feed.id, select: () => current.onSelectFeed(feed.id) }))
         ].map((target) => [target.id, target]));
@@ -164,6 +166,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
           event.preventDefault();
           current.onFocusWritePanel();
         }
+      } else if (event.key === "v" && !event.shiftKey) {
+        event.preventDefault();
+        if (!event.repeat) current.onToggleLike();
       } else if (event.key === "b") {
         event.preventDefault();
         current.onToggleFavorite();

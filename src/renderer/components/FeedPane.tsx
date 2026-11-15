@@ -176,6 +176,8 @@ export function FeedPane(props: FeedPaneProps) {
         <SmartRow navigationId="__unread_queue__" label="未読" count={props.queueSummary.unreadCount} selected={props.activeSmartView === "unread"} onClick={() => props.onSelectSmartView("unread")} />
         <SmartRow navigationId="__generated_queue__" label="生成済み・未確認" count={props.queueSummary.completedCount} selected={props.activeSmartView === "generated"} onClick={() => props.onSelectSmartView("generated")} />
         <SmartRow navigationId="__reviewed_queue__" label="生成済み・確認済み" selected={props.activeSmartView === "reviewed"} onClick={() => props.onSelectSmartView("reviewed")} />
+        <div className="tree-heading">いいね</div>
+        <SmartRow navigationId="__liked_queue__" label="いいねしたスレ" selected={props.activeSmartView === "liked"} onClick={() => props.onSelectSmartView("liked")} />
         <div
           className={`tree-heading rss-tree-root ${dropTarget?.type === "root" ? "is-drop-inside" : ""}`}
           onDragOver={(event) => { if (draggedNode) { event.preventDefault(); setDropTarget({ type: "root" }); } }}

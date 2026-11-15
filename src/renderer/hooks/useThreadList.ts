@@ -106,6 +106,17 @@ export function useThreadList({
     selectLoadedThread(result.items, undefined, pageSelection);
   }
 
+  async function reloadLiked(nextPage = page, pageSelection?: PageSelection) {
+    if (!window.viperReader) return;
+    const requestId = ++requestIdRef.current;
+    const result = await window.viperReader.listLikedThreads(nextPage);
+    if (requestId !== requestIdRef.current) return;
+    setThreads(result.items);
+    setPage(result.page);
+    setTotalCount(result.totalCount);
+    selectLoadedThread(result.items, undefined, pageSelection);
+  }
+
   function reloadSummary(): Promise<void> {
     if (!window.viperReader) return Promise.resolve();
     if (summaryReloadRef.current) return summaryReloadRef.current.promise;
@@ -155,6 +166,7 @@ export function useThreadList({
 
   async function reloadCurrent(preferredThreadId?: string) {
     if (smartViewRef.current === "generated") await reloadGenerated(0);
+    else if (smartViewRef.current === "liked") await reloadLiked(0);
     else if (smartViewRef.current === "reviewed") await reloadReviewed(0);
     else if (selectedFeedIdRef.current) await reloadThreads(selectedFeedIdRef.current, preferredThreadId, 0);
   }
@@ -167,6 +179,7 @@ export function useThreadList({
     }
     setPage(0);
     if (smartView === "generated") void reloadGenerated(0);
+    else if (smartView === "liked") void reloadLiked(0);
     else if (smartView === "reviewed") void reloadReviewed(0);
     else void reloadThreads(selectedFeedId, undefined, 0);
   }, [selectedFeedId, showUnreadOnly, smartView, activeSearchQuery]);
@@ -174,6 +187,7 @@ export function useThreadList({
   function changePage(nextPage: number, pageSelection?: PageSelection) {
     if (!selectedFeedId || nextPage < 0) return;
     if (smartView === "generated") void reloadGenerated(nextPage, false, pageSelection);
+    else if (smartView === "liked") void reloadLiked(nextPage, pageSelection);
     else if (smartView === "reviewed") void reloadReviewed(nextPage, pageSelection);
     else void reloadThreads(selectedFeedId, undefined, nextPage, pageSelection, true);
   }

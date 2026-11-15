@@ -59,6 +59,7 @@ type ThreadRow = {
   raw_summary: string | null;
   response_count: number;
   is_favorite: number;
+  liked_at: string | null;
   generation_status?: ThreadListItem["generationStatus"];
   title_generation_status?: "completed" | "failed" | "skipped" | null;
   posts_json?: string;
@@ -139,6 +140,7 @@ export function listThreads(feedId: string | null, page = 0, pageSize = 100, unr
         fi.read_at,
         fi.last_read_post_no,
         fi.is_favorite,
+        fi.liked_at,
         fi.generation_status,
         fi.content_version,
         fi.generated_content_version,
@@ -396,6 +398,7 @@ function listAllThreads(
       fi.read_at,
       fi.last_read_post_no,
       fi.is_favorite,
+        fi.liked_at,
       fi.generation_status,
       fi.content_version,
       fi.generated_content_version,
@@ -557,6 +560,7 @@ export function getThread(threadId: string): ThreadDetail | null {
         fi.read_at,
         fi.last_read_post_no,
         fi.is_favorite,
+        fi.liked_at,
         fi.generation_status,
         fi.content_version,
         fi.generated_content_version,
@@ -610,6 +614,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       generated_content_version: number;
       last_read_post_no: number;
       is_favorite: number;
+  liked_at: string | null;
       generation_status: ThreadListItem["generationStatus"];
       title_generation_status: "completed" | "failed" | "skipped" | null;
       raw_summary: string | null;
@@ -641,6 +646,7 @@ export function getThread(threadId: string): ThreadDetail | null {
     publishedAt: threadInfoRow.published_at ?? "",
     isRead: threadInfoRow.read_at !== null,
     isFavorite: threadInfoRow.is_favorite === 1,
+    likedAt: threadInfoRow.liked_at,
     contentVersion: threadInfoRow.content_version,
     generatedContentVersion: threadInfoRow.generated_content_version,
     generationStatus: threadInfoRow.generation_status,
@@ -719,6 +725,7 @@ export function getThread(threadId: string): ThreadDetail | null {
       last_read_post_no: threadInfoRow.last_read_post_no,
       raw_summary: threadInfoRow.raw_summary,
       is_favorite: threadInfoRow.is_favorite,
+      liked_at: threadInfoRow.liked_at,
       content_version: threadInfoRow.content_version,
       generated_content_version: threadInfoRow.generated_content_version,
       generation_status: threadInfoRow.generation_status,
@@ -755,6 +762,7 @@ function rowToThreadListItem(row: ThreadRow): ThreadListItem {
     publishedAt: row.published_at ?? "",
     isRead: row.read_at !== null,
     isFavorite: row.is_favorite === 1,
+    likedAt: row.liked_at,
     responseCount: Number(row.response_count),
     contentVersion: row.content_version,
     generatedContentVersion: row.generated_content_version,
@@ -816,6 +824,17 @@ function normalizeThreadPosts(row: ThreadRow, posts: ThreadPost[], responsePosts
 }
 
 export function listFavoriteThreads(): ThreadListItem[] {
+  return listMarkedThreads("favorite");
+}
+
+export function listLikedThreads(page = 0, pageSize = 100): ThreadListPage {
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const { count } = getDatabase().prepare("SELECT COUNT(*) AS count FROM feed_items WHERE liked_at IS NOT NULL").get() as { count: number };
+  const safePage = Math.min(Math.max(0, Math.floor(page)), Math.max(0, Math.ceil(Number(count) / safePageSize) - 1));
+  return { items: listMarkedThreads("liked", safePageSize, safePage * safePageSize), totalCount: Number(count), page: safePage, pageSize: safePageSize };
+}
+
+function listMarkedThreads(mode: "favorite" | "liked", limit = -1, offset = 0): ThreadListItem[] {
   const db = getDatabase();
   const activeModel = getActiveModel();
   const titleModel = getTitleGenerationModel();
@@ -837,6 +856,7 @@ export function listFavoriteThreads(): ThreadListItem[] {
         fi.published_at,
         fi.read_at,
         fi.is_favorite,
+        fi.liked_at,
         fi.generation_status,
         fi.content_version,
         fi.generated_content_version,
@@ -872,8 +892,9 @@ export function listFavoriteThreads(): ThreadListItem[] {
         ON response_ts.feed_item_id = fi.id
         AND response_ts.model = ?
         AND response_ts.prompt_hash = (? || ':' || COALESCE(frp.prompt_hash, ?))
-      WHERE fi.is_favorite = 1
-      ORDER BY fi.updated_at DESC, COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
+      WHERE ${mode === "liked" ? "fi.liked_at IS NOT NULL" : "fi.is_favorite = 1"}
+      ORDER BY ${mode === "liked" ? "fi.liked_at" : "fi.updated_at"} DESC, COALESCE(fi.published_at, fi.created_at) DESC, fi.created_at DESC, fi.id DESC
+      LIMIT ? OFFSET ?
       `
     )
     .all(
@@ -889,7 +910,8 @@ export function listFavoriteThreads(): ThreadListItem[] {
       rssSummaryPromptHash,
       activeModel,
       threadResponsePromptHash,
-      defaultResidentPromptHash
+      defaultResidentPromptHash,
+      limit, offset
     ) as ThreadRow[];
 
   return rows.map(rowToThreadListItem);

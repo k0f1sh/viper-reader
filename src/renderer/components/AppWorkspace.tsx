@@ -101,6 +101,7 @@ export function AppWorkspace({
         <span><kbd>w</kbd> 書き込み</span>
         <span><kbd>r</kbd>/<kbd>y</kbd> 更新</span>
         <span><kbd>b</kbd> お気に入り</span>
+        <span><kbd>v</kbd> いいね</span>
         <span><kbd>U</kbd> 既読切替</span>
       </footer>
     </>

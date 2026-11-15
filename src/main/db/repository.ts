@@ -59,6 +59,7 @@ export {
   markThreadRead,
   markThreadPostsRead,
   setThreadFavorite,
+  setThreadLiked,
   setThreadRead
 } from "./threadStateRepository.js";
 export {
@@ -91,6 +92,7 @@ export {
   getReadingQueueSummary,
   getThread,
   listFavoriteThreads,
+  listLikedThreads,
   listGeneratedQueue,
   listThreads,
   searchThreads

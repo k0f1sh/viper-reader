@@ -37,6 +37,7 @@ function migrate(db: DatabaseSync): void {
   addColumnIfMissing(db, "feed_items", "read_at", "TEXT");
   const addedLastReadPostNo = addColumnIfMissing(db, "feed_items", "last_read_post_no", "INTEGER NOT NULL DEFAULT 0");
   const addedLatestPostNo = addColumnIfMissing(db, "feed_items", "latest_post_no", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "feed_items", "liked_at", "TEXT");
   addColumnIfMissing(db, "feed_items", "is_favorite", "INTEGER DEFAULT 0");
   addColumnIfMissing(db, "feed_items", "canonical_url", "TEXT");
   addColumnIfMissing(db, "feed_items", "source_url", "TEXT");

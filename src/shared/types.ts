@@ -73,6 +73,7 @@ export type ThreadListItem = {
   responseCount: number;
   isRead: boolean;
   isFavorite: boolean;
+  likedAt: string | null;
   contentVersion: number;
   generatedContentVersion: number;
   generationStatus: "queued" | "generating" | "completed" | "failed" | null;
@@ -94,7 +95,7 @@ export type ReadingQueueSummary = {
   reviewedCount: number;
 };
 
-export type SmartView = "unread" | "generated" | "reviewed";
+export type SmartView = "unread" | "generated" | "reviewed" | "liked";
 
 export type ThreadDetail = ThreadListItem & {
   posts: ThreadPost[];

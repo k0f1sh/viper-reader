@@ -332,6 +332,7 @@ export function App() {
     onRefresh: () => void refreshSelectedFeed(),
     onGenerateResponses: () => void generateResponses(false),
     onGenerateReplies: () => void handleGenerateReplies(),
+    onToggleLike: () => void toggleLike(),
     onToggleFavorite: () => void toggleFavorite(),
     onToggleThreadRead: () => void toggleSelectedThreadRead(),
     onToggleThreadView: () => {
@@ -632,6 +633,22 @@ export function App() {
     }
   }
 
+  const likePending = useRef(false);
+  async function toggleLike() {
+    if (!selectedThread || !window.viperReader || likePending.current) return;
+    const id = selectedThread.id;
+    likePending.current = true;
+    try {
+      const likedAt = await window.viperReader.setThreadLiked(id, !selectedThread.likedAt);
+      setSelectedThread(current => current?.id === id ? { ...current, likedAt } : current);
+      setThreadList(items => items.map(item => item.id === id ? { ...item, likedAt } : item));
+      setFavoriteThreads(items => items.map(item => item.id === id ? { ...item, likedAt } : item));
+      if (smartViewRef.current === "liked") await reloadCurrentThreadList();
+    } catch {
+      window.alert("いいねの保存に失敗しました。");
+    } finally { likePending.current = false; }
+  }
+
   async function toggleFavorite() {
     if (!selectedThread || !window.viperReader) return;
     const threadId = selectedThread.id;
@@ -765,6 +782,7 @@ export function App() {
     readMarkerNo,
     extractedPostId,
     replyBodyRef,
+    onToggleLike: () => void toggleLike(),
     onToggleFavorite: () => void toggleFavorite(),
     onRegenerateThreadTitle: () => void regenerateSelectedThreadTitle(),
     onGenerateResponses: (force = false) => void generateResponses(force),

@@ -22,7 +22,9 @@ import {
   getReadingQueueSummary,
   countAllUnreadArticles,
   setThreadFavorite,
+  setThreadLiked,
   listFavoriteThreads,
+  listLikedThreads,
   setThreadRead,
   markThreadPostsRead,
   markThreadGenerationReviewed
@@ -389,6 +391,15 @@ ipcMain.handle("threads:toggle-favorite", (_event, threadId: string, isFavorite:
   assertIdentifier(threadId, "thread ID");
   assertBoolean(isFavorite, "favorite flag");
   return setThreadFavorite(threadId, isFavorite);
+});
+ipcMain.handle("threads:set-liked", (_event, threadId: string, isLiked: boolean) => {
+  assertIdentifier(threadId, "thread ID");
+  assertBoolean(isLiked, "liked flag");
+  return setThreadLiked(threadId, isLiked);
+});
+ipcMain.handle("threads:list-liked", (_event, page: number) => {
+  assertPage(page);
+  return listLikedThreads(page);
 });
 ipcMain.handle("threads:list-favorites", () => listFavoriteThreads());
 ipcMain.handle("threads:set-read", (_event, threadId: string, isRead: boolean) => {

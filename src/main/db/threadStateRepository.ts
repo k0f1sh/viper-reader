@@ -54,3 +54,12 @@ function updateThreadReadState(threadId: string, readAt: string | null, preserve
     )
   `).run(readAt, readAt, now, threadId);
 }
+
+export function setThreadLiked(threadId: string, isLiked: boolean): string | null {
+  const row = getDatabase().prepare(`
+    UPDATE feed_items SET liked_at = CASE WHEN ? THEN COALESCE(liked_at, ?) ELSE NULL END,
+    updated_at = ? WHERE id = ? RETURNING liked_at
+  `).get(isLiked ? 1 : 0, new Date().toISOString(), new Date().toISOString(), threadId) as { liked_at: string | null } | undefined;
+  if (!row) throw new Error("Thread not found");
+  return row.liked_at;
+}

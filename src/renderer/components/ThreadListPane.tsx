@@ -118,7 +118,7 @@ export function ThreadListPane({
                 ? "生成済み・未確認"
                 : smartView === "reviewed"
                   ? "生成済み・確認済み"
-                  : "スレタイ一覧"}
+                  : smartView === "liked" ? "いいねしたスレ" : "スレタイ一覧"}
           </div>
           <div className="pane-subtitle">{isLocal ? "記事本文を入力、またはURLを指定してスレ立て" : selectedFeed?.url ?? ""}</div>
         </div>
