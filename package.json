@@ -30,6 +30,7 @@
     "@ghostery/adblocker-electron": "^2.18.2",
     "@google/genai": "^2.13.0",
     "@mozilla/readability": "^0.6.0",
+    "biwascheme": "0.8.3",
     "cheerio": "^1.0.0",
     "dotenv": "^17.4.2",
     "jsdom": "^29.1.1",
@@ -63,9 +64,14 @@
     },
     "files": [
       "dist/**/*",
+      "assets/standard-article.scm",
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "licenses/BiwaScheme.txt",
+        "to": "licenses/BiwaScheme.txt"
+      },
       {
         "from": "assets/icon.png",
         "to": "icon.png"

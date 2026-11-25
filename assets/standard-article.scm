@@ -1,0 +1,5 @@
+(define-article-fetcher (item)
+  (let* ((page (http-get (item-url item)))
+         (html (response-text page))
+         (url  (response-url page)))
+    (article-result (extract-article-text html url))))
