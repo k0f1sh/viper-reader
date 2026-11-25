@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   ArticleBrowserBounds,
   ArticleBrowserState,
@@ -6,6 +6,7 @@ import type {
 } from "../../shared/types";
 
 type ArticleBrowserPaneProps = {
+  articleInfoButton?: ReactNode;
   selectedThread: ThreadDetail | null;
   isActive: boolean;
   isSuspended: boolean;
@@ -26,6 +27,7 @@ const initialState: ArticleBrowserState = {
 };
 
 export function ArticleBrowserPane({
+  articleInfoButton,
   selectedThread,
   isActive,
   isSuspended,
@@ -64,11 +66,12 @@ export function ArticleBrowserPane({
         threadId: selectedThread.id,
         url: selectedThread.url,
         bounds,
+        focusOnShow: isExpanded,
         allowUnprotected
       }).then(setBrowserState);
     });
     return () => cancelAnimationFrame(frame);
-  }, [isActive, isSuspended, selectedThread?.id, selectedThread?.url, allowUnprotected]);
+  }, [isActive, isSuspended, selectedThread?.id, selectedThread?.url, allowUnprotected, isExpanded]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -162,6 +165,7 @@ export function ArticleBrowserPane({
         >
           外部で開く
         </button>
+        {articleInfoButton}
       </div>
 
       {browserState.error && !showProtectionGate ? (

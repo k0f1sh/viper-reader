@@ -379,6 +379,10 @@ body.is-article-pane-resizing * {
   background: #efeffc;
 }
 
+.thread-header[hidden] {
+  display: none;
+}
+
 .article-browser-toolbar {
   display: flex;
   flex: 0 0 auto;

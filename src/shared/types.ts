@@ -137,6 +137,7 @@ export type ShowArticleBrowserRequest = {
   url: string;
   bounds: ArticleBrowserBounds;
   allowUnprotected: boolean;
+  focusOnShow?: boolean;
 };
 
 export type RefreshFeedResult = {

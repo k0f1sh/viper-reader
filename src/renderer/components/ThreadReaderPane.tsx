@@ -7,6 +7,7 @@ import { ShareThreadButton } from "./ShareThreadButton";
 import { formatArticleTags } from "../../shared/articleTags";
 
 type ThreadReaderPaneProps = {
+  showHeader?: boolean;
   browserContent?: ReactNode;
  domainRegistered: boolean; domainSaving: boolean; domainMessage: string; onRegisterDomain: () => void;
   canRunCommandHook: boolean;
@@ -53,7 +54,7 @@ type ThreadReaderPaneProps = {
   onToggleWritePanel: () => void;
 };
 
-export function ThreadReaderPane({ browserContent, domainRegistered, domainSaving, domainMessage, onRegisterDomain,
+export function ThreadReaderPane({ showHeader = true, browserContent, domainRegistered, domainSaving, domainMessage, onRegisterDomain,
   canRunCommandHook,
   commandHookRunning,
   onRunCommandHook,
@@ -121,7 +122,7 @@ export function ThreadReaderPane({ browserContent, domainRegistered, domainSavin
     <section className="thread-body-pane" aria-label="スレ本文">
       {selectedThread ? (
         <section className="thread-reader-pane" aria-label="スレ本文">
-          <div className="thread-header">
+          <div className="thread-header" id="thread-header" hidden={!showHeader}>
             <div>
               <div className="thread-heading">{selectedThread.threadTitle}</div>
               {!isLocal ? <div className="original-title">元記事: {selectedThread.originalTitle}</div> : null}

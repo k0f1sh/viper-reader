@@ -23,6 +23,7 @@ export class ArticleBrowserController {
   private state: ArticleBrowserState;
   private pendingRequest: ShowArticleBrowserRequest | null = null;
   private isVisible = false;
+  private focusOnShow = false;
   private isAttached = false;
   private resetHistoryAfterLoad = false;
   private loadGeneration = 0;
@@ -55,6 +56,7 @@ export class ArticleBrowserController {
     const bounds = clampBounds(request.bounds, this.owner.getContentBounds());
     const safeUrl = parseInternalArticleUrl(request.url, this.screenshotMode);
     const isSameThread = this.state.threadId === request.threadId;
+    this.focusOnShow = request.focusOnShow === true;
     this.isVisible = true;
     if (!isSameThread) {
       this.loadGeneration += 1;
@@ -111,6 +113,7 @@ export class ArticleBrowserController {
   }
 
   hide(): void {
+    this.focusOnShow = false;
     this.isVisible = false;
     this.hideNativeView();
     this.focusOwner();
@@ -422,7 +425,12 @@ export class ArticleBrowserController {
         this.isAttached = true;
       }
       this.view.setVisible(true);
-      if (ownerHadFocus) this.focusOwner();
+      if (this.focusOnShow) {
+        this.focusOnShow = false;
+        this.view.webContents.focus();
+      } else if (ownerHadFocus) {
+        this.focusOwner();
+      }
     }
   }
 

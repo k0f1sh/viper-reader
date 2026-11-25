@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ComponentProps, MouseEventHandler, RefObject } from "react";
 import { ArticleBodyPane } from "./ArticleBodyPane";
 import { ArticleBrowserPane } from "./ArticleBrowserPane";
@@ -30,6 +31,28 @@ type AppWorkspaceProps = {
   onStartArticlePaneResize: MouseEventHandler<HTMLDivElement>;
 };
 
+function ExpandedArticleBrowser({ articleBrowser, threadReader }: Pick<AppWorkspaceProps, "articleBrowser" | "threadReader">) {
+  const [showHeader, setShowHeader] = useState(false);
+  return (
+    <div className="article-browser-expanded">
+      <ThreadReaderPane
+        {...threadReader}
+        showHeader={showHeader}
+        browserContent={
+          <ArticleBrowserPane
+            {...articleBrowser}
+            articleInfoButton={
+              <button type="button" aria-expanded={showHeader} aria-controls="thread-header" onClick={() => setShowHeader(open => !open)}>
+                記事情報
+              </button>
+            }
+          />
+        }
+      />
+    </div>
+  );
+}
+
 export function AppWorkspace({
   menu,
   feedPane,
@@ -55,9 +78,7 @@ export function AppWorkspace({
 }: AppWorkspaceProps) {
   if (threadViewMode === "browser" && isArticleBrowserExpanded) {
     return (
-      <div className="article-browser-expanded">
-        <ThreadReaderPane {...threadReader} browserContent={<ArticleBrowserPane {...articleBrowser} />} />
-      </div>
+      <ExpandedArticleBrowser articleBrowser={articleBrowser} threadReader={threadReader} />
     );
   }
 

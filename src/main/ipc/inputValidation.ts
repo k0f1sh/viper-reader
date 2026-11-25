@@ -109,5 +109,6 @@ export function assertShowArticleBrowserRequest(
   assertIdentifier(request.threadId, "thread ID");
   assertHttpUrl(request.url, "article URL");
   assertArticleBrowserBounds(request.bounds);
+  if (request.focusOnShow !== undefined) assertBoolean(request.focusOnShow, "browser focus flag");
   assertBoolean(request.allowUnprotected, "unprotected browsing flag");
 }
