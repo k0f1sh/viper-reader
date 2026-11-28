@@ -573,6 +573,7 @@ function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
     event.sender.isDestroyed()
     || !articleBrowserControllers.has(event.sender.id)
     || !event.senderFrame
+    || event.senderFrame !== event.sender.mainFrame
     || !isTrustedRendererUrl(event.senderFrame.url)
   ) {
     throw new Error("Unauthorized IPC request.");

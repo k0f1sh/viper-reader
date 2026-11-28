@@ -1,6 +1,8 @@
 import { ARTICLE_FETCH_USER_AGENT } from "../network/httpIdentity.js";
 import { readResponseText, safeFetch } from "../network/safeFetch.js";
-import { ArticlePage, EmptyArticleError, runArticleFetcher, type ArticleResult } from "./articleFetcher.js";
+import { ArticlePage, type ArticleResult } from "./articleFetcher.js";
+import { EmptyArticleError } from "./extractArticleText.js";
+import type { FetchArticle } from "./articleFetcherSandbox.js";
 import { checkRobotsTxt, type RobotsCheckResult } from "./robotsTxtChecker.js";
 
 export type ScrapingResult = {
@@ -21,7 +23,7 @@ class ArticleFetchError extends Error {
   }
 }
 
-export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> {
+export async function scrapeArticle(targetUrl: string, fetchArticle?: FetchArticle): Promise<ScrapingResult> {
   const startTime = performance.now();
   let contentSize = 0;
   let robotsResult: RobotsCheckResult["reason"] = "fetch_error";
@@ -35,20 +37,22 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
     return result.reason;
   }
 
-  async function getPage(url: string): Promise<ArticlePage> {
+  async function getPage(url: string, signal: AbortSignal): Promise<ArticlePage> {
     try {
-      const parsed = new URL(url);
-      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("HTTP(S) URLが必要です。");
+      signal.throwIfAborted();
       robotsResult = await checkRobots(url);
+      signal.throwIfAborted();
       let finalUrl = url;
       const response = await safeFetch(url, {
         beforeRedirect: async (nextUrl) => {
+          signal.throwIfAborted();
           const reason = await checkRobots(nextUrl.href);
           if (reason !== "allowed") robotsResult = reason;
           finalUrl = nextUrl.href;
         },
         headers: { "User-Agent": ARTICLE_FETCH_USER_AGENT },
-        timeoutMs: 10_000
+        timeoutMs: 10_000,
+        signal
       });
       if (!response.ok) {
         await response.body?.cancel();
@@ -67,7 +71,12 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
     elapsedMs: Math.round(performance.now() - startTime), contentSize, robotsResult
   });
   try {
-    const result = await runArticleFetcher(targetUrl, getPage);
+    const target = URL.parse(targetUrl);
+    if (!target || !["http:", "https:"].includes(target.protocol)) {
+      throw new ArticleFetchError("fetch_failed");
+    }
+    const run = fetchArticle ?? (await import("./articleFetcherSandbox.js")).runStandardArticleFetcher;
+    const result = await run(targetUrl, getPage);
     return {
       success: true, contentText: result.bodyText,
       ...(result.customData && { customData: result.customData }), ...metrics()
@@ -75,7 +84,7 @@ export async function scrapeArticle(targetUrl: string): Promise<ScrapingResult> 
   } catch (error) {
     const reason = error instanceof ArticleFetchError ? error.reason
       : error instanceof EmptyArticleError ? "no_content" : "parse_failed";
-    console.warn(`記事を取得できませんでした: ${targetUrl}`, error);
+    console.warn(`記事を取得できませんでした: ${URL.parse(targetUrl)?.origin ?? ""}`, error instanceof ArticleFetchError ? error.reason : error);
     return { success: false, contentText: "", reason, ...metrics() };
   }
 }

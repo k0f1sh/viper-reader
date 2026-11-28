@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ArticlePage, EmptyArticleError, runArticleFetcher } from "../dist/main/scraper/articleFetcher.js";
+import { ArticlePage, runArticleFetcher } from "./fixtures/article-fetcher.mjs";
+import { EmptyArticleError } from "../dist/main/scraper/extractArticleText.js";
 
 const url = "https://example.org/start";
 const finalUrl = "https://example.org/articles/one";
@@ -22,7 +23,7 @@ test("同じ応答のHTMLと最終URLを使い、JSONの型を保つ", async () 
     (define-article-fetcher (item)
       (let* ((page (http-get (item-url item)))
              (body (extract-article-text (response-text page) (response-url page))))
-        (article-result body (js-obj "html" (response-text page) "url" (response-url page)
+        (article-result body (json-object "html" (response-text page) "url" (response-url page)
                                      "comments" (vector) "flag" #f))))`);
   assert.deepEqual(result.customData, { html, url: finalUrl, comments: [], flag: false });
 });

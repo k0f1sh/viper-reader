@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { promises as dns } from "node:dns";
 import test from "node:test";
 
-const { scrapeArticle } = await import("../dist/main/scraper/articleScraper.js");
+import { runArticleFetcher } from "./fixtures/article-fetcher.mjs";
+
+const { scrapeArticle: scrape } = await import("../dist/main/scraper/articleScraper.js");
+
+const scrapeArticle = url => scrape(url, runArticleFetcher);
 
 const articleHtml = `<!doctype html>
 <html><head><title>Test article</title></head>
