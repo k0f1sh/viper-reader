@@ -42,17 +42,21 @@ export type SafeFetchOptions = {
   beforeRedirect?: (nextUrl: URL) => Promise<void>;
   headers?: HeadersInit;
   timeoutMs: number;
+  signal?: AbortSignal;
 };
 
 export async function safeFetch(
   input: string,
   options: SafeFetchOptions
 ): Promise<Response> {
-  const signal = AbortSignal.timeout(options.timeoutMs);
+  const timeout = AbortSignal.timeout(options.timeoutMs);
+  const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
   let currentUrl = new URL(input);
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+    signal.throwIfAborted();
     const safeAddress = await resolveSafeNetworkAddress(currentUrl);
+    signal.throwIfAborted();
     const dispatcher = new Agent({
       connections: 1,
       pipelining: 0,

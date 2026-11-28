@@ -12,7 +12,7 @@ import { formatBoardDate } from "./boardDate.js";
 import { saveLocalArticleSummaryPost, ensureLocalArticleSummaryPost } from "./localArticleSummaryPost.js";
 import { getUserBoardId } from "./postMessage.js";
 
-export async function createLocalThread(request: CreateLocalThreadRequest): Promise<CreateLocalThreadResult> {
+export async function createLocalThread(request: CreateLocalThreadRequest, fetchArticle = scrapeArticle): Promise<CreateLocalThreadResult> {
   if (!request || typeof request.title !== "string" || !request.title.trim() || request.title.length > 200) {
     throw new Error("タイトルを200文字以内で入力してください。");
   }
@@ -44,7 +44,7 @@ export async function createLocalThread(request: CreateLocalThreadRequest): Prom
       body = cached.content_text;
       summary = cached.summary_text;
     } else {
-      const result = await scrapeArticle(sourceUrl);
+      const result = await fetchArticle(sourceUrl);
       recordArticleFetchLog({ feedItemId: null, url: sourceUrl,
         status: result.success ? "success" : "error", robotsResult: result.robotsResult,
         elapsedMs: result.elapsedMs, contentSize: result.contentSize, errorMessage: result.reason ?? null });
